@@ -11,8 +11,7 @@ notes: Breakdown item 1.
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 Minimum Python follows the Requirements proposal (3.10). The development environment runs 3.13.
 
@@ -60,7 +59,7 @@ Minimum Python follows the Requirements proposal (3.10). The development environ
   `.pytest_cache/`, `build/`, `dist/`, `.venv/`), generated boxes and databases (`*.db`,
   `*.sqlite`, `*.sqlite3`), secrets (`.env`).
 - Verify: `python -m black --check . && python -m mypy caixa && python -m pytest -q`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -72,3 +71,6 @@ Minimum Python follows the Requirements proposal (3.10). The development environ
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-01
+T02 is pure configuration (black, mypy, pytest settings, .gitignore); per bora-tdd the config exception applies, so the Verify command was the gate: black --check clean, mypy strict clean, 2 tests pass.
