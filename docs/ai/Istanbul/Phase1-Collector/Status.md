@@ -6,17 +6,12 @@
 
 Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture
 
-## In progress (1)
+## In progress (0)
 
-- **20261101-01-caixa-repository-foundations** Caixa repository foundations [high] — Breakdown item 1. · plan done · 2/2
-  - checkboxes: 2/6
+_No tickets in progress._
 
-## Blocked (26)
+## Blocked (24)
 
-- **20261101-02-synthetic-fixture-family** Synthetic fixture family [high]
-  - depends on: 20261101-01-caixa-repository-foundations (not yet marked blocked)
-- **20261101-03-chattr-import-and-licensing** Chattr import and licensing [high]
-  - depends on: 20261101-01-caixa-repository-foundations (not yet marked blocked)
 - **20261101-04-chattr-stabilization** Chattr stabilization [high]
   - depends on: 20261101-03-chattr-import-and-licensing (not yet marked blocked)
 - **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high]
@@ -66,15 +61,16 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 - **20261101-27-chattr-serve-web-ui** chattr serve web UI [medium]
   - depends on: 20261101-06-interactive-menu-and-command-line, 20261101-15-html-rendering-from-the-database (not yet marked blocked)
 
-## Up next (0)
+## Up next (2)
 
-_No actionable todo tickets._
+- **20261101-02-synthetic-fixture-family** Synthetic fixture family [high]
+- **20261101-03-chattr-import-and-licensing** Chattr import and licensing [high]
 
-## Recently completed (last 0 of 0)
+## Recently completed (last 1 of 1)
 
-_No completed tickets yet._
+- **20261101-01-caixa-repository-foundations** Caixa repository foundations (closed 2026-11-01)
 
 ## Stats
 
-- Total: 27 tickets · 0 done · 26 todo · 1 in-progress · 0 blocked
+- Total: 27 tickets · 1 done · 26 todo · 0 in-progress · 0 blocked
 - By type: 24 feature · 3 chore
