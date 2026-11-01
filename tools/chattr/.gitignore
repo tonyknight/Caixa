@@ -1,0 +1,21 @@
+# Secrets
+API_Key.env
+.env
+
+# Generated output and working data (may contain personal messages)
+output/
+temp/
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
