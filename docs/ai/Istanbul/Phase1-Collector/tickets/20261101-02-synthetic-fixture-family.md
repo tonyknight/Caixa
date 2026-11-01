@@ -6,14 +6,14 @@ priority: high
 status: todo
 created: 2026-11-01
 updated: 2026-11-01
-closed: null
+closed:
 notes: Breakdown item 2.
-parent: null
+parent:
 depends_on:
 - 20261101-01-caixa-repository-foundations
+- 20261101-03-chattr-import-and-licensing
 subtasks: []
 ---
-
 ## Description
 
 Build a fictional family's synthetic exports for every Phase 1 source, used by all tests. No real data, ever.
@@ -52,3 +52,6 @@ Current task:
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-01
+Now depends on ticket 03: the message-source fixture builders live in Chattr's test tree (tools/chattr/tests/fixtures/, a location named in the Requirements), so standalone Chattr can run its own tests after mirroring; Caixa's tests reuse them. That folder exists only after the Chattr subtree import.
