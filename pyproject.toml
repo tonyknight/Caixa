@@ -25,6 +25,8 @@ include = ["caixa*"]
 [tool.black]
 line-length = 100
 target-version = ["py310"]
+# Chattr is imported as-is; ticket 20261101-04 formats it and removes this exclusion.
+extend-exclude = "tools/chattr"
 
 [tool.mypy]
 python_version = "3.10"

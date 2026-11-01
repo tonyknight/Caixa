@@ -13,7 +13,7 @@ depends_on:
 - 20261101-01-caixa-repository-foundations
 subtasks: []
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 This ticket is import, review and licensing work, with no new production code. Per bora-tdd's
 config/docs exception, each task's Verify command is the gate.
@@ -50,7 +50,7 @@ config/docs exception, each task's Verify command is the gate.
 - `pyproject.toml`: add `extend-exclude = "tools/chattr"` under `[tool.black]` until ticket 04
   formats Chattr (ticket 04 removes it).
 - Verify: `test -f tools/chattr/main.py && git log --oneline -- tools/chattr | grep -c . && test "$(git log -p -- tools/chattr | grep -c 'sk-or-v1-')" = 0 && test "$(git log --name-only --format= -- tools/chattr | grep -cE '\.db$|/\.idea/')" = 0 && python -m pytest -q && python -m black --check .`
-- [ ] done
+- [x] done
 
 ### T02: Review Chattr's iMessage code for imessage-exporter (GPL-3.0) derivation
 
@@ -83,3 +83,6 @@ config/docs exception, each task's Verify command is the gate.
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-01
+T01 verified. Path-limited 'git log -- tools/chattr' only shows the merge commit (Chattr's commits touched paths at its own root), so history was checked on the merge's second parent: a09ccfa^2 = 0152912 with all 8 Chattr commits. Whole-history scans: 0 .db/.idea files; the only 'sk-or-v1-' match is this ticket's own grep pattern (no key). pytest 2 passed; black clean with tools/chattr excluded.
