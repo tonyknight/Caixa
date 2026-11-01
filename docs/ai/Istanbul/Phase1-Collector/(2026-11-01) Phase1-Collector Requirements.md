@@ -8,16 +8,17 @@ hierarchy:
 - Istanbul
 - Phase1-Collector
 last_reviewed: 2026-11-01
-focus: "DRAFT (rev 2, after Chattr 9a42781 review): awaiting maintainer approval. No tickets until approved."
+focus: "DRAFT (rev 3, adds the browser application on DeepSeek Harness): awaiting maintainer approval. No tickets until approved."
 ---
 
 
 # Phase1-Collector Requirements
 
-> **Status: DRAFT, revision 2.** This file records the architecture agreed in design discussion,
-> revised after reviewing Chattr's full history, including the previously uncommitted v2 work
-> (`9a42781`). Tickets are created from the Tasks Breakdown only after the maintainer approves
-> this file.
+> **Status: DRAFT, revision 3.** This file records the architecture agreed in design discussion.
+> Revision 2 recast Chattr from its full history, including the previously uncommitted v2 work
+> (`9a42781`). Revision 3 adds how people run Caixa: a browser application built on DeepSeek
+> Harness, with all conversion in Python. Tickets are created from the Tasks Breakdown only after
+> the maintainer approves this file.
 
 ## Overview
 
@@ -39,6 +40,12 @@ Chattr's own plan already named the next step: define a **unified schema**, then
 **unified SQLite database** (Chattr `docs/database_schema_plan.md`, "Migration Strategy", phases
 2–3). Phase 1 completes that step in the shape Caixa needs.
 
+People run Caixa in a **web browser on their own computer**. `caixa serve` starts DeepSeek
+Harness (`dsh web`) with a Caixa plugin that adds the authoring pages: box, import wizard, jobs,
+people, browse, settings. All conversion and data work happens in Python (`caixa worker`), which
+the plugin runs and talks to directly. Chattr also gets a small Python-only web UI
+(`chattr serve`) for people who use it without Caixa.
+
 ## Goals
 
 1. Agree and document the data architecture: box layout, organizing rules, databases and
@@ -48,17 +55,22 @@ Chattr's own plan already named the next step: define a **unified schema**, then
    date-named, per-person HTML.
 4. Caixa master database schema v0, plus the messages adapter.
 5. A working mirror of Chattr from Caixa to Chattr's repository.
+6. A browser-based authoring application: `caixa serve` + a Caixa plugin for DeepSeek Harness +
+   `caixa worker`, with collectors that register themselves, so new export sources appear without
+   UI work. Plus `chattr serve` for standalone Chattr users.
 
 ## Non-goals
 
 - **Slack** and other further sources (Google Chat/Hangouts, Telegram, …): a later project.
 - Photos and media as their own domain (a separate tool, later project). Message attachments
   *are* in scope.
-- Model, search index, knowledge distillation, training, harness (later projects). This project
-  only makes sure the master schema serves them.
+- Model, search index, knowledge distillation, training, and the heirs' "Ask" experience (later
+  projects). This project only makes sure the master schema and the application serve them.
+- **Heir mode** (`caixa serve --heir`, read-only) and the **Docker image**: a later project,
+  together with the model and "Ask" work. Phase 1 lays the groundwork (`caixa worker --read-only`).
+- A native desktop wrapper (a Sele-style window). The browser is the interface.
 - A standalone `.eml` parser.
 - Importing any other existing tool.
-- A graphical interface beyond Chattr's interactive terminal menu.
 
 ## Architecture
 
@@ -121,7 +133,12 @@ Mail/
 | --- | --- | --- |
 | **Chattr** | `tools/chattr/` (subtree, mirrored to Chattr's repository) | Standalone message converter: parsers → `chattr.sqlite` (+ per-service JSON) → HTML. Never imports Caixa. |
 | **Caixa core** | `caixa/` | Master database (schema, migrations, change log), collector adapters, CLI. |
-| **Messages adapter** | `caixa/collectors/messages.py` | Runs Chattr into `.caixa/work/chattr/`, `ATTACH`es `chattr.sqlite`, upserts into the master, exports `aliases.json`. |
+| **Messages adapter** | `caixa/collectors/messages.py` | Runs Chattr into `.caixa/work/chattr/`, `ATTACH`es `chattr.sqlite`, upserts into the master, exports `aliases.json`. Registers Chattr's six sources as collectors. |
+| **Collector registry** | `caixa/collectors/` | The collector contract; discovery through the `caixa.collectors` Python entry-point group. |
+| **Caixa worker** | `caixa/` (`caixa worker`) | The Python service layer behind the UI and the CLI: JSON-RPC over stdio; box, collectors, imports, jobs, people, browse, settings; `--read-only`. |
+| **Caixa harness plugin** | `harness/` | A DeepSeek Harness bundle (TypeScript, React 18). Its host half supervises `caixa worker` and exposes owner-only `/api/caixa/*` routes; its browser half provides the authoring pages. |
+| **Launcher** | `caixa/` (`caixa serve`) | Checks Node, prepares Caixa's own DeepSeek Harness home with a pinned version and a privacy patch, starts `dsh web`, opens the browser. |
+| **Chattr web UI** | `tools/chattr/` (`chattr serve`) | Small Python-only browser UI for standalone Chattr users (Jinja2 + htmx). |
 | **Mirror workflow** | `.github/workflows/mirror-chattr.yml` | On push to the default branch: `git subtree split --prefix=tools/chattr` → push to Chattr's repository (fast-forward). |
 | **Fixtures** | `tests/fixtures/`, `tools/chattr/tests/fixtures/` | Synthetic fixture family: no real data, ever. |
 
@@ -237,6 +254,131 @@ version, import ID.
 4. It appends to the change log.
 5. It reports unresolved handles for a human to link.
 6. Linking a handle re-runs rendering for the affected pages.
+
+### Application: how people run Caixa
+
+People author their box in a **web browser on their own computer**. The interface is built on
+**DeepSeek Harness** (`dsh web`; MIT; plugin-based). All conversion and data work stays in
+**Python**.
+
+```
+caixa serve  (Python launcher)
+ ├─ starts: dsh web --host 127.0.0.1 --port N --patch caixa.patch.yml   (Caixa's own DSH home, pinned dsh)
+ │    └─ Caixa harness plugin (harness/, TypeScript)
+ │         ├─ host half:    runs `caixa worker` (Python) and talks to it over stdio JSON-RPC
+ │         │                registers owner-only routes /api/caixa/* (+ streaming job progress)
+ │         └─ browser half: sidebar icon → Caixa pages; a Settings section; toasts
+ └─ opens the browser at the 127.0.0.1 token URL
+caixa worker (Python): collectors (Chattr …), master DB, jobs, people, box operations
+```
+
+**What DeepSeek Harness provides.** Findings from its source, commit `ce7073d`, version
+`0.2.2-alpha.2`:
+- **Full pages from a plugin.** A React 18 component goes in the `main` slot, with a
+  `sidebar.panellist` icon. This is how the built-in Schedule page works
+  (`packages/client/ui-schedule/src/client/index.ts`).
+- **Other UI slots:** `settings.section` (Settings pages), `sidebar.right.pane.tab` (right-hand
+  panels), `shell.overlay` (toasts).
+- **How plugin UI is loaded:** declared with `"dsh": {"client": {...}}` and an exported
+  `./client`, and loaded live by `ctx.clientModules`.
+- **Running Python from a plugin.** A plugin's host side can run a child process with
+  `ctx.subprocess.spawn` and talk to it over stdio, with no extra network port. It exposes that
+  to the browser through **owner-only routes**, `ctx.connection.fetch.register({ path: '/api/caixa/...' })`,
+  protected by DSH's launch token, signed cookie, and `Host`/`Origin` checks. Streaming responses
+  carry job progress.
+- **Pieces for later "Ask" work:** agent tools (`ctx.tools.register`), tool policies
+  (`tools/pre-execute`), and local OpenAI-compatible models (the `llm-pi-ai` custom provider).
+- **Templates to learn from:**
+  - the `dsh-chat-import` plugin (MIT): an importer with pure converters, host routes, agent
+    tools and client UI;
+  - Sele: the rules for launching and supervising `dsh web`;
+  - `dsh-vscode-plugin`: bundling dsh, a dedicated DSH home, patch YAML, and a gateway client.
+    MIT; reuse needs both copyright lines.
+
+**Caixa worker (Python).**
+- One service layer, shared by the CLI (`caixa import …`) and the worker, so everything the UI
+  does can be scripted.
+- JSON-RPC over stdio. Methods:
+  - `box.create`, `box.open`, `box.status`
+  - `collectors.list`
+  - `import.preview`, `import.start`, `import.cancel`
+  - `jobs.list`, plus progress notifications
+  - `people.unresolved`, `people.link`, `people.merge`, `people.rename`
+  - `browse.list`, `browse.file`
+  - `settings.get`, `settings.set`
+- Jobs are kept in a SQLite table in `.caixa/`, so long imports survive restarts.
+- `--read-only` refuses every write method. This is the groundwork for heir mode.
+
+**Collector contract.** New export sources appear in the UI without UI code.
+- **Discovery:** the `caixa.collectors` Python entry-point group. Chattr's adapter registers six
+  collectors.
+- **Each collector declares:**
+  - id, display name, platform;
+  - accepted inputs (zip, folder, file, local database);
+  - **"How to export" instructions** for the platform;
+  - an **options JSON Schema**, seeded from Chattr's `Defaults/Services/*.json` preferences,
+    which the UI renders as a form;
+  - `preview(input, options)`: counts, date range, participants, unresolved handles;
+  - `run(input, options, progress)`.
+
+**Authoring pages** (React 18, following DSH's UI rules: CSS Modules, no Tailwind or component
+libraries, all text in locale files), behind one sidebar icon:
+1. **Box**: create or open a box; dashboard of counts by type, person and year; last imports.
+2. **Import wizard**:
+   1. choose a source;
+   2. read its "how to export" card;
+   3. pick the export with a server-side file picker limited to the user's folders, or drop it in
+      the **inbox folder** the worker watches;
+   4. options form generated from the schema;
+   5. **preview** (dry run);
+   6. run, with live progress;
+   7. result report.
+3. **Jobs and logs**: running and finished imports; cancel; errors; a toast on completion.
+4. **People**: queue of unresolved handles; link, merge, set the canonical name. Changes
+   re-render the affected pages.
+5. **Browse**: the box's generated pages, served through `/api/caixa/box/*`.
+6. **Settings section**: box location, local model endpoints (translation, speech-to-text),
+   privacy defaults.
+
+**Launcher (`caixa serve`).**
+- **Checks Node 24.9+ first**, and explains how to install it if it's missing or too old.
+- **Prepares Caixa's own DeepSeek Harness home**, never the user's `~/.dsh`. It installs the
+  **pinned** dsh version and the Caixa plugin into its `web` profile.
+- **Writes `caixa.patch.yml`:**
+  - **disables `session-log-deepseek` and telemetry upload**;
+  - configures a local OpenAI-compatible provider placeholder;
+  - sets permission defaults.
+
+  It also sets `DSH_TELEMETRY_DISABLED=1`.
+- **Starts `dsh web` following Sele's rules:**
+  - own process group, terminated as a group;
+  - `127.0.0.1` only, ports 3082+ or OS-assigned, never 3080/3081;
+  - reads the token line from stdout, then checks readiness;
+  - saves `{pid, port, tokenURL}` so it can reattach after a crash;
+  - never logs the token URL.
+- **Opens the browser** at the `127.0.0.1` token URL.
+
+**Where it runs (Phase 1):** a native install (`pipx` / `uv tool install`) with Node 24.9+ on the
+system. Native is also what macOS iMessage needs (Full Disk Access to `chat.db`), and what fast
+local speech-to-text needs (Apple GPU acceleration isn't available inside Docker on macOS). Heir
+mode and a Docker image come in a later project.
+
+**Chattr's own web UI (`chattr serve`).** Python only (Jinja2 + htmx), reusing Chattr's templates
+and Nord theme; no Node or DeepSeek Harness. Screens: choose a service, point to the export, set
+options (from `Services/*.json`), run with progress, open the output. It calls the same Chattr
+library functions as the CLI, the terminal menu and the Caixa worker.
+
+**Constraints and safeguards:**
+- **Pre-stable plugin interfaces.** DSH warns of "compatibility-breaking changes", and slots can
+  be renamed without aliases. Pin an exact dsh version plus `engines.dsh`, and upgrade
+  deliberately using DSH's `docs/upgrade-guide/`.
+- **The client build preset isn't published.** The plugin's browser bundle needs a "lazy-CJS
+  factory" format whose build preset (`packages/client/tsdown.client.ts`) isn't published, so
+  `harness/` reproduces it.
+- **One owner, no roles in DSH.** Read-only access for heirs, later, must be enforced in
+  `caixa worker`, not by DSH's agent permission presets.
+- **The Python worker is never exposed to the browser directly.** It is reachable only through
+  `/api/caixa/*`, so DSH's authentication and `Origin` checks apply.
 
 ### Chattr: history, current state and decisions
 
@@ -411,6 +553,27 @@ Not built in this project, but the master schema must support it:
 - **F14:** the messages adapter performs the Caixa import/update flow and exports `aliases.json`.
 - **F15:** the mirror workflow pushes `tools/chattr` history to Chattr's repository as a
   fast-forward.
+- **F16:** collector contract and registry: collectors are discovered through the
+  `caixa.collectors` entry-point group, and each declares inputs, "how to export" instructions,
+  an options JSON Schema, `preview` and `run`.
+- **F17:** `caixa worker` exposes the service layer over stdio JSON-RPC (box, collectors, import,
+  jobs, people, browse, settings), with progress notifications. `--read-only` refuses every
+  write.
+- **F18:** the Caixa harness plugin (`harness/`) supervises `caixa worker` and registers
+  owner-only `/api/caixa/*` routes, including a streaming route for job progress.
+- **F19:** authoring pages in DeepSeek Harness: box dashboard; import wizard (source → "how to
+  export" → input via file picker or inbox → options form → preview → run → report); jobs and
+  logs; people; browse; a Settings section.
+- **F20:** `caixa serve`:
+  - checks Node 24.9+;
+  - prepares Caixa's own DSH home with the pinned dsh and the plugin;
+  - writes the privacy patch;
+  - starts and supervises `dsh web` by Sele's rules, and reattaches after a crash;
+  - opens the browser.
+- **F21:** the CLI and the browser use the same service layer; every UI action has a CLI
+  equivalent.
+- **F22:** `chattr serve`: Chattr's small Python-only web UI (service, export, options, run with
+  progress, open the output).
 
 **Non-functional:**
 - **N1:** Chattr runs without Caixa installed.
@@ -421,6 +584,13 @@ Not built in this project, but the master schema must support it:
 - **N4:** no real personal data or secrets in either repository. Fixtures are synthetic, and
   `.gitignore` covers output, databases, secrets and IDE files.
 - **N5:** all times are stored as UTC + offset + precision.
+- **N6:** the application listens on `127.0.0.1` only. The Python worker has no network listener
+  and is reachable only through DSH's authenticated `/api/caixa/*` routes.
+- **N7:** DeepSeek Harness's session-log upload and telemetry are disabled in Caixa's profile.
+  Archive content never leaves the machine through the harness.
+- **N8:** an exact DeepSeek Harness version is pinned (plus `engines.dsh` in the plugin), and
+  upgrades are deliberate.
+- **N9:** native installs require Node 24.9+ on the system; `caixa serve` checks it.
 
 ## Acceptance criteria
 
@@ -445,6 +615,19 @@ Not built in this project, but the master schema must support it:
 - The standalone `chattr` command works in an environment without Caixa.
 - An edit under `tools/chattr/` appears in Chattr's repository through the mirror, as a
   fast-forward commit.
+- Importing each source fixture through the browser wizard gives the same database rows and
+  files as importing it with the CLI.
+- A new collector package, once installed, appears in the import wizard with its form and "how to
+  export" card, with no UI change.
+- `caixa worker --read-only` rejects every write method.
+- Requests to `/api/caixa/*` without DSH's session cookie, or with a foreign `Origin`, are
+  rejected.
+- With outbound network blocked, a full import through the browser completes, and no request
+  leaves the machine.
+- `caixa serve` refuses to start with a clear message when Node is older than 24.9, and
+  reattaches to its running harness after its own process is killed.
+- `chattr serve` converts a fixture in a browser, in an environment without Caixa, Node or
+  DeepSeek Harness.
 
 ## Testing requirements
 
@@ -459,6 +642,10 @@ Not built in this project, but the master schema must support it:
 - macOS-only access (a live `~/Library/Messages/chat.db`) is never needed by tests. iMessage
   tests use a synthetic `chat.db` built by a fixture script. Speech-to-text tests use a tiny local
   model or a stub behind the same interface.
+- **Harness plugin:** `pnpm --dir harness test` (vitest, matching DeepSeek Harness's own
+  tooling).
+- **Worker protocol:** a pytest suite drives `caixa worker` over stdio (including `--read-only`)
+  without a browser.
 
 ## Commit criteria
 
@@ -552,6 +739,34 @@ Proposed. Each item becomes a ticket after approval; dependencies are in bracket
 19. **Mirror workflow**: `.github/workflows/mirror-chattr.yml`, the write-token secret, the
     "Developed in Caixa" banner in Chattr's README. [3]
 
+**Application:**
+
+20. **Collector contract + registry**: entry-point discovery, metadata, "how to export"
+    instructions, options JSON Schema (seeded from Chattr's `Defaults/Services/*.json`),
+    `preview`/`run`; Chattr's six sources registered. [5, 18]
+21. **Caixa service layer + `caixa worker`**: stdio JSON-RPC, SQLite jobs table with progress
+    notifications, inbox folder watching, `--read-only`; the CLI on the same layer; the
+    worker-protocol test suite. [20]
+22. **Harness plugin skeleton** (`harness/`):
+    - pinned dsh + `engines.dsh`;
+    - reproduced client build preset;
+    - host service supervising `caixa worker`;
+    - owner-only `/api/caixa/*` routes + a streaming progress route;
+    - sidebar icon with an empty Caixa page;
+    - vitest.
+
+    [21]
+23. **`caixa serve` launcher**: Node 24.9+ check, Caixa's own DSH home, plugin install, privacy
+    patch (session-log upload and telemetry off), Sele's launch rules, reattach. [22]
+24. **Import wizard + jobs pages**: source list, "how to export" cards, file picker and inbox,
+    generated options forms, preview, run with live progress, result report, jobs and logs,
+    toasts. [22, 23]
+25. **People page**: unresolved handles; link, merge, rename; re-render the affected pages.
+    [14, 24]
+26. **Browse page + Settings section**: generated pages served through `/api/caixa/box/*`; box
+    location, local model endpoints, privacy defaults. [24]
+27. **`chattr serve`**: Chattr's Python-only web UI (Jinja2 + htmx). [6, 15]
+
 ## Risks and assumptions
 
 - **The exposed OpenRouter key** must be revoked. Purging the history doesn't un-leak it, and
@@ -567,6 +782,18 @@ Proposed. Each item becomes a ticket after approval; dependencies are in bracket
 - **The mirror needs a write token** for Chattr's repository, stored as a GitHub secret. The
   maintainer must create it.
 - **The privacy purge rewrote Chattr's history.** Existing clones must be re-cloned.
+- **DeepSeek Harness is a pre-stable developer preview.** Plugin interfaces and slot names change
+  without aliases; pinning and deliberate upgrades limit the damage, but each upgrade can cost
+  rework in `harness/`.
+- **DSH's client build preset is unpublished.** Reproducing the bundle format outside its
+  monorepo may break when DSH changes it.
+- **DSH's defaults upload session logs and telemetry.** Caixa's patch must disable them, and the
+  no-network acceptance test guards against regressions.
+- **DSH has a single owner and no roles.** Heir read-only access must be enforced by Caixa, in
+  a later project.
+- **Python environment management is Caixa's job.** DSH doesn't manage Python; `caixa serve`
+  must find and run the right interpreter.
+- **Node 24.9+** is an extra install for native users.
 - **Assumption:** email arrives as MBOX (Gmail Takeout).
 
 ## Open questions
@@ -579,3 +806,9 @@ Proposed. Each item becomes a ticket after approval; dependencies are in bracket
   - which XMP/MWG fields carry people and dates;
   - verifying exiftool's `ImageDataHash` as the identity of media files.
 - Names of later projects on the Istanbul release train (the maintainer decides).
+- Where Caixa's own DeepSeek Harness home lives: inside the box (`.caixa/harness/`) or in a
+  per-user application folder (the maintainer decides the name and location).
+- The inbox folder's name and location (the maintainer decides).
+- Which exact DeepSeek Harness version to pin when ticket 22 starts.
+- Windows support for `caixa serve` (process-tree termination differs; see Sele and
+  `dsh-vscode-plugin`).

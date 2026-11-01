@@ -77,17 +77,24 @@ flow back to Chattr's own repository, so it stays usable on its own.
 - Create **Caixa's master database (schema v0)** and the messages adapter that brings Chattr's
   output into it, linking every message to the people involved.
 - Set up the **mirror** so Chattr changes made in Caixa reach Chattr's repository automatically.
+- Give people a **browser-based way to build their box**. `caixa serve` opens Caixa's authoring
+  pages inside DeepSeek Harness, with all conversion done in Python. New export sources appear in
+  the import wizard automatically as collectors are added. Chattr gets its own small web UI
+  (`chattr serve`) for standalone use.
 
 ## Non-goals
 
 - Slack and other further message sources (Google Chat/Hangouts, Telegram, …): a later project.
 - Photos and other media as their own domain. These are handled by a separate kind of tool in a
   later project. Message attachments are in scope.
-- The personal model, the search index, knowledge distillation, training, and the browser
-  harness. Later projects on the Istanbul train; this project only shapes the data they need.
+- The personal model, the search index, knowledge distillation, training, and the heirs' "Ask"
+  experience. Later projects on the Istanbul train; this project only shapes the data and the
+  application they need.
+- Heir mode (a read-only `caixa serve`) and a Docker image: a later project, together with the
+  model and "Ask" work.
+- A native desktop app wrapper. The browser is the interface.
 - A standalone `.eml` email parser. MBOX first; `.eml` only if needed later.
 - Bringing any other existing tools into Caixa.
-- Graphical import tools for non-technical users (later).
 
 ## Target users
 
@@ -111,8 +118,13 @@ flow back to Chattr's own repository, so it stays usable on its own.
   words are searchable and readable while the original audio is kept.
 - As an heir, I want to open a folder named after my grandmother and find every conversation
   with her as pages I can read in any browser.
-- As a user who doesn't need Caixa, I want to run Chattr on its own to turn a chat export into
-  readable offline HTML.
+- As a person preserving my life, I want to build my box in a web browser, picking a source,
+  following its "how to export" steps, previewing what will be imported and watching it run,
+  without using a terminal.
+- As a person preserving my life, I want to link the phone numbers, emails and usernames that
+  belong to the same person, so all our conversations end up together.
+- As a user who doesn't need Caixa, I want to run Chattr on its own, from a terminal or a simple
+  browser page, to turn a chat export into readable offline HTML.
 - As a contributor, I want a synthetic test corpus for every supported platform, so I can change
   a parser safely.
 
@@ -128,6 +140,11 @@ flow back to Chattr's own repository, so it stays usable on its own.
 - **Open source, MIT license.** Nothing in the repository is personalized to any individual.
   Tests use synthetic data only; real personal data never enters the repository.
 - **Python** for collectors (Chattr's existing language).
+- **Browser UI on DeepSeek Harness**, which is a pre-stable developer preview. Caixa pins an exact
+  version, keeps its own harness home, and disables the harness's session-log upload and
+  telemetry. Native installs need Node 24.9+.
+- **Local only**: the application listens on `127.0.0.1` and is reached through a browser on the
+  same computer.
 - **The tool's name is "Chattr" everywhere** (files, folders, commands, docs).
 
 ## Success criteria
@@ -144,3 +161,7 @@ flow back to Chattr's own repository, so it stays usable on its own.
 - The messages adapter fills the master database with items linked to people, and re-running it
   on unchanged data changes nothing.
 - An edit to Chattr inside Caixa appears in Chattr's repository through the mirror.
+- A person can create a box and import each supported source entirely in the browser, with the
+  same result as the command line.
+- `chattr serve` converts an export in a browser without Caixa, Node or DeepSeek Harness
+  installed.
