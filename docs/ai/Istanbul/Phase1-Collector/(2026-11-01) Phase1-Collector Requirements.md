@@ -8,17 +8,19 @@ hierarchy:
 - Istanbul
 - Phase1-Collector
 last_reviewed: 2026-11-01
-focus: "DRAFT (rev 3, adds the browser application on DeepSeek Harness): awaiting maintainer approval. No tickets until approved."
+focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
 ---
 
 
 # Phase1-Collector Requirements
 
-> **Status: DRAFT, revision 3.** This file records the architecture agreed in design discussion.
+> **Status: APPROVED by the maintainer on 2026-11-01 (revision 3).** Tickets were created from the
+> Tasks Breakdown. Changes from here on are recorded as decisions in this file.
+>
+> This file records the architecture agreed in design discussion.
 > Revision 2 recast Chattr from its full history, including the previously uncommitted v2 work
 > (`9a42781`). Revision 3 adds how people run Caixa: a browser application built on DeepSeek
-> Harness, with all conversion in Python. Tickets are created from the Tasks Breakdown only after
-> the maintainer approves this file.
+> Harness, with all conversion in Python.
 
 ## Overview
 

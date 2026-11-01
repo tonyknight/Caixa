@@ -9,6 +9,8 @@ hierarchy:
 - Phase1-Collector
 last_reviewed: 2026-11-01
 focus: "Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture"
+worktree: false
+origin_branch: 2026-Istanbul/Phase1-Collector
 ---
 
 # Project
