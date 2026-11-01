@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caixa"
+version = "0.1.0"
+description = "An open-source digital-legacy box: collect, preserve and pass on a digital life."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Tony Knight" }]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "black>=24.0", "mypy>=1.10"]
+
+[project.scripts]
+caixa = "caixa.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["caixa*"]
