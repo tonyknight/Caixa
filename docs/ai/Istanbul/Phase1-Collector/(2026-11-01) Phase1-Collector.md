@@ -46,9 +46,18 @@ Caixa's job is **transformation and normalization for people**.
 
 **Phase1-Collector** is the first project on the Istanbul release train. It establishes Caixa's
 data architecture and builds the first, most valuable collector: **messages**. An existing open
-tool, **Chattr**, is carried into Caixa as the message converter. It already started down this
-path: one parser per platform, a SQLite store, styled HTML output. Changes made to Chattr inside
-Caixa flow back to Chattr's own repository, so it stays usable on its own.
+tool, **Chattr**, is carried into Caixa as the message converter.
+
+Chattr began as a WhatsApp-to-HTML script and grew into a multi-service "Swiss Army knife" for
+message archives. It has:
+- one parser per platform;
+- a direct iMessage database reader;
+- a settings design with per-service import state for repeated, incremental updates;
+- styled HTML output.
+
+Much of its v2 design is scaffolding that still needs wiring. Its own plan names the next step:
+a **unified schema**, then the **unified SQLite database**. Changes made to Chattr inside Caixa
+flow back to Chattr's own repository, so it stays usable on its own.
 
 ## Goals
 
@@ -58,17 +67,22 @@ Caixa flow back to Chattr's own repository, so it stays usable on its own.
   - the master database as the source of truth;
   - how collector databases hand off to it;
   - stable IDs so repeated imports never duplicate.
-- Make **Chattr** a standalone, well-tested converter that turns iMessage, WhatsApp, email
-  (MBOX), Facebook Messenger/Instagram and Slack exports into:
-  - a SQLite domain store;
+- Make **Chattr** a standalone, well-tested converter. It finishes its unified schema and SQLite
+  milestone, and turns six sources into:
+  - a SQLite domain store, plus each service's native JSON export;
   - styled, self-contained HTML pages organized **by person** and named **by date**.
+
+  The six sources: iMessage, WhatsApp, Facebook Messenger/Instagram, email (MBOX), Google Voice,
+  and iPhone Voicemail (transcribed locally).
 - Create **Caixa's master database (schema v0)** and the messages adapter that brings Chattr's
   output into it, linking every message to the people involved.
 - Set up the **mirror** so Chattr changes made in Caixa reach Chattr's repository automatically.
 
 ## Non-goals
 
-- Photos and other media. These are handled by a separate kind of tool in a later project.
+- Slack and other further message sources (Google Chat/Hangouts, Telegram, …): a later project.
+- Photos and other media as their own domain. These are handled by a separate kind of tool in a
+  later project. Message attachments are in scope.
 - The personal model, the search index, knowledge distillation, training, and the browser
   harness. Later projects on the Istanbul train; this project only shapes the data they need.
 - A standalone `.eml` email parser. MBOX first; `.eml` only if needed later.
@@ -93,6 +107,8 @@ Caixa flow back to Chattr's own repository, so it stays usable on its own.
   embedded in the image, so they sort correctly anywhere.
 - As a person preserving my life, I want to import a newer export that overlaps an older one
   without getting duplicates.
+- As a person preserving my life, I want old voicemails transcribed on my own computer, so the
+  words are searchable and readable while the original audio is kept.
 - As an heir, I want to open a folder named after my grandmother and find every conversation
   with her as pages I can read in any browser.
 - As a user who doesn't need Caixa, I want to run Chattr on its own to turn a chat export into
@@ -112,6 +128,7 @@ Caixa flow back to Chattr's own repository, so it stays usable on its own.
 - **Open source, MIT license.** Nothing in the repository is personalized to any individual.
   Tests use synthetic data only; real personal data never enters the repository.
 - **Python** for collectors (Chattr's existing language).
+- **The tool's name is "Chattr" everywhere** (files, folders, commands, docs).
 
 ## Success criteria
 
