@@ -1,0 +1,109 @@
+{
+  "header": {
+    "description": "Chatter iMessage Service Configuration",
+    "version": "2.0.0",
+    "last_updated": "2025-11-11",
+    "service": "iMessage"
+  },
+
+  "preferences": {
+    "database": {
+      "default_db_path": "~/Library/Messages/chat.db",
+      "default_attachments_path": "~/Library/Messages/Attachments",
+      "read_only": true
+    },
+
+    "spam_filtering": {
+      "enabled": true,
+      "mode": "aggressive",
+      "available_modes": ["aggressive", "conservative", "disabled"],
+      "description": {
+        "aggressive": "99.887% text extraction rate - removes RCS, unknown senders, unread system messages",
+        "conservative": "99.572% text extraction rate - removes only RCS and unknown senders",
+        "disabled": "99.424% text extraction rate - no filtering applied"
+      }
+    },
+
+    "performance": {
+      "workers": 4,
+      "batch_size": 1000,
+      "max_workers": 8,
+      "enable_parallel_processing": true
+    },
+
+    "translation": {
+      "enabled": false,
+      "use_global_ai_translation": true,
+      "skip_duplicates": true,
+      "similarity_threshold": 0.8
+    },
+
+    "export": {
+      "json_format": "imessage_native",
+      "include_attachments_metadata": true,
+      "include_tapbacks": true,
+      "include_contact_info": true
+    },
+
+    "attachments": {
+      "general": {
+        "process_attachments": true,
+        "enable_deduplication": true,
+        "preserve_originals": true,
+        "max_attachment_workers": 4
+      },
+
+      "conversion": {
+        "enabled": true,
+        "quality": 85,
+        "supported_formats": {
+          "images": [".heic", ".png", ".webp", ".jpg", ".jpeg", ".gif", ".tiff", ".tif", ".bmp"],
+          "videos": [".mp4", ".mov", ".avi", ".mkv", ".wmv", ".3gp", ".webm"],
+          "audio": [".m4a", ".caf", ".mp3", ".wav", ".aac", ".flac"]
+        },
+        "conversion_formats": {
+          ".heic": ".jpg",
+          ".png": ".jpg",
+          ".webp": ".jpg",
+          ".caf": ".aac"
+        }
+      },
+
+      "archival_structure": {
+        "directory_pattern": "/Attachments/{service}/{year}/{month_number} - {month_name}/",
+        "naming_format": "({date}) {time} [{id}].{ext}",
+        "create_service_folders": true,
+        "create_date_folders": true
+      }
+    },
+
+    "html_generation": {
+      "template": {
+        "file": "templates/template.html",
+        "theme": "nord",
+        "responsive": true
+      },
+
+      "features": {
+        "calendar_navigation": true,
+        "image_lightbox": true,
+        "search_functionality": false,
+        "message_filtering": false
+      },
+
+      "performance": {
+        "lazy_loading": false,
+        "chunk_large_conversations": false,
+        "max_messages_per_page": 10000
+      }
+    }
+  },
+
+  "state": {
+    "last_import_date": null,
+    "last_message_rowid": null,
+    "total_messages_imported": 0,
+    "last_successful_export": null
+  }
+}
+

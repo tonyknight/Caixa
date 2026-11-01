@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-iMessage Database Tool - Core Database Operations
+iMessage Database Parser - Core Database Operations
 
 This module provides comprehensive access to Apple's iMessage SQLite database
 with advanced text extraction, spam filtering, and parallel processing capabilities.
@@ -265,8 +265,8 @@ class Tapback:
     component_index: int
 
 
-class iMessageDatabase:
-    """Main class for reading iMessage database"""
+class iMessageDatabaseParser:
+    """Main class for parsing iMessage database and extracting messages"""
 
     # Tapback type mappings
     TAPBACK_TYPES = {

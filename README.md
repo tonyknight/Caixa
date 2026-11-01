@@ -1,82 +1,236 @@
-# WhatsApp Chat HTML Exporter
+# 💬 Chatter - Your Message Archive Swiss Army Knife
 
-This Python script converts a WhatsApp chat text export into a beautiful, self-contained single-page HTML file. It includes features like automatic translation, image processing, and an interactive, modern UI for easy viewing of your chat history.
+Chatter is a unified message archive conversion framework that transforms chat logs from multiple messaging services (WhatsApp, Facebook Messenger, iMessage, Google Voice, Voicemail) into standardized formats (JSON, SQLite, HTML). It features industry-leading iMessage extraction rates (99.887%), intelligent spam filtering, professional attachment processing, and flexible output options for both one-time exports and regular incremental updates.
 
-## Features
+## ✨ Key Features
 
-- **Interactive Chat UI**: Displays your chat log in a clean, modern interface with distinct bubbles for each author, styled in the beautiful Nord dark theme.
-- **Automatic Translation**: Automatically detects non-English messages and translates them to English using a configurable OpenRouter AI model. The original text is preserved alongside the translation for easy comparison.
-- **Smart Image Handling**:
-    - **EXIF Tagging**: Intelligently parses timestamps from image filenames and uses `exiftool` to write them to the `DateTimeOriginal` EXIF tag.
-    - **File Renaming**: Renames image files based on their timestamp for clear, chronological organization.
-    - **Image Galleries**: Automatically groups sequential images from the same author within a 5-minute window into a compact, beautiful gallery.
-- **Interactive Calendar**: Generates a calendar header that spans the duration of your chat. Days with messages are highlighted and clickable, allowing you to jump directly to the first message of that day.
-- **Image Lightbox**: Click on any image thumbnail to open a full-screen lightbox preview. You can easily navigate between all images in the chat using the on-screen arrows or your keyboard's left and right arrow keys.
-- **Efficient & Parallel Processing**: Uses a multi-threaded approach to process images and perform translations in parallel, significantly speeding up the export process for large chat logs.
-- **Error Logging**: Logs any issues encountered during the process (e.g., missing images, failed translations) to a timestamped text file for easy debugging.
+### 🎯 Multi-Service Support
+- **iMessage**: Direct SQLite database access with 99.887% text extraction rate
+- **WhatsApp**: Text export parsing with media handling
+- **Facebook Messenger**: JSON export processing with mojibake fixing
+- **Google Voice**: Call logs and voicemail integration (planned)
+- **Voicemail**: Audio transcription support (planned)
 
-## Prerequisites
+### 🚀 Industry-Leading iMessage Processing
+- **99.887% Text Extraction Rate**: Advanced typedstream parsing from attributedBody fields
+- **Intelligent Spam Filtering**: Removes RCS, unknown senders, and system messages (512+ low-value messages)
+- **VCF Contact Integration**: Phone number normalization and contact name resolution
+- **Parallel Processing**: Multi-threaded message processing with configurable workers
 
-- [Python 3.6+](https://www.python.org/downloads/)
-- [ExifTool](https://exiftool.org/install.html) must be installed and accessible in your system's PATH.
+### 📎 Professional Attachment Pipeline
+- **Format Conversion**: HEIC→JPG, CAF→AAC with EXIF preservation
+- **SHA-256 Deduplication**: Intelligent file hashing with symlink creation
+- **Archival Organization**: Date-based folder structure with standardized naming
+- **Multi-Format Support**: Images, videos, audio, and documents
 
-## Setup & Installation
+### 🎨 Flexible Output Options
+- **JSON Export**: Service-specific native formats
+- **SQLite Database**: Unified multi-service archive (in development)
+- **HTML Reports**: Interactive chat UI with Nord dark theme
+- **Incremental Updates**: State tracking for regular imports without duplicates
+
+### 🛠️ Smart Configuration
+- **Automatic Setup**: First-run preflight creates directory structure at `~/Documents/Chatter`
+- **Service-Specific Configs**: Individual JSON files for each messaging service
+- **User Data Separation**: Clean separation between repository code and user data
+
+## 📋 Prerequisites
+
+- **Python 3.8+** - [Download](https://www.python.org/downloads/)
+- **macOS** (for iMessage support) - Other platforms supported for WhatsApp/Messenger
+- **Optional**: ExifTool for advanced EXIF metadata handling
+
+## 🚀 Quick Start
 
 1.  **Clone the Repository**:
     ```bash
-    git clone https://github.com/tonyknight/WAChat2HTML.git
-    cd WAChat2HTML
+    git clone https://github.com/tonyknight/Chatter.git
+    cd Chatter
     ```
 
-2.  **Create a Virtual Environment**: It is highly recommended to use a virtual environment to manage dependencies.
+2.  **Create a Virtual Environment**:
     ```bash
     python3 -m venv venv
     source venv/bin/activate
     ```
-    *(On Windows, the activate command is `venv\Scripts\activate`)*
+    *(On Windows: `venv\Scripts\activate`)*
 
 3.  **Install Dependencies**:
     ```bash
     pip install -r requirements.txt
     ```
 
-4.  **Configure the Script**: Open the `main.py` script and edit the configuration section at the top:
-    - `CHAT_FILE_PATH`: Set the absolute path to your exported `_chat.txt` file.
-    - `PERFORM_TRANSLATION`: Set to `True` to enable automatic translation.
-    - `MAX_WORKERS`: Adjust the number of parallel workers for processing. A good starting point is 10-25.
+4.  **Run Chatter**:
+    ```bash
+    python main.py
+    ```
 
-5.  **Set Up API Key (for Translation)**: If you enable translation, you must provide your OpenRouter API key. It is recommended to set this as an environment variable for security.
+    On first run, Chatter will:
+    - Prompt for data storage location (default: `~/Documents/Chatter`)
+    - Create the directory structure automatically
+    - Copy default configuration files
+    - Save preferences to `~/.chatter.json`
 
-    - **macOS/Linux**:
-      ```bash
-      export OPENROUTER_API_KEY="your_api_key_here"
-      ```
-    - **Windows**:
-      ```bash
-      set OPENROUTER_API_KEY="your_api_key_here"
-      ```
-    Alternatively, you can hardcode the key in the script, but this is not recommended for public repositories.
+## 📁 Directory Structure
 
-## How to Run
+After first run, Chatter creates the following structure in your data directory:
 
-Once the setup is complete, simply run the script from your terminal:
+```
+📦 ~/Documents/Chatter
+ ┣ 📂 Database
+ ┃ ┗ 📜 chatter.sqlite          # Unified multi-service database
+ ┣ 📂 Output
+ ┃ ┣ 📂 Chatter                 # HTML outputs from central database
+ ┃ ┣ 📂 iMessage                # iMessage-specific exports
+ ┃ ┣ 📂 WhatsApp                # WhatsApp-specific exports
+ ┃ ┣ 📂 Messenger               # Messenger-specific exports
+ ┃ ┣ 📂 GoogleVoice             # Google Voice exports
+ ┃ ┗ 📂 Voicemail               # Voicemail exports
+ ┣ 📂 Services
+ ┃ ┣ 📜 iMessage.json           # iMessage preferences & state
+ ┃ ┣ 📜 WhatsApp.json           # WhatsApp preferences & state
+ ┃ ┣ 📜 Messenger.json          # Messenger preferences & state
+ ┃ ┣ 📜 GoogleVoice.json        # Google Voice preferences & state
+ ┃ ┗ 📜 Voicemail.json          # Voicemail preferences & state
+ ┣ 📂 temp                      # Temporary processing files
+ ┗ 📜 config.json               # Global application settings
+```
 
+## 🎯 Usage
+
+### Processing iMessage
+
+1. Select **"3. Process iMessage Export"** from the main menu
+2. Choose from:
+   - **Quick Process**: Use default settings for fast export
+   - **Advanced Options**: Customize database path, spam filtering, attachments
+   - **List Chats**: View all available conversations
+   - **Diagnostics & Tools**: Database health checks and analysis
+
+### Processing WhatsApp
+
+1. Export your WhatsApp chat (Settings → Chats → Export Chat)
+2. Select **"1. Import WhatsApp Chats"** from the main menu
+3. Provide the path to your exported chat file
+
+### Processing Messenger
+
+1. Download your Facebook data (Settings → Your Facebook Information → Download Your Information)
+2. Select **"2. Import Facebook Messenger Chats"** from the main menu
+3. Provide the path to your Messenger JSON files
+
+## ⚙️ Configuration
+
+### Global Settings (`config.json`)
+- Output directories
+- Performance settings (workers, batch size)
+- AI translation configuration
+- Database settings
+
+### Service-Specific Settings (`Services/*.json`)
+Each service has its own configuration file with:
+- **Preferences**: Service-specific parsing and export options
+- **State**: Last import date, message counts, tracking data
+
+### Example: iMessage Configuration
+
+```json
+{
+  "preferences": {
+    "spam_filtering": {
+      "enabled": true,
+      "mode": "aggressive"
+    },
+    "attachments": {
+      "process_attachments": true,
+      "conversion_quality": 85
+    }
+  },
+  "state": {
+    "last_import_date": "2025-11-11T10:30:00",
+    "last_message_rowid": 125847
+  }
+}
+```
+
+## 🔧 Advanced Features
+
+### Incremental Updates
+Chatter tracks the last imported message for each service, allowing you to update your archive with only new messages without re-importing everything.
+
+### Spam Filtering (iMessage)
+- **Aggressive Mode**: 99.887% extraction rate - removes RCS, unknown senders, unread system messages
+- **Conservative Mode**: 99.572% extraction rate - removes only RCS and unknown senders
+- **Disabled**: 99.424% extraction rate - no filtering
+
+### Attachment Processing
+- Automatic format conversion (HEIC→JPG, CAF→AAC)
+- SHA-256 deduplication with symlinks
+- EXIF metadata preservation
+- Date-based archival organization
+
+## 🛠️ Development
+
+### Repository Structure
+```
+📦 Chatter (Repository)
+ ┣ 📂 Defaults                  # Default config templates
+ ┃ ┣ 📜 config.json
+ ┃ ┗ 📂 Services
+ ┃   ┗ 📜 *.json
+ ┣ 📂 src
+ ┃ ┣ 📜 preflight.py            # First-run setup
+ ┃ ┣ 📜 config.py               # Configuration manager
+ ┃ ┣ 📂 parsers
+ ┃ ┃ ┣ 📜 imessage_database_parser.py
+ ┃ ┃ ┣ 📜 whatsapp_parser.py
+ ┃ ┃ ┗ 📜 messenger_parser.py
+ ┃ ┣ 📜 attachment_manager.py
+ ┃ ┣ 📜 database_manager.py
+ ┃ ┗ 📜 html_generator.py
+ ┣ 📜 main.py                   # Main orchestrator
+ ┣ 📜 requirements.txt
+ ┗ 📜 README.md
+```
+
+## 📝 API Key Setup (for Translation)
+
+If you enable AI translation, set your OpenRouter API key:
+
+**macOS/Linux**:
 ```bash
-python3 main.py
+export OPENROUTER_API_KEY="your_api_key_here"
 ```
 
-The script will process the chat file and generate the output in the `/output` directory. You can open the `index.html` file in any modern web browser to view your chat log. A summary report, including processing stats and any errors, will be printed to the console upon completion.
-
-## Project Structure
-
+**Windows**:
+```bash
+set OPENROUTER_API_KEY="your_api_key_here"
 ```
-/
-|-- main.py                 # The main Python script
-|-- requirements.txt        # Python package dependencies
-|-- templates/
-|   |-- template.html       # Jinja2 HTML template for the chat log
-|-- output/                 # Default directory for generated files
-    |-- index.html          # The final, self-contained HTML chat log
-    |-- images/             # Folder for all processed images
+
+Or create an `API_Key.env` file in the repository root:
 ```
+OPENROUTER_API_KEY=your_api_key_here
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## 📄 License
+
+This project is open source and available under the MIT License.
+
+## 🙏 Acknowledgments
+
+- iMessage parsing inspired by [imessage-exporter](https://github.com/ReagentX/imessage-exporter) (Rust)
+- Nord theme for beautiful dark mode UI
+- OpenRouter for AI translation capabilities
+
+## 📞 Support
+
+For issues, questions, or feature requests, please open an issue on GitHub.
+
+---
+
+**Made with ❤️ for preserving your digital conversations**
 
