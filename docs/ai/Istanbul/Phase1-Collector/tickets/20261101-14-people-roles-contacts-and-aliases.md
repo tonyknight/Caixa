@@ -12,7 +12,7 @@ parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** a handle (a phone number, email address, username or name as a service shows it) is
 resolved to a **person** by, in order: the aliases file, the contacts (vCard), then none. Roles are
@@ -72,7 +72,7 @@ nothing are reported for a human to link; linking is done by adding them to the 
   contact now says otherwise.
 - Tests: fixture import + the fixture contacts; owner derivation; unresolved list.
 - Verify: `python -m pytest -q tools/chattr/tests/test_people_resolution.py`
-- [ ] done
+- [x] done
 
 ### T03: `--contacts`, `--aliases`, owner settings and `chattr-cli people`
 
@@ -98,3 +98,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: people.py: normalize_identifier (E.164 via phonenumbers incl. numbers written with the country code but no '+', short codes (<7 digits) stay text; emails lower; names case-folded), Contacts.from_vcf (vobject; FN else N; a name also resolves as a handle, which is how WhatsApp/Messenger senders match), Aliases.from_json (the human's word beats contacts), PeopleResolver (owner by name or identifiers). Cards with no name or no handle are skipped; a file without vCards is an error.
+
+### 2026-11-02
+T02: DatabaseManager.resolve_people(resolver, service=None) sets handles.person (aliases, then contacts; an existing person is kept unless something now names someone else), derives the owner (person = owner name, participants.role = 'owner', their messages is_from_owner = 1 — never unset), and returns PeopleResult(newly_resolved, owner_handles, unresolved[]). unresolved_handles() lists handles with no person, busiest first (service, identifier, display name, message count, first/last seen). Schema migration 3: the legacy view's sender is COALESCE(person, display_name, identifier), so resolved names reach pages and JSON. Owner derivation reads config each time; the DB only stores the resolved result.
