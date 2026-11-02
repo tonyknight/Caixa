@@ -13,8 +13,7 @@ depends_on:
 - 20261101-01-caixa-repository-foundations
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
-plan_status: in-progress
-current_task: T07
+plan_status: done
 ---
 ## Description
 
@@ -41,8 +40,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T07
+Status: done
+Current task: 
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -155,7 +154,7 @@ Current task: T07
   - two builds are identical: byte-identical text and media files, and identical logical dumps
     for SQLite files.
 - Verify: `python -m pytest -q` (root, both suites) `&& python -m black --check . && python -m mypy caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
