@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-13-one-attachment-pipeline** One attachment pipeline [medium] — Breakdown item 13. · plan in-progress · T02/T03
-  - checkboxes: 1/6
+- **20261101-13-one-attachment-pipeline** One attachment pipeline [medium] — Breakdown item 13. · plan in-progress · T03/T03
+  - checkboxes: 2/6
 
 ## Blocked (11)
 

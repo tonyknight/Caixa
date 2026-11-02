@@ -12,7 +12,7 @@ parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `AttachmentManager` (first built for iMessage) becomes the one pipeline. It archives
 `(file, time, sender, person)` items into `<archive>/<Person>/Attachments/` (groups under
@@ -75,7 +75,7 @@ when the box is assembled (tickets 18, 21): recorded as a Minor follow-up.
 - A file that can't be read doesn't stop the others.
 - Tests: fake `exiftool` on `PATH`; originals checked by hash.
 - Verify: `python -m pytest -q tools/chattr/tests/test_attachment_pipeline.py`
-- [ ] done
+- [x] done
 
 ### T03: Every file-based service uses it
 
@@ -98,3 +98,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: AttachmentManager rebuilt as the one pipeline in three steps (hash+capture date in parallel; names assigned sequentially in time-then-source order; copy in parallel). Names: (YYYY-MM-DD) HH-MM-SS [mmm] <sender> <n>.<ext> in <Person>/Attachments/ or Groups/<Name>/Attachments/; the time is shown as the message states it (its own offset). A manifest .attachments.json (relative path -> source SHA-256) lets a re-run reuse names it already placed; a file it does not know is never overwritten. Names/folders are sanitised (no path escapes). Found: the previous '_claim_path' numbering was nondeterministic across parallel workers and only protected one run.
+
+### 2026-11-02
+T02: copies are faithful by default (conversion is now opt-in via convert=True; the old default silently turned PNG screenshots into JPG); originals are never moved or changed (verified by hash in tests). exiftool is looked up once; without it capture dates are simply not read or written (before: a warning per file). A date is written only on the copy, only for formats that can carry one (not GIF/BMP), and only when the file has none; an existing capture date names the file and is left alone. A missing/unreadable file is isolated (status failed).
