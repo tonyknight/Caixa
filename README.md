@@ -61,6 +61,13 @@ Python; it is not a network service. Its methods (`box.*`, `collectors.list`, `i
 [`caixa/worker.py`](caixa/worker.py). With `--read-only`, every method that would change the box is
 refused, and nothing is written.
 
+## The browser interface
+
+The browser interface is a plugin for DeepSeek Harness, kept in [`harness/`](harness/). It runs
+`caixa worker` and adds the Caixa pages to `dsh web`. See [`harness/README.md`](harness/README.md)
+for how it fits together, the pinned DeepSeek Harness version and how to develop it. It needs Node
+24.9 or newer; everything else, including `chattr-cli serve`, needs only Python.
+
 ## Status
 
 Early development. The current work is the message collector and Caixa's data architecture. See

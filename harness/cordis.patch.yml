@@ -1,0 +1,5 @@
+# The layer Caixa's plugin adds to a DeepSeek Harness profile: one host plugin, which runs
+# `caixa worker`, serves /api/caixa/* to the browser, and brings the Caixa pages with it.
+- insert:
+    - id: caixa
+      name: caixa-dsh-plugin
