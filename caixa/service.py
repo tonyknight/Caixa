@@ -132,8 +132,14 @@ class Service:
         if box is not None:
             self.box_open(str(box))
 
-    def close(self) -> None:
-        """Stop the runner; a job still running is left to finish its current step."""
+    def close(self, cancel: bool = False) -> None:
+        """Stop the runner. A job still running finishes its current step; with `cancel`, every
+        unfinished job is cancelled first (for when whoever asked for them has gone away)."""
+        if cancel and self.jobs is not None and not self.read_only:
+            for job in self.jobs.list(limit=1000):
+                if job["status"] in ("queued", "running"):
+                    with self._lock:
+                        self._cancelled.add(job["id"])
         with self._lock:
             runner, self._runner = self._runner, None
         if runner is not None:
@@ -147,6 +153,8 @@ class Service:
         known = self.METHODS.get(name)
         if known is None:
             raise ServiceError("unknown_method", f"There is no method '{name}'.")
+        if known.write and self.read_only:  # before anything else, whatever the parameters
+            raise ReadOnlyError(name)
         function = getattr(self, known.attribute)
         try:
             inspect.signature(function).bind(**(params or {}))
@@ -456,6 +464,10 @@ class Service:
         box, store = self._require_box(), self._jobs()
         job = store.get(number)
         if job["status"] != "queued":  # cancelled while waiting
+            self._signal(number)
+            return
+        if number in self._cancelled:  # cancelled by close() before it began
+            store.update(number, status="cancelled", message="Cancelled before it started.")
             self._signal(number)
             return
         store.update(number, status="running", stage="starting")
