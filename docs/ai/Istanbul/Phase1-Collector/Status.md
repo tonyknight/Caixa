@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-06-interactive-menu-and-command-line** Interactive menu and command line [medium] — Breakdown item 6. · plan in-progress · T05/T05
-  - checkboxes: 4/9
+- **20261101-06-interactive-menu-and-command-line** Interactive menu and command line [medium] — Breakdown item 6. · plan done · 5/5
+  - checkboxes: 5/9
 
 ## Blocked (11)
 

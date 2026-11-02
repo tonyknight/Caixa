@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
-plan_status: in-progress
-current_task: T05
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T05
+Status: done
+Current task: 
 
 **Design:** today each menu action mixes `input()` prompts with the work. The work moves into
 plain functions in `src/chattr/commands.py`. The step-by-step menu and the `chattr-cli`
@@ -107,7 +106,7 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
   "initialized", not "repaired".
 - Test captures the output.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
