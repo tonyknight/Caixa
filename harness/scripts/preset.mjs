@@ -14,6 +14,10 @@
 // - a source map accompanies it.
 
 
+import { readFile } from 'node:fs/promises'
+import { basename, relative, resolve } from 'node:path'
+import { transform } from 'lightningcss'
+
 export const PLATFORM_MODULES = [
   'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
   'zod', '@tanstack/react-virtual',
@@ -38,6 +42,38 @@ export function clientOptions(manifest, root) {
       b.onResolve({ filter: /^(react|react-dom)(\/.*)?$/ }, (args) => ({ path: args.path, external: true }))
     },
   }
+  // `x.module.css`: compiled with lightningcss into hashed class names; the bundle injects one tagged
+  // <style> when it runs and exports the name map (as DSH's own preset does).
+  const cssModules = {
+    name: 'caixa-css-modules',
+    setup(b) {
+      b.onResolve({ filter: /\.module\.css$/ }, args => ({ path: resolve(args.resolveDir, args.path), namespace: 'caixa-css' }))
+      b.onLoad({ filter: /.*/, namespace: 'caixa-css' }, async (args) => {
+        const file = relative(root, args.path)
+        const { code, exports } = transform({
+          filename: file,
+          code: await readFile(args.path),
+          cssModules: { pattern: '[hash]_[local]' },
+          minify: true,
+        })
+        const classes = Object.fromEntries(Object.entries(exports ?? {}).sort().map(([name, entry]) => [name, entry.name]))
+        const tag = `${manifest.name}/${basename(args.path)}`
+        const contents = [
+          `const css = ${JSON.stringify(code.toString())};`,
+          `const tag = ${JSON.stringify(tag)};`,
+          "if (typeof document !== 'undefined' && document.querySelector('style[data-plugin-css=' + JSON.stringify(tag) + ']') === null) {",
+          "  const style = document.createElement('style');",
+          `  style.dataset.plugin = ${JSON.stringify(manifest.name)};`,
+          '  style.dataset.pluginCss = tag;',
+          '  style.textContent = css;',
+          '  document.head.appendChild(style);',
+          '}',
+          `export default ${JSON.stringify(classes)};`,
+        ].join('\n')
+        return { contents, loader: 'js', watchFiles: [args.path] }
+      })
+    },
+  }
   return {
     bundle: true,
     sourcemap: true,
@@ -49,7 +85,7 @@ export function clientOptions(manifest, root) {
     platform: 'browser',
     target: 'es2022',
     jsx: 'automatic',
-    plugins: [purity],
+    plugins: [purity, cssModules],
     define: { 'process.env.NODE_ENV': '"production"' },
     banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(manifest.name)}, factory: (require) => { var module = { exports: {} }; var exports = module.exports;` },
     footer: { js: 'return module.exports; } });' },

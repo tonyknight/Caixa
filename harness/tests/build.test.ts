@@ -69,3 +69,40 @@ describe('the browser bundle', () => {
     expect(manifest.devDependencies['@deepseek-ai/dsh']).toBe('0.2.2-alpha.2')
   })
 })
+
+describe('stylesheets', () => {
+  it('compiles x.module.css into hashed class names and injects them once, tagged with the plugin', async () => {
+    const { mkdtempSync, mkdirSync, rmSync, writeFileSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const folder = mkdtempSync(`${tmpdir()}/caixa-css-`)
+    try {
+      mkdirSync(`${folder}/src/client`, { recursive: true })
+      writeFileSync(`${folder}/src/client/a.module.css`, '.card { color: red; } .card:hover { color: blue; }\n.other { margin: 0 }')
+      writeFileSync(`${folder}/src/client/index.tsx`, "import styles from './a.module.css'\nexport const names = styles\n")
+      const result = await build({ ...clientOptions(manifest, folder), write: false })
+      const text = result.outputFiles!.find(file => file.path.endsWith('.js'))!.text
+      // Run the bundle against a fake page, as DSH would, and read what it did.
+      const styles: { dataset: Record<string, string>; textContent: string }[] = []
+      const document = {
+        querySelector: (selector: string) => styles.find(s => selector.includes(JSON.stringify(s.dataset.pluginCss))) ?? null,
+        createElement: () => ({ dataset: {} as Record<string, string>, textContent: '' }),
+        head: { appendChild: (element: (typeof styles)[number]) => { styles.push(element) } },
+      }
+      let loaded: { factory: (require: (id: string) => unknown) => { names: Record<string, string> } } | undefined
+      const window = { __ModuleLoader__: { load: (entry: typeof loaded) => { loaded = entry } } }
+      new Function('window', 'document', text)(window, document)
+      const run = () => loaded!.factory(() => { throw new Error('no requires expected') }).names
+      const names = run()
+      expect(names.card).toMatch(/^[\w-]+_card$/)
+      expect(names.other).toMatch(/^[\w-]+_other$/)
+      expect(styles).toHaveLength(1)
+      expect(styles[0]!.dataset.plugin).toBe(manifest.name)
+      expect(styles[0]!.dataset.pluginCss).toBe(`${manifest.name}/a.module.css`)
+      expect(styles[0]!.textContent).toContain(`.${names.card}`) // the css uses the hashed name
+      run() // loading the module again must not add a second copy of the style
+      expect(styles).toHaveLength(1)
+    } finally {
+      rmSync(folder, { recursive: true, force: true })
+    }
+  })
+})

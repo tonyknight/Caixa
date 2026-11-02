@@ -29,6 +29,7 @@ ALL_METHODS = {
     "import.cancel",
     "jobs.list",
     "jobs.get",
+    "jobs.log",
     "people.list",
     "people.unresolved",
     "people.link",

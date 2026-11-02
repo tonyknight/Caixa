@@ -410,6 +410,25 @@ class Service:
         self._require_box()
         return self._job(job)
 
+    @method("jobs.log")
+    def jobs_log(self, job: int, max_bytes: int = 65536) -> dict[str, Any]:
+        """The end of a job's log: what a collector printed, and a traceback if it failed."""
+        self._require_box()
+        record = self._job(job)
+        path = Path(record["log"]) if record.get("log") else None
+        if path is None or not path.is_file():
+            return {"text": "", "size": 0, "truncated": False}
+        size = path.stat().st_size
+        with open(path, "rb") as handle:
+            if size > max_bytes:
+                handle.seek(size - max_bytes)
+            data = handle.read()
+        return {
+            "text": data.decode("utf-8", errors="replace"),
+            "size": size,
+            "truncated": size > max_bytes,
+        }
+
     def subscribe(self, listener: Listener) -> Callable[[], None]:
         """Be told about `job.progress` and `job.finished`; returns the function that stops it."""
         self._listeners.append(listener)

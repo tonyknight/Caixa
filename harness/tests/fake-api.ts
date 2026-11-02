@@ -1,0 +1,89 @@
+import type {
+  Api, BoxStatus, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
+  PreviewResult,
+} from '../src/client/api.ts'
+
+export const ok = <T,>(result: T): CaixaResult<T> => ({ ok: true, result })
+export const fail = (kind: string, message: string): CaixaResult<never> =>
+  ({ ok: false, error: { code: -32000, message, kind } })
+
+export const BOX: BoxStatus = {
+  name: 'Our box', root: '/boxes/Our box', items: 12, by_type: { text: 9, email: 3 }, people: 3, owner: 'Maria Costa',
+  imports: [{ id: 1, collector: 'chattr', status: 'done', started_at: '2024-05-01T10:00:00+00:00', inserted: 12, updated: 0, unchanged: 0 }],
+}
+
+export const COLLECTORS: CollectorDescription[] = [
+  {
+    id: 'whatsapp', name: 'WhatsApp', platform: 'WhatsApp', inputs: ['file', 'folder', 'zip'], source: 'chattr',
+    how_to_export: 'In WhatsApp, open a chat, then Export chat.',
+    options_schema: { type: 'object', properties: {
+      contacts: { type: 'string', default: '', title: 'Contacts file (.vcf)', description: 'A vCard export.' },
+      owner: { type: 'string', default: '', title: 'Your name' },
+    } },
+  },
+  {
+    id: 'imessage', name: 'iMessage', platform: 'Apple', inputs: ['database'], source: 'chattr',
+    how_to_export: 'Give the app Full Disk Access.',
+    options_schema: { type: 'object', properties: {
+      spam_mode: { type: 'string', default: 'aggressive', enum: ['aggressive', 'conservative', 'disabled'], title: 'Spam filtering' },
+      workers: { type: 'integer', default: 4, minimum: 1, maximum: 8, title: 'Workers' },
+      transcribe: { type: 'boolean', default: false, title: 'Transcribe' },
+    } },
+  },
+]
+
+export const job = (over: Partial<Job> = {}): Job => ({
+  id: 1, kind: 'import', collector: 'whatsapp', source: '/exports/chat.txt', options: {}, status: 'done', stage: 'done',
+  current: 0, total: null, message: '', result: { inserted: 7, updated: 0, unchanged: 0, pages: 2, unresolved: [], warnings: [] },
+  error: null, log: '/boxes/Our box/.caixa/logs/job-1.log', created_at: '2024-05-01T10:00:00+00:00',
+  started_at: '2024-05-01T10:00:01+00:00', finished_at: '2024-05-01T10:00:09+00:00', ...over,
+})
+
+/** A scriptable stand-in for the worker; every reply can be replaced and every call is recorded. */
+export class FakeApi implements Api {
+  calls: [string, ...unknown[]][] = []
+  listener: ((name: string, payload: unknown) => void) | undefined
+  followed = 0
+  stopped = 0
+  box: CaixaResult<BoxStatus> = ok(BOX)
+  jobList: Job[] = []
+  collectorList: CollectorDescription[] = COLLECTORS
+  previewReply: CaixaResult<PreviewResult> = ok({ items: 7, conversations: 1, first: '2024-03-01', last: '2024-03-05', participants: ['Ana Costa'], unresolved: ['Ana Costa'], warnings: [] })
+  startReply: CaixaResult<Job> = ok(job({ id: 5, status: 'queued', stage: null, result: null }))
+  filesReply: (path: string | undefined) => CaixaResult<FilesListing> = path => ok({
+    path: path ?? '/home/me', parent: path && path !== '/home/me' ? '/home/me' : null, roots: ['/home/me'],
+    entries: [
+      { name: 'Exports', path: '/home/me/Exports', kind: 'directory', size: null, modified: '2024-01-01T00:00:00+00:00' },
+      { name: 'chat.zip', path: '/home/me/chat.zip', kind: 'file', size: 2048, modified: '2024-01-01T00:00:00+00:00' },
+    ],
+  })
+  inboxReply: CaixaResult<InboxListing> = ok({ path: '/boxes/Our box/Inbox', entries: [] })
+  logReply: CaixaResult<JobLog> = ok({ text: 'hello from the collector\n', size: 25, truncated: false })
+  generic: Record<string, (params: Record<string, unknown>) => CaixaResult<unknown>> = {}
+
+  private record(name: string, ...args: unknown[]) { this.calls.push([name, ...args]) }
+  async boxStatus() { this.record('boxStatus'); return this.box }
+  async boxCreate(path: string, name: string, owner: string) { this.record('boxCreate', path, name, owner); return this.box }
+  async boxOpen(path: string) { this.record('boxOpen', path); return this.box }
+  async collectors() { this.record('collectors'); return ok(this.collectorList) }
+  async preview(collector: string, source: string, options: Record<string, unknown>) { this.record('preview', collector, source, options); return this.previewReply }
+  async startImport(collector: string, source: string, options: Record<string, unknown>) { this.record('startImport', collector, source, options); return this.startReply }
+  async cancel(id: number) { this.record('cancel', id); return ok(job({ id, status: 'cancelled' })) }
+  async jobs() { this.record('jobs'); return ok(this.jobList) }
+  async jobLog(id: number) { this.record('jobLog', id); return this.logReply }
+  async files(path?: string, showHidden?: boolean) { this.record('files', path, showHidden); return this.filesReply(path) }
+  async inbox() { this.record('inbox'); return this.inboxReply }
+  async call<T = unknown>(method: string, params: Record<string, unknown> = {}) {
+    this.record('call', method, params)
+    const handler = this.generic[method]
+    return (handler ? handler(params) : fail('unknown_method', `no fake for ${method}`)) as CaixaResult<T>
+  }
+  follow(onEvent: (name: string, payload: unknown) => void) {
+    this.followed += 1
+    this.listener = onEvent
+    return () => { this.stopped += 1; this.listener = undefined }
+  }
+  emit(name: string, payload: unknown) { this.listener?.(name, payload) }
+}
+
+export const settle = () => new Promise(resolve => setTimeout(resolve, 0))

@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest'
+import { fields, initialValues, toOptions } from '../src/client/options-form.ts'
+import { COLLECTORS } from './fake-api.ts'
+
+const imessage = fields(COLLECTORS[1]!.options_schema)
+const whatsapp = fields(COLLECTORS[0]!.options_schema)
+
+describe('the form model', () => {
+  it('draws one field per option, in the schema\'s order, with the right kind', () => {
+    expect(imessage.map(f => [f.name, f.kind])).toEqual([['spam_mode', 'select'], ['workers', 'number'], ['transcribe', 'checkbox']])
+    expect(whatsapp.map(f => f.kind)).toEqual(['text', 'text'])
+    expect(imessage[0]!.choices).toEqual(['aggressive', 'conservative', 'disabled'])
+    expect(imessage[1]).toMatchObject({ integer: true, min: 1, max: 8, label: 'Workers' })
+  })
+
+  it('uses the option\'s name when the schema gives no title, and keeps the description as help', () => {
+    const [plain] = fields({ type: 'object', properties: { depth: { type: 'integer', description: 'How deep.' } } })
+    expect(plain).toMatchObject({ label: 'depth', help: 'How deep.' })
+  })
+
+  it('starts from the defaults', () => {
+    expect(initialValues(imessage)).toEqual({ spam_mode: 'aggressive', workers: '4', transcribe: false })
+    expect(initialValues(whatsapp)).toEqual({ contacts: '', owner: '' })
+  })
+})
+
+describe('what is sent', () => {
+  it('nothing, when nothing was changed', () => {
+    expect(toOptions(imessage, initialValues(imessage))).toEqual({ options: {}, problems: {} })
+  })
+
+  it('only the changes, typed as the schema says', () => {
+    const values = { ...initialValues(imessage), spam_mode: 'disabled', workers: '2', transcribe: true }
+    expect(toOptions(imessage, values).options).toEqual({ spam_mode: 'disabled', workers: 2, transcribe: true })
+  })
+
+  it('trims text and treats blank as the default', () => {
+    expect(toOptions(whatsapp, { contacts: '  /me/contacts.vcf  ', owner: '' }).options).toEqual({ contacts: '/me/contacts.vcf' })
+  })
+
+  it('a blank number means the default', () => {
+    expect(toOptions(imessage, { ...initialValues(imessage), workers: ' ' })).toEqual({ options: {}, problems: {} })
+  })
+
+  it('names each problem on its own field', () => {
+    const result = toOptions(imessage, { ...initialValues(imessage), workers: '0' })
+    expect(result.problems.workers).toEqual({ key: 'form.atLeast', values: { name: 'Workers', min: 1 } })
+    expect(toOptions(imessage, { ...initialValues(imessage), workers: '9' }).problems.workers!.key).toBe('form.atMost')
+    expect(toOptions(imessage, { ...initialValues(imessage), workers: '2.5' }).problems.workers!.key).toBe('form.whole')
+    expect(toOptions(imessage, { ...initialValues(imessage), workers: 'lots' }).problems.workers!.key).toBe('form.number')
+  })
+
+  it('a number field that is not an integer accepts decimals', () => {
+    const [ratio] = fields({ type: 'object', properties: { ratio: { type: 'number', default: 0.5 } } })
+    expect(toOptions([ratio!], { ratio: '0.75' }).options).toEqual({ ratio: 0.75 })
+    expect(toOptions([ratio!], { ratio: '0.5' }).options).toEqual({})
+  })
+})

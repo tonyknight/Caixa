@@ -377,3 +377,44 @@ def test_the_job_store_survives_two_connections(tmp_path: Path) -> None:
 
 def test_real_collectors_are_the_ones_a_service_starts_with(tmp_path: Path) -> None:
     assert {c.info.id for c in discover().all()} >= {"whatsapp", "imessage"}
+
+
+# --- The log of a job -----------------------------------------------------------------------
+
+
+def test_a_jobs_log_can_be_read_and_is_cut_to_its_tail(
+    fake_service: tuple[Service, Fake], tmp_path: Path
+) -> None:
+    owned, _ = fake_service
+    job = owned.wait(owned.import_start("fake", _source(tmp_path))["id"], 30)
+    log = owned.jobs_log(job["id"])
+    assert "hello from the collector" in log["text"] and log["truncated"] is False
+    assert log["size"] == Path(job["log"]).stat().st_size
+    Path(job["log"]).write_text("x" * 100 + "THE END", encoding="utf-8")
+    tail = owned.jobs_log(job["id"], max_bytes=20)
+    assert (
+        tail["truncated"] is True and tail["text"].endswith("THE END") and len(tail["text"]) <= 20
+    )
+
+
+def test_a_log_that_is_not_there_yet_is_empty_and_an_unknown_job_is_not_found(
+    fake_service: tuple[Service, Fake], tmp_path: Path
+) -> None:
+    owned, fake = fake_service
+    job = owned.import_start("fake", _source(tmp_path), {"mode": "wait"})
+    assert fake.started.wait(30)
+    assert isinstance(owned.jobs_log(job["id"])["text"], str)
+    with pytest.raises(ServiceError) as stop:
+        owned.jobs_log(999)
+    assert stop.value.kind == "not_found"
+
+
+def test_reading_a_log_is_allowed_read_only(
+    fake_service: tuple[Service, Fake], tmp_path: Path
+) -> None:
+    owned, _ = fake_service
+    job = owned.wait(owned.import_start("fake", _source(tmp_path))["id"], 30)
+    viewer = Service(read_only=True, roots=[tmp_path], registry=owned.registry)
+    viewer.box_open(str(tmp_path / "Box"))
+    assert "hello" in viewer.jobs_log(job["id"])["text"]
+    viewer.close()

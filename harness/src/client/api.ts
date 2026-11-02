@@ -62,3 +62,156 @@ export function follow(
   }
   return () => source.close()
 }
+
+// --- What the worker returns (see caixa/service.py) -------------------------------------------
+
+export interface ImportRecord {
+  readonly id: number
+  readonly collector: string
+  readonly status: string
+  readonly started_at: string
+  readonly inserted: number
+  readonly updated: number
+  readonly unchanged: number
+}
+
+export interface BoxStatus {
+  readonly name: string
+  readonly root: string
+  readonly items: number
+  readonly by_type: Readonly<Record<string, number>>
+  readonly people: number
+  readonly owner: string | null
+  readonly imports: readonly ImportRecord[]
+}
+
+/** One property of a collector's options JSON Schema (the subset the worker validates). */
+export interface OptionSpec {
+  readonly type?: 'string' | 'integer' | 'number' | 'boolean'
+  readonly default?: string | number | boolean
+  readonly enum?: readonly (string | number)[]
+  readonly minimum?: number
+  readonly maximum?: number
+  readonly title?: string
+  readonly description?: string
+}
+
+export interface OptionsSchema {
+  readonly type: 'object'
+  readonly properties: Readonly<Record<string, OptionSpec>>
+}
+
+export interface CollectorDescription {
+  readonly id: string
+  readonly name: string
+  readonly platform: string
+  readonly inputs: readonly string[]
+  readonly how_to_export: string
+  readonly options_schema: OptionsSchema
+  readonly source: string
+}
+
+export interface PreviewResult {
+  readonly items: number
+  readonly conversations: number
+  readonly first: string | null
+  readonly last: string | null
+  readonly participants: readonly string[]
+  readonly unresolved: readonly string[]
+  readonly warnings: readonly string[]
+}
+
+export interface ImportResult {
+  readonly inserted: number
+  readonly updated: number
+  readonly unchanged: number
+  readonly pages: number
+  readonly unresolved: readonly string[]
+  readonly warnings: readonly string[]
+}
+
+export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted'
+
+export interface Job {
+  readonly id: number
+  readonly kind: string
+  readonly collector: string | null
+  readonly source: string | null
+  readonly options: Readonly<Record<string, unknown>>
+  readonly status: JobStatus
+  readonly stage: string | null
+  readonly current: number
+  readonly total: number | null
+  readonly message: string | null
+  readonly result: ImportResult | null
+  readonly error: string | null
+  readonly log: string | null
+  readonly created_at: string
+  readonly started_at: string | null
+  readonly finished_at: string | null
+}
+
+export interface FileEntry {
+  readonly name: string
+  readonly path: string
+  readonly kind: 'file' | 'directory'
+  readonly size: number | null
+  readonly modified: string
+  readonly absolute?: string
+}
+
+export interface FilesListing {
+  readonly path: string
+  readonly parent: string | null
+  readonly roots: readonly string[]
+  readonly entries: readonly FileEntry[]
+}
+
+export interface InboxListing {
+  readonly path: string
+  readonly entries: readonly FileEntry[]
+}
+
+export interface JobLog {
+  readonly text: string
+  readonly size: number
+  readonly truncated: boolean
+}
+
+/** The worker, as the pages use it. Every method resolves to a result; none throws. */
+export interface Api {
+  boxStatus(): Promise<CaixaResult<BoxStatus>>
+  boxCreate(path: string, name: string, owner: string): Promise<CaixaResult<BoxStatus>>
+  boxOpen(path: string): Promise<CaixaResult<BoxStatus>>
+  collectors(): Promise<CaixaResult<CollectorDescription[]>>
+  preview(collector: string, source: string, options: Record<string, unknown>): Promise<CaixaResult<PreviewResult>>
+  startImport(collector: string, source: string, options: Record<string, unknown>): Promise<CaixaResult<Job>>
+  cancel(job: number): Promise<CaixaResult<Job>>
+  jobs(limit?: number): Promise<CaixaResult<Job[]>>
+  jobLog(job: number): Promise<CaixaResult<JobLog>>
+  files(path?: string, showHidden?: boolean): Promise<CaixaResult<FilesListing>>
+  inbox(): Promise<CaixaResult<InboxListing>>
+  /** Any worker method, for the pages that need one the wrappers above do not cover. */
+  call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<CaixaResult<T>>
+  /** Follow the worker's notifications; returns the function that stops following. */
+  follow(onEvent: (name: string, payload: unknown) => void): () => void
+}
+
+export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string) => EventSource): Api {
+  const run = <T,>(method: string, params: Record<string, unknown> = {}) => call<T>(method, params, fetcher)
+  return {
+    boxStatus: () => run('box.status'),
+    boxCreate: (path, name, owner) => run('box.create', { path, name, owner }),
+    boxOpen: path => run('box.open', { path }),
+    collectors: () => run('collectors.list'),
+    preview: (collector, source, options) => run('import.preview', { collector, source, options }),
+    startImport: (collector, source, options) => run('import.start', { collector, source, options }),
+    cancel: job => run('import.cancel', { job }),
+    jobs: (limit = 100) => run('jobs.list', { limit }),
+    jobLog: job => run('jobs.log', { job }),
+    files: (path, showHidden = false) => run('files.list', path === undefined ? { show_hidden: showHidden } : { path, show_hidden: showHidden }),
+    inbox: () => run('inbox.list'),
+    call: run,
+    follow: onEvent => follow(onEvent, makeSource),
+  }
+}
