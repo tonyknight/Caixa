@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -105,7 +105,7 @@ Current task: T03
   - US: `M/D/YY, H:MM AM - …`.
 - Each has multi-line messages with indentation and real media files (PNG/GIF).
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T04: Messenger and Instagram JSON
 
