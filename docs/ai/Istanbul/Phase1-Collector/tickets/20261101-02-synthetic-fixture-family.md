@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T05
+current_task: T06
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T05
+Current task: T06
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -130,7 +130,7 @@ Current task: T05
   - `X-GM-THRID` and `X-Gmail-Labels` headers;
   - dates with different offsets.
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T06: Google Voice Takeout and iPhone voicemail
 
@@ -173,3 +173,6 @@ Now depends on ticket 03: the message-source fixture builders live in Chattr's t
 
 ### 2026-11-02
 T04: first GREEN run failed one test because the test computed the export root as path.parents[3] (one level short); the builder was right. Fixed the test (parents[4]) and documented the folder chain.
+
+### 2026-11-02
+T05: the first MBOX build was not deterministic (random MIME boundaries from the email package; mailbox stamps the current time on From_ lines). Added a byte-identity test (RED), then fixed boundaries and derived From_ lines from each message's Date (GREEN).
