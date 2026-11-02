@@ -56,7 +56,7 @@ class SyncResult:
     unresolved: list[UnresolvedHandle] = field(default_factory=list)
 
 
-def _alias_kind(service: str, identifier: str) -> tuple[str, Optional[str]]:
+def alias_kind(service: str, identifier: str) -> tuple[str, Optional[str]]:
     """(kind, service) for an identifier: phones and emails belong to everyone; names and usernames
     only to the service that uses them."""
     if "@" in identifier:
@@ -263,7 +263,7 @@ def _learn_people(master: Master, db: sqlite3.Connection, result: SyncResult) ->
         "SELECT service, identifier, person FROM chattr.handles WHERE person IS NOT NULL ORDER BY id"
     ):
         pid = master.add_person(row["person"])
-        kind, service = _alias_kind(row["service"], row["identifier"])
+        kind, service = alias_kind(row["service"], row["identifier"])
         try:
             master.add_alias(pid, row["identifier"], kind, service=service, source="chattr")
         except ValueError as error:

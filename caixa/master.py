@@ -169,6 +169,82 @@ class Master:
             for r in self._db.execute("SELECT * FROM people ORDER BY name COLLATE NOCASE")
         ]
 
+    def summary(self) -> list[dict[str, object]]:
+        """Each person with how many aliases they have and how many items they appear in."""
+        return [
+            {
+                "id": r["id"],
+                "name": r["name"],
+                "is_owner": bool(r["is_owner"]),
+                "aliases": r["aliases"],
+                "items": r["items"],
+            }
+            for r in self._db.execute(
+                "SELECT p.id, p.name, p.is_owner, "
+                "(SELECT COUNT(*) FROM aliases a WHERE a.person_id = p.id) AS aliases, "
+                "(SELECT COUNT(DISTINCT item_id) FROM item_people i WHERE i.person_id = p.id) "
+                "AS items FROM people p ORDER BY p.name COLLATE NOCASE"
+            )
+        ]
+
+    def rename_person(self, person_id: int, name: str) -> None:
+        """Give a person their canonical name; another person's name is never taken over."""
+        clean = re.sub(r"\s+", " ", name).strip()
+        if not clean:
+            raise ValueError("A person needs a name; the name was empty.")
+        other = self.person_id(clean)
+        if other is not None and other != person_id:
+            raise ValueError(
+                f"Someone named '{clean}' is already in the box; merge the two people instead."
+            )
+        self._db.execute("UPDATE people SET name = ? WHERE id = ?", (clean, person_id))
+
+    def merge_people(self, source_id: int, target_id: int) -> int:
+        """Fold one person into another: aliases and items move, the source is removed.
+
+        Returns how many items were re-linked (each gets a `link` row in the change log). The owner
+        can be the target but never the source.
+        """
+        if source_id == target_id:
+            raise ValueError("A person can't be merged with themselves.")
+        source = self._db.execute("SELECT * FROM people WHERE id = ?", (source_id,)).fetchone()
+        if (
+            source is None
+            or self._db.execute("SELECT 1 FROM people WHERE id = ?", (target_id,)).fetchone()
+            is None
+        ):
+            raise KeyError("No such person.")
+        if source["is_owner"]:
+            raise ValueError(
+                "The owner can't be merged into someone else; merge the other person into the owner."
+            )
+        items = [
+            (r["item_id"], r["version"])
+            for r in self._db.execute(
+                "SELECT DISTINCT ip.item_id, i.version FROM item_people ip "
+                "JOIN items i ON i.id = ip.item_id WHERE ip.person_id = ? ORDER BY ip.item_id",
+                (source_id,),
+            )
+        ]
+        self._db.execute(
+            "UPDATE aliases SET person_id = ? WHERE person_id = ?", (target_id, source_id)
+        )
+        self._db.execute(
+            "UPDATE OR IGNORE item_people SET person_id = ? WHERE person_id = ?",
+            (target_id, source_id),
+        )
+        self._db.execute("DELETE FROM item_people WHERE person_id = ?", (source_id,))
+        if source["notes"]:
+            self._db.execute(
+                "UPDATE people SET notes = CASE WHEN notes IS NULL OR notes = '' THEN ? "
+                "ELSE notes || char(10) || ? END WHERE id = ?",
+                (source["notes"], source["notes"], target_id),
+            )
+        self._db.execute("DELETE FROM people WHERE id = ?", (source_id,))
+        for item_id, version in items:
+            self.log_change(item_id, "link", version, None)
+        return len(items)
+
     # --- Aliases ----------------------------------------------------------------------------
 
     def add_alias(

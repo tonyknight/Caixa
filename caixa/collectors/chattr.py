@@ -220,7 +220,29 @@ class _Chattr:
 
         progress(Progress("linking", message="Matching people"))
         commands.people(settings, owner, aliases, opts.get("contacts") or None)
+        return self._publish(box, settings, progress)
 
+    # --- Pages and the master (after an import, or after people changed) ---------------------
+
+    work_key = "chattr"
+
+    def _page_files(self, box: Box) -> set[str]:
+        if not box.master_path.exists():
+            return set()
+        with box.master() as master:
+            return {
+                row[0]
+                for row in master.connection.execute(
+                    "SELECT DISTINCT file_path FROM items "
+                    "WHERE collector = 'chattr' AND file_path IS NOT NULL"
+                )
+            }
+
+    def _publish(
+        self, box: Box, settings: Settings, progress: Callable[[Progress], None]
+    ) -> RunResult:
+        """Draw every page into the box, bring the master up to date, drop pages nobody needs."""
+        before = self._page_files(box)
         progress(Progress("rendering", message="Writing the pages"))
         roots = [box.root / MESSAGES, box.root / MAIL_ATTACHMENTS, box.root / VOICEMAIL_AUDIO]
         roots.append(box.root / GOOGLE_VOICE_AUDIO)
@@ -233,6 +255,7 @@ class _Chattr:
         progress(Progress("syncing", message="Updating the box"))
         with box.master() as master:
             synced = sync_chattr(master, commands.central_database(settings), pages)
+        self._remove_stale(box, before - self._page_files(box))
         unresolved = [f"{h.service}: {h.identifier}" for h in synced.unresolved]
         progress(Progress("done", synced.inserted + synced.updated + synced.unchanged))
         return RunResult(
@@ -243,6 +266,60 @@ class _Chattr:
             unresolved=unresolved,
             warnings=list(synced.conflicts),
         )
+
+    @staticmethod
+    def _remove_stale(box: Box, stale: set[str]) -> None:
+        """Delete pages no item points at any more (a person was renamed or merged), then any
+        folder that is left empty. Attachments are never touched: pages still link to them."""
+        root = box.root.resolve()
+        for relative in stale:
+            page = (box.root / relative).resolve()
+            if page.suffix != ".html" or not page.is_relative_to(root) or not page.is_file():
+                continue
+            page.unlink()
+            folder = page.parent
+            while folder != root and folder.is_dir() and not any(folder.iterdir()):
+                folder.rmdir()
+                folder = folder.parent
+
+    def unresolved(self, box: Box) -> list[dict[str, Any]]:
+        """Handles Chattr found that no alias, contact or owner setting names yet."""
+        database = box.caixa_dir / "work" / "chattr" / "Database" / "chattr.sqlite"
+        if not database.is_file():
+            return []
+        link = sqlite3.connect(f"{database.resolve().as_uri()}?mode=ro", uri=True)
+        link.row_factory = sqlite3.Row
+        try:
+            rows = link.execute(
+                "SELECT h.service, h.identifier, h.display_name, COUNT(m.id) AS messages "
+                "FROM handles h LEFT JOIN messages m ON m.sender_handle_id = h.id "
+                "WHERE h.person IS NULL GROUP BY h.id "
+                "ORDER BY messages DESC, h.service, h.identifier"
+            ).fetchall()
+        finally:
+            link.close()
+        return [
+            {
+                "service": r["service"],
+                "identifier": r["identifier"],
+                "display_name": r["display_name"],
+                "messages": r["messages"],
+                "collector": self.info.id,
+            }
+            for r in rows
+        ]
+
+    def refresh(self, box: Box, progress: Callable[[Progress], None]) -> RunResult:
+        """Re-match people from the box's aliases and redraw what changed; no new import."""
+        root = box.work_dir("chattr")
+        if not (root / "Database" / "chattr.sqlite").is_file():
+            return RunResult()
+        progress(Progress("preparing", message="Reading the box's people"))
+        settings = self._settings(root)
+        aliases = self._aliases(box, root / "aliases.json")
+        progress(Progress("linking", message="Matching people"))
+        commands.people(settings, self._owner({}, box), aliases)
+        return self._publish(box, settings, progress)
 
 
 # --- The six sources --------------------------------------------------------------------------

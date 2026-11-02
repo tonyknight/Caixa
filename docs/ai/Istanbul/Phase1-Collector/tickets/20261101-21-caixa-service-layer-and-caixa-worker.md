@@ -12,7 +12,7 @@ parent:
 depends_on:
 - 20261101-20-collector-contract-and-registry
 subtasks: []
-current_task: T03
+current_task: T04
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:** one `Service` (`caixa/service.py`) holds everything the interface and the command line
 can do. `caixa worker` is a thin shell around it (newline-delimited JSON-RPC 2.0 over stdio), and
@@ -93,7 +93,7 @@ can do. `caixa worker` is a thin shell around it (newline-delimited JSON-RPC 2.0
   the pages under the person and the change log records it; rename moves the pages; merge combines
   two people; conflicts are explained; owner can't be merged away.
 - Verify: `python -m pytest -q tests/test_service_people.py`
-- [ ] done
+- [x] done
 
 ### T04: The worker
 

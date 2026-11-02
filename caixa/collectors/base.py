@@ -87,3 +87,19 @@ class Collector(Protocol):
         options: Mapping[str, Any],
         progress: Callable[[Progress], None],
     ) -> RunResult: ...
+
+
+@runtime_checkable
+class PeopleAware(Protocol):
+    """Optional: a collector that can name who its data is still missing, and redo its pages.
+
+    Collectors that share one working folder share a `work_key`, so the service asks only one of
+    them. `refresh` re-matches people from the box's current aliases, redraws the pages that
+    changed (removing the ones that no longer apply) and updates the master.
+    """
+
+    work_key: str
+
+    def unresolved(self, box: "Box") -> list[dict[str, Any]]: ...
+
+    def refresh(self, box: "Box", progress: Callable[[Progress], None]) -> RunResult: ...

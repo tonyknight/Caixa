@@ -25,8 +25,9 @@ from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 
 from caixa import settings
 from caixa.box import Box, BoxError
-from caixa.collectors.base import Collector, Progress
+from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
+from caixa.collectors.messages import alias_kind
 from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
 from caixa.jobs import FINISHED, JobStore
@@ -501,5 +502,101 @@ class Service:
     def _execute(
         self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
     ) -> dict[str, Any]:
+        if job["kind"] == "refresh":
+            return self._refresh_all(box, progress)
         collector = self._collector(job["collector"])
         return asdict(collector.run(box, Path(job["source"]), job["options"], progress))
+
+    def _refresh_all(self, box: Box, progress: Callable[[Progress], None]) -> dict[str, Any]:
+        """Redraw pages for every working folder that can (once each); the last result is kept."""
+        result: dict[str, Any] = {}
+        for aware in self._people_aware():
+            result = asdict(aware.refresh(box, progress))
+        return result
+
+    # --- People -----------------------------------------------------------------------------
+
+    def _people_aware(self) -> list[PeopleAware]:
+        """One collector for each working folder that can name its missing people."""
+        chosen: dict[str, PeopleAware] = {}
+        for collector in self.registry.all():
+            if isinstance(collector, PeopleAware):
+                chosen.setdefault(collector.work_key, collector)
+        return list(chosen.values())
+
+    @method("people.list")
+    def people_list(self) -> dict[str, Any]:
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            return {"people": master.summary()}
+
+    @method("people.unresolved")
+    def people_unresolved(self) -> dict[str, Any]:
+        """Handles (a number, an address, a name) that no person is known for, busiest first."""
+        box = self._require_box()
+        handles = [h for aware in self._people_aware() for h in aware.unresolved(box)]
+        handles.sort(key=lambda h: (-h["messages"], h["service"], h["identifier"]))
+        return {"handles": handles}
+
+    def _person(self, master: Any, who: Union[int, str]) -> int:
+        """The id of a person given by id, or by name (a new name makes a new person)."""
+        if isinstance(who, int) and not isinstance(who, bool):
+            if not any(p.id == who for p in master.people()):
+                raise ServiceError("not_found", f"There is no person {who}.")
+            return who
+        if not str(who).strip():
+            raise ServiceError("invalid_params", "A person needs a name; the name was empty.")
+        return int(master.add_person(str(who)))
+
+    def _after_people_change(self, master: Any, person: int) -> dict[str, Any]:
+        """The person as it now stands, plus the job that redraws the pages."""
+        summary = next(p for p in master.summary() if p["id"] == person)
+        master.commit()
+        job = self._enqueue("refresh", None, None, {}) if self._people_aware() else None
+        return {"person": summary, "job": job}
+
+    @method("people.link", write=True)
+    def people_link(
+        self, service: str, identifier: str, person: Union[int, str], move: bool = False
+    ) -> dict[str, Any]:
+        """Say who a handle is. A phone or address then names that person on every service."""
+        box = self._require_box()
+        with box.master() as master:
+            who = self._person(master, person)
+            kind, scope = alias_kind(service, identifier)
+            try:
+                master.add_alias(who, identifier, kind, service=scope, move=move)
+            except ValueError as error:
+                master.connection.rollback()
+                raise ServiceError(
+                    "conflict", f"{error} Use move to give it to this person."
+                ) from None
+            return self._after_people_change(master, who)
+
+    @method("people.rename", write=True)
+    def people_rename(self, person: int, name: str) -> dict[str, Any]:
+        box = self._require_box()
+        if not name.strip():
+            raise ServiceError("invalid_params", "A person needs a name; the name was empty.")
+        with box.master() as master:
+            who = self._person(master, person)
+            try:
+                master.rename_person(who, name)
+            except ValueError as error:
+                raise ServiceError("conflict", str(error)) from None
+            return self._after_people_change(master, who)
+
+    @method("people.merge", write=True)
+    def people_merge(self, source: int, target: int) -> dict[str, Any]:
+        """Fold `source` into `target` (they were the same person); the source disappears."""
+        box = self._require_box()
+        if source == target:
+            raise ServiceError("invalid_params", "A person can't be merged with themselves.")
+        with box.master() as master:
+            self._person(master, source)
+            who = self._person(master, target)
+            try:
+                master.merge_people(source, target)
+            except ValueError as error:
+                raise ServiceError("conflict", str(error)) from None
+            return self._after_people_change(master, who)
