@@ -221,7 +221,5 @@ def test_items_need_a_known_privacy_and_role(tmp_path: Path) -> None:
 def test_a_new_item_is_private_by_default(tmp_path: Path) -> None:
     with Master(tmp_path / "m.sqlite") as master:
         _item(master)
-        assert master.connection.execute("SELECT privacy, version FROM items").fetchone() == (
-            "private",
-            1,
-        )
+        row = master.connection.execute("SELECT privacy, version FROM items").fetchone()
+        assert tuple(row) == ("private", 1)
