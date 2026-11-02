@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `MboxParser(BaseParser)` reads an MBOX with the standard library `mailbox` and
 `email` (default policy, so RFC 2047 headers and charsets decode themselves) and returns
@@ -63,7 +64,7 @@ Notes.
   subject, to, cc, bcc.
 - Tests: the fixture mbox, plus generated edge cases.
 - Verify: `python -m pytest -q tools/chattr/tests/test_mbox_parser.py`
-- [ ] done
+- [x] done
 
 ### T02: Threads and attachments by hash
 
@@ -102,3 +103,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 NEEDS MAINTAINER CONFIRMATION: names not defined in the Requirements: service display name 'Mail', CLI key 'mail', output folder 'Output/Mail/', attachment store default 'Output/Mail/Attachments/<hh>/<sha256><ext>'. Chosen to match the box layout's 'Mail/' folder; trivial to rename.
+
+### 2026-11-02
+T01: MboxParser reads the mbox with mailbox + the default email policy (decoded headers and charsets). The sender's own UTC offset from the Date header is kept (aware datetime) so it reaches tz_offset_minutes. A '-0000' date (zone unknown) or a missing/unparseable date is marked tz_assumed; the latter falls back to the mbox From_ line. Message-ID is normalized (no brackets, lower case); a mail without one gets 'nomid-<hash>' of sender/time/subject/body. Duplicate Message-IDs collapse with labels merged. ConversationBatch moved to parsers/batch.py. Until T02 the whole file is one batch.
