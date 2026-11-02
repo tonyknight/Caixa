@@ -13,7 +13,7 @@ depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** today each menu action mixes `input()` prompts with the work. The work moves into
 plain functions in `src/chattr/commands.py`. The step-by-step menu and the `chattr-cli`
@@ -77,7 +77,7 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
 - Tests against the synthetic `chat.db`: JSON written with messages; chats include
   "Costa Family"; every doctor check runs.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T03: Non-interactive subcommands
 
@@ -122,3 +122,4 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 Follow-up found while verifying ticket 05: run_preflight prints 'Chattr structure repaired' when it creates a brand-new root given via --root (first_time is only true for the prompt path). Report 'initialized' when config.json didn't exist before. Cosmetic; fix with a test here.
+T02: `convert_imessage` also takes `attachments_dir` (the name `export_to_json` already uses). Archival copies of attachments are written only when it's given, which matches the old advanced menu's default of "no". The parallel fetch path (no `--limit`) doesn't apply spam filtering. That's a known limitation documented in the parser, and it's unchanged here. `--limit` uses the filtered single-threaded path.
