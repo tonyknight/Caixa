@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 Chattr's modules import each other as `src.…`. The `chattr` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -59,7 +59,7 @@ touches the real home folder.
 - Tests (`tests/test_package.py`): every module imports; `python -m chattr --version` and the
   `chattr` command print the version.
 - Verify: `python -m pip install -e tools/chattr -q && python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T02: "Chattr" everywhere
 
@@ -148,3 +148,9 @@ touches the real home folder.
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01 debug: 'pip install -e tools/chattr' failed building langdetect (sdist-only; egg_info subprocess error in this environment). Root cause for us: langdetect, requests and beautifulsoup4 are declared but never imported by Chattr (grep confirms). Fix: removed all three from pyproject.toml and requirements.txt now (pulled forward from T07). Separately found: /usr/bin/chattr is the e2fsprogs file-attribute tool, so a 'chattr' console script would shadow a standard Linux command; command name raised with the maintainer.
+
+### 2026-11-02
+T01 done. Maintainer decision 2026-11-02: the terminal command is 'chattr-cli' (not 'chattr', which would shadow Linux's e2fsprogs /usr/bin/chattr). Package and import name stay 'chattr'; 'python -m chattr' works; a test asserts no bare 'chattr' console script is installed.
