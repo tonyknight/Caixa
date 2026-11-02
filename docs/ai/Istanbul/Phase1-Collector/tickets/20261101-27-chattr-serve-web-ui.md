@@ -1,20 +1,19 @@
 ---
 id: 20261101-27-chattr-serve-web-ui
-title: chattr serve web UI
+title: chattr-cli serve web UI
 type: feature
 priority: medium
 status: todo
 created: 2026-11-01
-updated: 2026-11-01
-closed: null
+updated: 2026-11-02
+closed:
 notes: Breakdown item 27.
-parent: null
+parent:
 depends_on:
 - 20261101-06-interactive-menu-and-command-line
 - 20261101-15-html-rendering-from-the-database
 subtasks: []
 ---
-
 ## Description
 
 Chattr's small Python-only browser UI for standalone users.

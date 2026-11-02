@@ -21,7 +21,7 @@ Make Chattr's v2 scaffolding actually work and remove its contradictions.
 
 ## Acceptance criteria
 
-- [ ] The name is 'Chattr' everywhere (`~/.chattr.json`, `~/Documents/Chattr`, `chattr.sqlite`, `chattr` command)
+- [ ] The name is 'Chattr' everywhere (`~/.chattr.json`, `~/Documents/Chattr`, `chattr.sqlite`, `chattr-cli` command)
 - [ ] Preflight and configuration are wired: pointer → root → global `config.json` merged with `Services/<Service>.json`
 - [ ] iMessage configuration keys resolve (Quick/List/Diagnostics no longer fail)
 - [ ] Preflight repair keeps existing preferences and state; `--root` works without prompting
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 Status: in-progress
 Current task: T02
 
-Chattr's modules import each other as `src.…`. The `chattr` command and the Requirements' type
+Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
 `tools/chattr/src/chattr/`. All test work uses the synthetic family and a temporary HOME; nothing
 touches the real home folder.
@@ -54,10 +54,10 @@ touches the real home folder.
 - `templates/` → `src/chattr/templates/`; `Defaults/` → `src/chattr/defaults/`, located via the
   package path rather than the working directory.
 - `tools/chattr/pyproject.toml`: name `chattr`, GPL-3.0-or-later, Python ≥ 3.10, console script
-  `chattr = "chattr.cli:main"`, package data.
+  `chattr-cli = "chattr.cli:main"`, package data.
 - Remove the stale top-level `config.json` (a development leftover with `./output` paths).
 - Tests (`tests/test_package.py`): every module imports; `python -m chattr --version` and the
-  `chattr` command print the version.
+  `chattr-cli` command print the version.
 - Verify: `python -m pip install -e tools/chattr -q && python -m pytest -q`
 - [x] done
 
@@ -121,7 +121,7 @@ touches the real home folder.
 
 - Remove unused dependencies (check imports: `beautifulsoup4`, `langdetect`, `requests`); keep
   `requirements.txt` and `pyproject.toml` in step.
-- README rewritten for the current state (install, `chattr` command, root layout, settings,
+- README rewritten for the current state (install, `chattr-cli` command, root layout, settings,
   services, license).
 - Superseded docs (`config_structure_v2.md`, `configuration_guide.md`,
   `iMessageConversionReadMe.md`, `MIGRATION_SUMMARY.md`) get a "superseded" header pointing to

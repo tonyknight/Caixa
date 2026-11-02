@@ -82,7 +82,7 @@ flow back to Chattr's own repository, so it stays usable on its own.
 - Give people a **browser-based way to build their box**. `caixa serve` opens Caixa's authoring
   pages inside DeepSeek Harness, with all conversion done in Python. New export sources appear in
   the import wizard automatically as collectors are added. Chattr gets its own small web UI
-  (`chattr serve`) for standalone use.
+  (`chattr-cli serve`) for standalone use.
 
 ## Non-goals
 
@@ -167,5 +167,5 @@ flow back to Chattr's own repository, so it stays usable on its own.
 - An edit to Chattr inside Caixa appears in Chattr's repository through the mirror.
 - A person can create a box and import each supported source entirely in the browser, with the
   same result as the command line.
-- `chattr serve` converts an export in a browser without Caixa, Node or DeepSeek Harness
+- `chattr-cli serve` converts an export in a browser without Caixa, Node or DeepSeek Harness
   installed.

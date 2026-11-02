@@ -23,6 +23,10 @@ focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
 > `tools/chattr/NOTICE`, and the full-history import of Chattr stays. See "Licensing" under
 > Chattr.
 >
+> **Decision 2026-11-02 (command name):** Chattr's terminal command is **`chattr-cli`**, not
+> `chattr`, which is a standard Linux command (e2fsprogs) that a console script would shadow.
+> The package and import name stay `chattr`, and `python -m chattr` also works.
+>
 > This file records the architecture agreed in design discussion.
 > Revision 2 recast Chattr from its full history, including the previously uncommitted v2 work
 > (`9a42781`). Revision 3 adds how people run Caixa: a browser application built on DeepSeek
@@ -52,7 +56,7 @@ People run Caixa in a **web browser on their own computer**. `caixa serve` start
 Harness (`dsh web`) with a Caixa plugin that adds the authoring pages: box, import wizard, jobs,
 people, browse, settings. All conversion and data work happens in Python (`caixa worker`), which
 the plugin runs and talks to directly. Chattr also gets a small Python-only web UI
-(`chattr serve`) for people who use it without Caixa.
+(`chattr-cli serve`) for people who use it without Caixa.
 
 ## Goals
 
@@ -65,7 +69,7 @@ the plugin runs and talks to directly. Chattr also gets a small Python-only web 
 5. A working mirror of Chattr from Caixa to Chattr's repository.
 6. A browser-based authoring application: `caixa serve` + a Caixa plugin for DeepSeek Harness +
    `caixa worker`, with collectors that register themselves, so new export sources appear without
-   UI work. Plus `chattr serve` for standalone Chattr users.
+   UI work. Plus `chattr-cli serve` for standalone Chattr users.
 
 ## Non-goals
 
@@ -146,7 +150,7 @@ Mail/
 | **Caixa worker** | `caixa/` (`caixa worker`) | The Python service layer behind the UI and the CLI: JSON-RPC over stdio; box, collectors, imports, jobs, people, browse, settings; `--read-only`. |
 | **Caixa harness plugin** | `harness/` | A DeepSeek Harness bundle (TypeScript, React 18). Its host half supervises `caixa worker` and exposes owner-only `/api/caixa/*` routes; its browser half provides the authoring pages. |
 | **Launcher** | `caixa/` (`caixa serve`) | Checks Node, prepares Caixa's own DeepSeek Harness home with a pinned version and a privacy patch, starts `dsh web`, opens the browser. |
-| **Chattr web UI** | `tools/chattr/` (`chattr serve`) | Small Python-only browser UI for standalone Chattr users (Jinja2 + htmx). |
+| **Chattr web UI** | `tools/chattr/` (`chattr-cli serve`) | Small Python-only browser UI for standalone Chattr users (Jinja2 + htmx). |
 | **Mirror workflow** | `.github/workflows/mirror-chattr.yml` | On push to the default branch: `git subtree split --prefix=tools/chattr` → push to Chattr's repository (fast-forward). |
 | **Fixtures** | `tests/fixtures/`, `tools/chattr/tests/fixtures/` | Synthetic fixture family: no real data, ever. |
 
@@ -248,7 +252,7 @@ version, import ID.
   folder → optionally generate HTML. Defaults come from `config.json` +
   `Services/<Service>.json`, overridable while drilling down.
 - **Equivalent non-interactive command line:**
-  `chattr convert <service> <export> [--root DIR] [--db | --json] [--contacts file.vcf] [--aliases aliases.json] [--html]`.
+  `chattr-cli convert <service> <export> [--root DIR] [--db | --json] [--contacts file.vcf] [--aliases aliases.json] [--html]`.
   It also restores the dropped iMessage flags: `--region`, `--attachment-root`, `--batch-size`,
   `--verbose`, `--attachment-workers`.
 - **Per run:** parse → upsert by stable ID → update `imports` and `state` → re-render only the
@@ -256,7 +260,7 @@ version, import ID.
 
 **Inside Caixa (an import or update):**
 1. The adapter writes `aliases.json` from the master's people/aliases.
-2. It runs `chattr convert … --root .caixa/work/chattr` and renders into the box's `Messages/`
+2. It runs `chattr-cli convert … --root .caixa/work/chattr` and renders into the box's `Messages/`
    and `Mail/`.
 3. It `ATTACH`es `chattr.sqlite` and upserts items, item → person links and provenance.
 4. It appends to the change log.
@@ -371,7 +375,7 @@ system. Native is also what macOS iMessage needs (Full Disk Access to `chat.db`)
 local speech-to-text needs (Apple GPU acceleration isn't available inside Docker on macOS). Heir
 mode and a Docker image come in a later project.
 
-**Chattr's own web UI (`chattr serve`).** Python only (Jinja2 + htmx), reusing Chattr's templates
+**Chattr's own web UI (`chattr-cli serve`).** Python only (Jinja2 + htmx), reusing Chattr's templates
 and Nord theme; no Node or DeepSeek Harness. Screens: choose a service, point to the export, set
 options (from `Services/*.json`), run with progress, open the output. It calls the same Chattr
 library functions as the CLI, the terminal menu and the Caixa worker.
@@ -453,7 +457,7 @@ key, and IDE files. A line reference means file and line at Chattr `0152912` unl
 | vCard contacts | `src/parsers/imessage_database_parser.py:381` |
 | tapback table | `src/parsers/imessage_database_parser.py:272` |
 | tapback queries | `src/parsers/imessage_database_parser.py:1046-1310` |
-| diagnostics, which become `chattr doctor` | `src/imessage_tools.py:126` |
+| diagnostics, which become `chattr-cli doctor` | `src/imessage_tools.py:126` |
 | sha256 helper | `src/attachment_manager.py:140` |
 | EXIF date parsing | `src/attachment_manager.py:169` |
 | Facebook encoding fix | `src/parsers/messenger_parser.py:5` |
@@ -478,7 +482,7 @@ key, and IDE files. A line reference means file and line at Chattr `0152912` unl
 
 **Contradictions to resolve:**
 - **Three names**: Chat2HTML, Chatter, Chattr. **Decision: "Chattr" everywhere**, for example
-  `~/.chattr.json`, `chattr.sqlite`, `~/Documents/Chattr`, the `chattr` command.
+  `~/.chattr.json`, `chattr.sqlite`, `~/Documents/Chattr`, the `chattr-cli` command.
 - **Two database paths:** `./output/chat_archive.db` vs `{root}/Database/…`. Resolve to the
   Chattr root.
 - **Two configuration designs:** a single `config.json` with `services.*` vs global + per-service
@@ -590,7 +594,7 @@ Not built in this project, but the master schema must support it:
   - opens the browser.
 - **F21:** the CLI and the browser use the same service layer; every UI action has a CLI
   equivalent.
-- **F22:** `chattr serve`: Chattr's small Python-only web UI (service, export, options, run with
+- **F22:** `chattr-cli serve`: Chattr's small Python-only web UI (service, export, options, run with
   progress, open the output).
 
 **Non-functional:**
@@ -630,7 +634,7 @@ Not built in this project, but the master schema must support it:
 - Message text containing HTML or script renders as text.
 - Every interactive menu action can be performed non-interactively.
 - Preflight repair keeps existing preferences and state.
-- The standalone `chattr` command works in an environment without Caixa.
+- The standalone `chattr-cli` command works in an environment without Caixa.
 - An edit under `tools/chattr/` appears in Chattr's repository through the mirror, as a
   fast-forward commit.
 - Importing each source fixture through the browser wizard gives the same database rows and
@@ -644,7 +648,7 @@ Not built in this project, but the master schema must support it:
   leaves the machine.
 - `caixa serve` refuses to start with a clear message when Node is older than 24.9, and
   reattaches to its running harness after its own process is killed.
-- `chattr serve` converts a fixture in a browser, in an environment without Caixa, Node or
+- `chattr-cli serve` converts a fixture in a browser, in an environment without Caixa, Node or
   DeepSeek Harness.
 
 ## Testing requirements
@@ -784,7 +788,7 @@ Proposed. Each item becomes a ticket after approval; dependencies are in bracket
     [14, 24]
 26. **Browse page + Settings section**: generated pages served through `/api/caixa/box/*`; box
     location, local model endpoints, privacy defaults. [24]
-27. **`chattr serve`**: Chattr's Python-only web UI (Jinja2 + htmx). [6, 15]
+27. **`chattr-cli serve`**: Chattr's Python-only web UI (Jinja2 + htmx). [6, 15]
 
 ## Risks and assumptions
 
