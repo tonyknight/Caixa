@@ -7,7 +7,7 @@ tags:
 hierarchy:
 - Istanbul
 - Phase1-Collector
-last_reviewed: 2026-11-01
+last_reviewed: 2026-11-02
 focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
 ---
 
@@ -16,6 +16,12 @@ focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
 
 > **Status: APPROVED by the maintainer on 2026-11-01 (revision 3).** Tickets were created from the
 > Tasks Breakdown. Changes from here on are recorded as decisions in this file.
+>
+> **Decision 2026-11-02 (license):** Chattr contains portions derived from imessage-exporter
+> (GPL-3.0-or-later). Chattr and Caixa are therefore both licensed **GPL-3.0-or-later**,
+> replacing the original MIT decision. The code is kept as is, with attribution in
+> `tools/chattr/NOTICE`, and the full-history import of Chattr stays. See "Licensing" under
+> Chattr.
 >
 > This file records the architecture agreed in design discussion.
 > Revision 2 recast Chattr from its full history, including the previously uncommitted v2 work
@@ -482,11 +488,21 @@ key, and IDE files. A line reference means file and line at Chattr `0152912` unl
 - **Attachment naming and folders differ across docs.** Resolve to Caixa's date naming rule.
 - **Stale docs**, such as `docs/iMessageConversionReadMe.md`.
 
-**Licensing:**
-- Chattr receives the MIT license.
-- First, review `src/parsers/imessage_database_parser.py` and `src/imessage_tools.py` for code
-  derived from imessage-exporter (GPL-3.0). `docs/MIGRATION_SUMMARY.md` calls the tool "a Python
-  port" of it. Rewrite any derived parts.
+**Licensing** (decision 2026-11-02, replacing the original MIT plan):
+- The license review (ticket 03) found portions of Chattr derived from imessage-exporter
+  (GPL-3.0-or-later, by Christopher Sardegna):
+  - the diagnostics tool in `src/imessage_tools.py`;
+  - the message-query structure and tapback-target parsing in
+    `src/parsers/imessage_database_parser.py`;
+  - one comment.
+- **Chattr is licensed GPL-3.0-or-later**, with `tools/chattr/NOTICE` attributing the derived
+  portions. Its docs now say accurately what was derived and what was learned.
+- **Caixa is licensed GPL-3.0-or-later as well**, so the whole repository has one license and
+  Caixa may use Chattr's code directly.
+- MIT- and BSD-licensed components we build on remain compatible: DeepSeek Harness,
+  `dsh-chat-import`, `dsh-vscode-plugin`, Sele (MIT), and `dsh-super-injector` (BSD-3-Clause).
+  Keep their copyright notices when reusing code.
+- All contributions are GPL-3.0-or-later.
 
 ### Context for later projects: model strategy
 
@@ -690,7 +706,8 @@ Proposed. Each item becomes a ticket after approval; dependencies are in bracket
 
    [1]
 3. **Chattr import + licensing**: `git subtree add --prefix=tools/chattr` with the purged
-   history; review the imessage-exporter derivation; add the MIT license to Chattr. [1]
+   history; review the imessage-exporter derivation; license Chattr (GPL-3.0-or-later with
+   attribution, per the 2026-11-02 decision). [1]
 
 **Chattr core:**
 

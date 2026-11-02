@@ -52,4 +52,6 @@ data.
 
 ## License
 
-[MIT](LICENSE)
+Caixa is free software, licensed under the **GNU General Public License, version 3 or later
+(GPL-3.0-or-later)**. See [`LICENSE`](LICENSE) for the full text and [`NOTICE`](NOTICE) for
+copyright and included components.

@@ -7,7 +7,7 @@ tags:
 hierarchy:
 - Istanbul
 - Phase1-Collector
-last_reviewed: 2026-11-01
+last_reviewed: 2026-11-02
 focus: "Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture"
 worktree: false
 origin_branch: 2026-Istanbul/Phase1-Collector
@@ -139,7 +139,9 @@ flow back to Chattr's own repository, so it stays usable on its own.
   Caixa. Chattr must run without Caixa installed.
 - **No Caixa-specific metadata written into user files**: photos are referenced by path, and
   identified by a hash of their image data.
-- **Open source, MIT license.** Nothing in the repository is personalized to any individual.
+- **Open source, GPL-3.0-or-later** (decided 2026-11-02, after a license review found Chattr
+  contains code derived from GPL-licensed imessage-exporter). Nothing in the repository is
+  personalized to any individual.
   Tests use synthetic data only; real personal data never enters the repository.
 - **Python** for collectors (Chattr's existing language).
 - **Browser UI on DeepSeek Harness**, which is a pre-stable developer preview. Caixa pins an exact
