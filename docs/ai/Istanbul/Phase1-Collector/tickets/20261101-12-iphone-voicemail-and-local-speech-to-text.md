@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** a `Transcriber` interface (`transcribe(audio) -> Transcript`) with a deterministic
 test stub and two local backends: `WhisperCppTranscriber` (runs a local `whisper-cli` after an
@@ -77,7 +77,7 @@ the completion report.
 - One conversation per caller.
 - Tests: the fixture (2 voicemails); stub transcripts; audio stored once; a failing backend.
 - Verify: `python -m pytest -q tools/chattr/tests/test_voicemail_parser.py`
-- [ ] done
+- [x] done
 
 ### T03: Import and `chattr-cli convert voicemail`
 
@@ -105,3 +105,6 @@ OPEN QUESTION (speech-to-text runtime/model) answered conservatively, NEEDS MAIN
 
 ### 2026-11-02
 T01: transcription.py: Transcriber interface, StubTranscriber, WhisperCppTranscriber (ffmpeg → 16 kHz mono wav → local whisper-cli) and FasterWhisperTranscriber (local model folder, local_files_only), make_transcriber(settings). offline_only() raises NetworkBlocked on any non-loopback connect/connect_ex/getaddrinfo and sets HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE, restoring all on exit. LIMITATION: a child process (whisper-cli) is outside the guard; whisper.cpp does not use the network. Voicemail defaults changed: transcription now {enabled false, provider 'whisper.cpp', model_path '', executable 'whisper-cli', language ''} ('whisper' still accepted as the old provider name; the unusable 'model: base' name key is gone for new roots; existing roots keep theirs). Real models are not installed here: the backends are tested against a fake whisper-cli (real ffmpeg) and a fake faster_whisper module.
+
+### 2026-11-02
+T02: VoicemailParser reads voicemail.db read-only (chatdb.connect_readonly) and finds each row's audio by <ROWID>.* (extension not trusted); audio kept by hash as the attachment; transcripts from the supplied Transcriber via transcribe_all (offline guard on), failures recorded as service_specific.transcription_error; trashed voicemails kept and flagged; callers without a number are filed under 'unknown'. Message ids are hashes (no stable source id: ROWIDs can collide across backups), so a re-transcription with a different model shows as an update, not a duplicate.
