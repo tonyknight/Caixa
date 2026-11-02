@@ -37,6 +37,67 @@ into one durable box that their family can actually use.
 files: HTML pages, images with embedded dates, documents. You can open them in a web browser or
 file manager, with or without Caixa.
 
+## Installation
+
+Caixa runs on your own computer; nothing is sent anywhere. It is developed and tested on Linux, and
+macOS is the target for iMessage. Windows is untested (and `caixa serve` does not support it yet).
+
+### What you need
+
+| You need | For | Notes |
+| --- | --- | --- |
+| **Python 3.10 or newer** | everything | Required. Chattr's Python packages (Jinja2, vobject, phonenumbers, tqdm, python-dotenv, Pillow, pillow-heif, ffmpeg-python) are installed with it; that is the only time the network is needed. |
+| **Disk space** | every import | A box keeps its own copy of photos and recordings (your exports are never changed), so allow at least the size of the exports you import, and more for a large iMessage library. |
+| **ExifTool** | optional, recommended | Reads the date a photo was really taken, and writes the message date into photos that have none. Without it photos are dated by the message that carried them and nothing is written into them. Install with your package manager (`brew install exiftool`, `apt install libimage-exiftool-perl`). |
+| **FFmpeg** | optional | Only for local speech-to-text (it prepares the audio) and for the optional format conversion, which is off. |
+| **A local speech model** | optional | To transcribe voicemail: whisper.cpp's `whisper-cli` and a model file, or the `faster-whisper` package and a model folder. Caixa never downloads a model. |
+| **A local translation model** | optional | Any OpenAI-compatible service on your own computer (for example Ollama at `http://localhost:11434/v1`). Off until you turn it on. |
+| **macOS "Full Disk Access"** | iMessage only | macOS lets a program read `~/Library/Messages/chat.db` only after you allow it in System Settings, Privacy & Security. Caixa opens the database read-only. |
+| **Node.js 24.9 or newer, and pnpm** | the browser interface only | `caixa serve` runs DeepSeek Harness, which needs Node 24.9+. `pnpm` is installed with `npm install -g pnpm` (or `corepack enable`). The first run downloads the pinned DeepSeek Harness once. |
+
+The command-line collectors need only Python. Everything in the table marked optional can be added
+later.
+
+### Install
+
+From a checkout of this repository:
+
+```bash
+git clone https://github.com/tonyknight/Caixa.git
+cd Caixa
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e tools/chattr -e .
+```
+
+Both packages go in one command, **Chattr first**: Caixa depends on Chattr by name, and an
+unrelated project of that name exists on PyPI, so Chattr must come from `tools/chattr`. This also
+installs `chattr-cli`, Chattr's own command, which works without Caixa.
+
+Check it worked:
+
+```bash
+caixa --version         # caixa 0.1.0
+caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
+```
+
+For the browser interface, build the plugin once, then start it:
+
+```bash
+pnpm --dir harness install && pnpm --dir harness build
+caixa serve --box ~/Our\ Box
+```
+
+To work on Caixa itself, add the development tools and run the tests:
+
+```bash
+pip install -e "tools/chattr[dev]" -e ".[dev]"
+python -m pytest -q          # tests use only synthetic, fictional data
+python -m black --check . && python -m mypy caixa tools/chattr/src
+```
+
+**Next:** [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md) explains how to use each
+collector, where the data goes, and how to tell that an import worked.
+
 ## Using Caixa from the command line
 
 Everything the browser interface does is also a command, and gives the same result:
