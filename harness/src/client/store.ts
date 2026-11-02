@@ -112,7 +112,11 @@ export class Store {
 
   async refreshJobs(): Promise<void> {
     const reply = await this.api.jobs()
-    if (reply.ok) this.set({ jobs: reply.result })
+    if (!reply.ok) return
+    // The list may have been asked for before a job finished and answered after the stream said so:
+    // an answer that is older than what was already heard must not bring a finished job back to life.
+    const heard = new Map(this.state.jobs.filter(job => FINISHED.has(job.status)).map(job => [job.id, job]))
+    this.set({ jobs: reply.result.map(job => (heard.has(job.id) && !FINISHED.has(job.status) ? heard.get(job.id)! : job)) })
   }
 
   /** The display names of the collectors (once). */

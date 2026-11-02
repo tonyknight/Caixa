@@ -186,3 +186,35 @@ describe('read-only and the pages-redrawn jobs', () => {
     ])
   })
 })
+
+describe('a reply that is older than what the event stream already said', () => {
+  it('does not bring a finished job back to life', async () => {
+    const { api, store } = make()
+    await store.start()
+    // The jobs list is asked for while job 9 is still queued, and answers late.
+    let answerLate: (() => void) | undefined
+    api.jobs = async () => {
+      const stale = [job({ id: 9, kind: 'refresh', collector: null, status: 'queued', stage: null, result: null })]
+      await new Promise<void>((resolve) => { answerLate = resolve })
+      return ok(stale)
+    }
+    const refreshing = store.refreshJobs()
+    // Meanwhile the job finishes and the stream says so.
+    api.emit('job.finished', { ...job({ id: 9, kind: 'refresh', collector: null, result: null }), job: 9 })
+    await settle()
+    expect(store.job(9)?.status).toBe('done')
+    answerLate!()
+    await refreshing
+    expect(store.job(9)?.status).toBe('done') // the older answer did not win
+  })
+
+  it('still takes news about jobs it has not finished, and jobs it did not know', async () => {
+    const { api, store } = make()
+    api.jobList = [job({ id: 1, status: 'running', result: null })]
+    await store.start()
+    api.jobList = [job({ id: 2, status: 'queued', result: null }), job({ id: 1, status: 'done' })]
+    await store.refreshJobs()
+    expect(store.job(1)?.status).toBe('done')
+    expect(store.job(2)?.status).toBe('queued')
+  })
+})
