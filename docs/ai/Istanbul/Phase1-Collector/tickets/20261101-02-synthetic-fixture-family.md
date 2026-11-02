@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -94,7 +94,7 @@ Current task: T02
   - a message from the unknown handle.
 - Tests assert each case through SQL and on disk.
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T03: WhatsApp exports (iOS, Android, US locale)
 
