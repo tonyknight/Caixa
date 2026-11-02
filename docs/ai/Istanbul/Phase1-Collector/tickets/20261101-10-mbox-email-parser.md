@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `MboxParser(BaseParser)` reads an MBOX with the standard library `mailbox` and
 `email` (default policy, so RFC 2047 headers and charsets decode themselves) and returns
@@ -77,7 +77,7 @@ Notes.
 - Tests: Gmail threads, header-only threads (missing root), unrelated mail, attachment bytes
   intact and stored once.
 - Verify: `python -m pytest -q tools/chattr/tests/test_mbox_threads.py`
-- [ ] done
+- [x] done
 
 ### T03: Import and `chattr-cli convert mail`
 
@@ -106,3 +106,6 @@ NEEDS MAINTAINER CONFIRMATION: names not defined in the Requirements: service di
 
 ### 2026-11-02
 T01: MboxParser reads the mbox with mailbox + the default email policy (decoded headers and charsets). The sender's own UTC offset from the Date header is kept (aware datetime) so it reaches tz_offset_minutes. A '-0000' date (zone unknown) or a missing/unparseable date is marked tz_assumed; the latter falls back to the mbox From_ line. Message-ID is normalized (no brackets, lower case); a mail without one gets 'nomid-<hash>' of sender/time/subject/body. Duplicate Message-IDs collapse with labels merged. ConversationBatch moved to parsers/batch.py. Until T02 the whole file is one batch.
+
+### 2026-11-02
+T02: threads: Gmail X-GM-THRID when present ('gmail:<id>'), else the root of the References/In-Reply-To chain ('msgid:<root>'; stable when the first mail is missing from the file; reference cycles stop). Subject prefixes (Re/Fwd/Aw/Sv/…) stripped for the thread name; >2 addresses on From/To/Cc make a group. Known limitation: a thread key can change if a later export adds a Gmail thread id or the missing root, which would re-file mails (message ids include the conversation id). New blobs.store_by_hash (<hh>/<sha256><ext>, written atomically, suffix sanitised) keeps attachments, inline files and forwarded mails exactly once; without an attachments_dir they are hashed but not kept.
