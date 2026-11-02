@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T05
+current_task: T06
 plan_status: in-progress
 ---
 ## Description
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T05
+Current task: T06
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -110,7 +110,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
 - Tests: central import of the fixture; second run inserts nothing; group chat typed `group`
   with its name; owner messages flagged; state file updated.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T06: Every tool opens chat.db read-only
 
@@ -143,3 +143,6 @@ T03: one _row_to_message now serves the single and parallel paths; the filter re
 
 ### 2026-11-02
 T04: three duplicated tapback lookups became one (_tapbacks_by_target) that understands p:<part>/GUID, bp:GUID and bare GUIDs. The old bulk loader only matched p:0/ and used IN lists, so tapbacks on parts 1+ and bp: forms were lost, and on databases with more than 32,766 messages the query failed and the error was swallowed (no tapbacks at all). Removals now cancel the tapback they undo (the JSON used to list a like that had been removed). Native JSON puts attachment tapbacks under attachments[i].tapbacks. Assumption to verify on a real export: part indexes count the text (if any) first, then attachments in order, or follow U+FFFC placeholders in the text. Fixture comments mislabeled 2000/2001 (Loved/Liked); corrected.
+
+### 2026-11-02
+T05: new parsers/imessage_parser.py (IMessageParser(BaseParser)) returns ConversationBatch(conversation, records) per chat (chat GUID as source id, message GUID as stable id, tapbacks as reactions on target part, owner = sender None + is_from_owner). BaseParser's docstring still says list of dicts; the collector contract (ticket 20) will generalize. commands.convert_imessage now defaults to route central (import_conversations: one imports row for the whole run, idempotent on re-import) with --json keeping native JSON; HTML per conversation; --owner/--aliases/--html need the central route, --attachments-dir needs --json (attachment files are archived by ticket 13). Reactions are replaced per message on upsert (INSERT OR IGNORE duplicated NULL-sender rows on every re-import). Records store UTC with offset 0 because chat.db has no local offset. Tapback and attachment hashing: attachment sha256 is of the file bytes when present, else of the chat.db attachment GUID. Menu asks the destination for iMessage.
