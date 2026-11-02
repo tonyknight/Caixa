@@ -86,7 +86,7 @@ class Master:
     def __init__(self, path: PathLike) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(self.path, uri=False)
+        self._db = sqlite3.connect(self.path, uri=True)  # uri: lets ATTACH open "file:" paths
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.execute("PRAGMA journal_mode = WAL")

@@ -3,18 +3,17 @@ id: 20261101-18-caixa-master-schema-v0-and-messages-adapter
 title: Caixa master schema v0 and messages adapter
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 18.
+closed: 2026-11-02
+notes: 'Done: master schema, messages adapter, aliases.json, change log.'
 parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T02
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,10 +21,10 @@ Create Caixa's master database and load Chattr's output into it.
 
 ## Acceptance criteria
 
-- [ ] Migrations; items, people, aliases, item → person links with roles, imports, change log
-- [ ] Adapter ATTACHes `chattr.sqlite` and upserts by stable ID; appends change-log rows
-- [ ] `aliases.json` exported from the master
-- [ ] Re-syncing unchanged data writes zero change-log rows
+- [x] Migrations; items, people, aliases, item → person links with roles, imports, change log
+- [x] Adapter ATTACHes `chattr.sqlite` and upserts by stable ID; appends change-log rows
+- [x] `aliases.json` exported from the master
+- [x] Re-syncing unchanged data writes zero change-log rows
 
 ## Context
 
@@ -38,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa.sqlite` (`<box>/.caixa/caixa.sqlite`) is the master: it sees every domain and
 links items to people. It is separate from Chattr's database; the only contract between them is
@@ -80,14 +79,58 @@ run), and an append-only `change_log` (monotonic change number, item id, operati
 - Tests: a real `chattr.sqlite` built from the fixture family (shared root fixture), including an
   update, a relink and an overlapping second archive.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** Caixa has a master database (`caixa.sqlite`, ordered migrations) with people,
+  aliases, items, item-to-person links by role, imports, and an append-only change log (triggers
+  refuse edits and deletes; change numbers only grow). `caixa.collectors.messages.sync_chattr`
+  `ATTACH`es `chattr.sqlite` read-only and upserts items by Chattr's stable ids: new → `insert`,
+  changed content hash or version → `update`, unchanged → nothing, so re-syncing unchanged data
+  writes no change-log rows. People are linked by role (sender, recipient, participant); a handle
+  linked later logs a `link` for exactly its items; resolved handles become aliases;
+  `Master.export_aliases` writes the `aliases.json` Chattr reads (round trip tested). Unresolved
+  handles are reported. A failed sync rolls back and is recorded as a failed import.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `caixa/schema.py`, `caixa/master.py`, `caixa/collectors/__init__.py`,
+    `caixa/collectors/messages.py`, `tests/conftest.py` (builds a real `chattr.sqlite` from the
+    fixture family), `tests/test_master.py`, `tests/test_messages_adapter.py`.
+- **Errors:** none in existing code. One slip of mine: a commit went in with a failing test; fixed
+  immediately and the commit helper now refuses to commit unless tests, black and mypy pass.
+- **Verify:** `python -m pytest -q` → 655 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean (Caixa strict).
+
+## Review
+
+### 2026-11-02: 21fa5bd..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only; names for the maintainer to confirm.
+
+- **Minor (decision):** privacy values (`private`, `family`, `public`), change-log operations
+  (`insert`, `update`, `link`), alias kinds and the `is_owner` flag are my choices; the Requirements
+  name the concepts, not the values.
+- **Minor:** the adapter derives people only from the handles Chattr resolved (plus mail recipients
+  found through aliases); a recipient who never wrote and whose address no other service knows gets
+  no link until someone links them.
+- **Minor:** `depicted` and `mentioned` roles exist in the schema but nothing sets them yet (they are
+  for photos and text analysis in later projects).
+- **Minor:** items are never deleted; if Chattr drops a message the item stays. A tombstone
+  operation is a later decision.
+- **Minor:** the owner is created from Chattr's owner-resolved handles when the master has none; if
+  the master already has an owner with a different name, Chattr's owner handles are not linked to
+  them.
+- **Minor:** the page path (`file_path`) is only filled when the caller passes `pages`; the worker
+  (ticket 21) must pass the rendering plan after each render.
+- **Minor:** the adapter reads the whole `chattr.messages` table every sync (a high-water mark on
+  `messages.version` or the import id would avoid that for very large archives).
+- **Minor:** Caixa's tests need Chattr installed (to build the fixture archive). Caixa's runtime
+  does not import Chattr, but `pyproject.toml` does not yet declare it for tests or for the worker
+  (ticket 21).
+- **Spec:** all four acceptance criteria are met. Files match the plan.
+- **TDD:** RED then GREEN for both tasks (collection errors, then 17 and 22 passing; one test in T01
+  needed a fix after it had been committed).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -98,3 +141,6 @@ NEEDS MAINTAINER CONFIRMATION: names not in the Requirements: privacy values pri
 
 ### 2026-11-02
 T01: caixa/schema.py (migration 1: people with one owner at most, aliases unique per kind+normalized value+service, items, item_people with roles, imports, change_log with append-only triggers and AUTOINCREMENT so numbers are never reused) and caixa/master.py (Master context manager: people get-or-create case-insensitive; aliases (an alias can't name two people unless move=True); find_person; export_aliases -> aliases.json {value: person} sorted, byte-stable; imports; log_change/changes). Caixa does not import Chattr: the aliases normalisation here is its own, simpler one (Chattr normalises again when it reads aliases.json).
+
+### 2026-11-02
+T02: caixa/collectors/messages.py: sync_chattr(master, chattr_db, pages=None). ATTACH ... ?mode=ro (Master opens with uri=True); all work inside a SAVEPOINT: a failure rolls back and leaves a 'failed' import row. Links: sender (handle's person; owner for the owner's own messages), recipients (the counterpart of a 1:1 chat, or a mail's To/Cc via the Mail handles and the master's aliases), participants (group members plus the owner). Existing item fields people may have set (privacy, page path) survive updates. 'link' change rows only for unchanged items whose link set moved.
