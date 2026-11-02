@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** one parser reads both Meta formats (Messenger and Instagram share the JSON layout);
 `MessengerParser` stays the class, `InstagramParser` is a subclass that only changes the service.
@@ -70,7 +70,7 @@ name the conversation and detect groups.
 - Tests: both fixture threads reach the archive with attachments, reactions, links; re-import is
   idempotent.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T03: Media archive for Messenger and Instagram
 
@@ -92,3 +92,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: parser rewritten. Found: (1) timestamps used datetime.fromtimestamp, i.e. the machine's local zone, so the same export gave different times on different machines; now aware UTC. (2) Only the first photo or video of a message was recorded; now every attachment kind. (3) Threads over one file (message_2.json, …) were silently cut to message_1.json; now read whole. (4) The encoding fix crashed on text that was already proper UTF-8 (newer exports); now tolerant. (5) The share link and preview were folded into the body as '[Shared Link: …] Preview: …'; now shared_link/link_text. Reactions, calls, unsent messages and group events kept. 'photos[i].creation_timestamp' is not used yet (ticket 13 will use file dates).
+
+### 2026-11-02
+T02: Instagram is a service of its own (InstagramParser, Services/Instagram.json default, Output/Instagram, state key). Conversations from Meta exports are keyed by thread_path (survives a renamed export folder) and named by the thread title; more than two participants make a group. Found: naming files by source_id would have put the thread path's slash into file names; a _file_stem() now sanitises names for JSON and HTML files (also used for iMessage). Reactions have only an emoji and an actor: stored as type 'Reaction' with the emoji, no timestamp, no target part. The menu gained Instagram, shifting iMessage to choice 4.
