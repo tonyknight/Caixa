@@ -12,7 +12,7 @@ parent:
 depends_on:
 - 20261101-22-harness-plugin-skeleton
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `caixa serve` is the one command: check Node, prepare Caixa's own DeepSeek Harness, start
 `dsh web` safely, open the browser. Python (`caixa/serve.py`), no new dependency.
@@ -74,7 +74,7 @@ Current task: T02
   stop as a group, reattach, refuse mismatched options, `--stop`; `caixa serve` in the CLI.
 - Tests: with a fake `dsh`: the rules above, including killing the launcher and reattaching.
 - Verify: `python -m pytest -q tests/test_serve_launch.py`
-- [ ] done
+- [x] done
 
 ### T03: The real thing
 

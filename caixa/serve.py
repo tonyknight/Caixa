@@ -15,8 +15,14 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import threading
+import time
+import urllib.error
+import urllib.request
+import webbrowser
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -280,3 +286,277 @@ def _plugin_added(harness_home: Path) -> bool:
     except (OSError, ValueError, KeyError, TypeError):
         return False
     return PLUGIN_NAME in bundles
+
+
+# --- Launching --------------------------------------------------------------------------------
+
+LINK = re.compile(r"http://127\.0\.0\.1:(\d+)/\?token=[\w\-]+")
+_TOKEN = re.compile(r"(token=)[\w\-%.]+")
+
+
+def redact(text: str) -> str:
+    """Hide the sign-in token wherever a line carrying it would be shown or kept."""
+    return _TOKEN.sub(r"\1***", text)
+
+
+def state_path(home: Path) -> Path:
+    return home / "serve.json"
+
+
+def command_line(prepared: Prepared, patch: Path, port: int) -> list[str]:
+    """`dsh web` on this computer only, without opening a browser (Caixa does that), with the patch."""
+    return [
+        str(prepared.dsh), "--profile", PROFILE, "--no-open", "--host", "127.0.0.1",
+        "--port", str(port), "--patch", str(patch),
+    ]  # fmt: skip
+
+
+@dataclass
+class Running:
+    pid: int
+    port: int
+    url: str  # carries the token: shown to the browser, never logged
+    box: Optional[str]
+    read_only: bool
+    process: Optional["subprocess.Popen[str]"] = None  # None when found again rather than started
+
+
+def _alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    try:  # a process that has ended but not been collected is not alive
+        return Path(f"/proc/{pid}/stat").read_text().split(")")[1].split()[0] != "Z"
+    except (OSError, IndexError):
+        return True
+
+
+def _answers(url: str, timeout: float = 3) -> bool:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout) as reply:
+            return bool(reply.status == 200)
+    except (OSError, urllib.error.URLError):
+        return False
+
+
+def stop_group(
+    pid: int, grace: float = 10, process: Optional["subprocess.Popen[str]"] = None
+) -> None:
+    """End a process and everything it started: ask politely, then make sure.
+
+    `pid` leads its own group (it was started in a session of its own). The group gets SIGTERM and
+    `grace` seconds for its leader to finish; whatever is left in the group is then killed, so no
+    helper the harness started outlives it. `process` lets the caller's own child be collected.
+    """
+
+    def leader_gone() -> bool:
+        return process.poll() is not None if process is not None else not _alive(pid)
+
+    try:
+        os.killpg(pid, signal.SIGTERM)
+    except (ProcessLookupError, PermissionError):
+        return
+    end = time.time() + grace
+    while not leader_gone() and time.time() < end:
+        time.sleep(0.05)
+    try:
+        os.killpg(pid, signal.SIGKILL)
+    except (ProcessLookupError, PermissionError):
+        pass
+    end = time.time() + 5
+    while not leader_gone() and time.time() < end:
+        time.sleep(0.05)
+
+
+def _save_state(home: Path, running: Running) -> None:
+    home.mkdir(parents=True, exist_ok=True)
+    path = state_path(home)
+    path.write_text(
+        json.dumps(
+            {"pid": running.pid, "port": running.port, "url": running.url, "box": running.box,
+             "read_only": running.read_only, "started": time.time()}  # fmt: skip
+        ),
+        encoding="utf-8",
+    )
+    path.chmod(0o600)  # it holds the sign-in link
+
+
+def read_state(home: Path, check: bool = True) -> Optional[dict[str, Any]]:
+    """The harness a previous `caixa serve` left running; stale records are removed."""
+    path = state_path(home)
+    try:
+        state = json.loads(path.read_text(encoding="utf-8"))
+        pid, url = int(state["pid"]), str(state["url"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if check and not (_alive(pid) and _answers(url)):
+        path.unlink(missing_ok=True)
+        return None
+    return dict(state)
+
+
+def check_compatible(state: Optional[dict[str, Any]], box: Optional[str], read_only: bool) -> None:
+    """A running harness keeps its box and mode; asking for others must not silently reuse it."""
+    if state is None:
+        return
+    if state.get("box") != box or bool(state.get("read_only")) != read_only:
+        raise ServeError(
+            "Caixa is already running with a different box or mode. Stop it first with "
+            "`caixa serve --stop`, then start it again."
+        )
+
+
+def start(
+    prepared: Prepared,
+    patch: Path,
+    port: int,
+    home: Path,
+    box: Optional[str],
+    read_only: bool,
+    link_timeout: float = 90,
+    ready_timeout: float = 30,
+) -> Running:
+    """Start `dsh web` in a group of its own and return once it answers at its link.
+
+    The link is read from the harness's standard output; its token is never printed or logged (the
+    log keeps `token=***`), and lives only in the 0600 state file and the returned object.
+    """
+    logs = home / "logs"
+    logs.mkdir(parents=True, exist_ok=True)
+    log = open(logs / "dsh.log", "a", encoding="utf-8", buffering=1)
+    process = subprocess.Popen(
+        command_line(prepared, patch, port), env=prepared.env, text=True,
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        start_new_session=True,
+    )  # fmt: skip
+    found: dict[str, str] = {}
+    announced = threading.Event()
+    tail: list[str] = []
+
+    def pump(stream: Any, watch: bool) -> None:
+        for line in stream:
+            clean = redact(line.rstrip("\n"))
+            log.write(clean + "\n")
+            tail.append(clean)
+            del tail[:-8]
+            match = LINK.search(line) if watch else None
+            if match and "url" not in found:
+                found["url"], found["port"] = match.group(0), match.group(1)
+                announced.set()
+
+    for stream, watch in ((process.stdout, True), (process.stderr, False)):
+        threading.Thread(target=pump, args=(stream, watch), daemon=True).start()
+
+    def fail(message: str) -> ServeError:
+        stop_group(process.pid, grace=2, process=process)
+        state_path(home).unlink(missing_ok=True)
+        return ServeError(message)
+
+    deadline = time.time() + link_timeout
+    while not announced.is_set():
+        if process.poll() is not None:
+            time.sleep(0.3)  # let the last lines of its output arrive
+            raise fail(
+                f"DeepSeek Harness stopped before it was ready (exit {process.returncode}):\n"
+                + "\n".join(tail[-6:])
+            )
+        if time.time() > deadline:
+            raise fail(
+                f"DeepSeek Harness did not say where it is running within {link_timeout:g} seconds. "
+                f"Its log is {logs / 'dsh.log'}."
+            )
+        announced.wait(0.1)
+    url, chosen = found["url"], int(found["port"])
+    ready = time.time() + ready_timeout
+    while not _answers(url):
+        if process.poll() is not None or time.time() > ready:
+            raise fail(
+                f"DeepSeek Harness printed its address but did not answer there within "
+                f"{ready_timeout:g} seconds. Its log is {logs / 'dsh.log'}."
+            )
+        time.sleep(0.2)
+    running = Running(process.pid, chosen, url, box, read_only, process)
+    _save_state(home, running)
+    return running
+
+
+def stop(home: Path) -> bool:
+    """Stop the harness a previous `caixa serve` left running; False when there was none."""
+    state = read_state(home, check=False)
+    if state is None:
+        return False
+    stop_group(int(state["pid"]))
+    state_path(home).unlink(missing_ok=True)
+    return True
+
+
+# --- The command ------------------------------------------------------------------------------
+
+
+@dataclass
+class Options:
+    box: Optional[str] = None
+    read_only: bool = False
+    port: int = 0
+    no_browser: bool = False
+    stop: bool = False
+    node: Optional[str] = None
+
+
+def _never() -> bool:
+    return False
+
+
+def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -> int:
+    """Everything `caixa serve` does. `until` ends the wait early (for tests); Control-C ends it too."""
+
+    def say(text: str) -> None:
+        print(text, file=out or sys.stdout, flush=True)
+
+    if sys.platform.startswith("win"):
+        raise ServeError("`caixa serve` does not support Windows yet.")
+    home = caixa_home()
+    if options.stop:
+        say("Stopped Caixa." if stop(home) else "Nothing is running to stop.")
+        return 0
+    validate_port(options.port)
+    box = str(Path(options.box).expanduser().resolve()) if options.box else None
+    state = read_state(home)
+    check_compatible(state, box, options.read_only)
+    if state is not None:
+        running = Running(
+            int(state["pid"]), int(state["port"]), str(state["url"]), box, options.read_only
+        )
+        say(f"Caixa is already running at http://127.0.0.1:{running.port}/")
+    else:
+        node = find_node(options.node)
+        plugin = plugin_directory()
+        require_built(plugin)
+        given = os.environ.get("CAIXA_DSH")
+        prepared = prepare(home, node, plugin, Path(given) if given else None)
+        patch = write_patch(home, box, options.read_only, sys.executable)
+        say("Starting Caixa…")
+        running = start(prepared, patch, options.port, home, box, options.read_only)
+        say(f"Caixa is running at http://127.0.0.1:{running.port}/ (this computer only).")
+    if options.no_browser:
+        say(f"Open this link in your web browser: {running.url}")
+    else:
+        webbrowser.open(running.url)
+    say("Press Control-C to stop Caixa.")
+    try:
+        while not until():
+            process = running.process
+            gone = process.poll() is not None if process else not _alive(running.pid)
+            if gone:
+                state_path(home).unlink(missing_ok=True)
+                raise ServeError(
+                    "DeepSeek Harness stopped. Its log is " + str(home / "logs" / "dsh.log")
+                )
+            time.sleep(0.3)
+    except KeyboardInterrupt:
+        pass
+    stop_group(running.pid, process=running.process)
+    state_path(home).unlink(missing_ok=True)
+    say("Stopped Caixa.")
+    return 0

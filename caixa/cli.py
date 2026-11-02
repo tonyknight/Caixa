@@ -84,6 +84,18 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("target", type=int, help="the person who stays")
     _box_argument(merge)
 
+    serve = commands.add_parser("serve", help="start the browser interface and open it")
+    serve.add_argument("--box", help="open this box when it starts")
+    serve.add_argument("--read-only", action="store_true", help="refuse every change to the box")
+    serve.add_argument(
+        "--port", type=int, default=0, help="3082 or higher (default: any free port)"
+    )
+    serve.add_argument(
+        "--no-browser", action="store_true", help="print the link instead of opening it"
+    )
+    serve.add_argument("--stop", action="store_true", help="stop a running Caixa")
+    serve.add_argument("--node", help="the Node.js program to use (it must be 24.9 or newer)")
+
     commands.add_parser(
         "worker", help="serve JSON-RPC over stdio (for the interface)", add_help=False
     )
@@ -320,6 +332,27 @@ def _cmd_people(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from caixa import serve
+    from caixa.box import Box, BoxError
+
+    chosen = args.box or os.environ.get(ENVIRONMENT)
+    if chosen:
+        try:
+            Box.open(chosen)
+        except BoxError as error:
+            raise ServiceError("not_found", str(error)) from None
+    try:
+        return serve.run(
+            serve.Options(
+                box=chosen, read_only=args.read_only, port=args.port,
+                no_browser=args.no_browser, stop=args.stop, node=args.node,
+            )  # fmt: skip
+        )
+    except serve.ServeError as error:
+        raise ServiceError("serve", str(error)) from None
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == ["worker"]:  # the worker has its own options; hand them over as they are
@@ -334,6 +367,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "people": _cmd_people,
+        "serve": _cmd_serve,
     }
     if args.command not in handlers:
         parser.print_help()
