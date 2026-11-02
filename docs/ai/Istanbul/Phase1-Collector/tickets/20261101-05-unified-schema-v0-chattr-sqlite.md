@@ -13,7 +13,7 @@ depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 Scope is the data layer. Wiring each source parser into it is tickets 07–12; this ticket adapts
 today's WhatsApp/Messenger parser output so the existing CLI and HTML keep working.
@@ -58,7 +58,7 @@ local wall time without a zone (for example WhatsApp) store the offset as unknow
 - Tests: fresh database is at version 1 with every table; a second run changes nothing; view
   columns are present.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T02: Normalized records and stable IDs
 
