@@ -20,12 +20,12 @@ const post = (body: unknown) => new Request('http://127.0.0.1/api/caixa/rpc', {
 })
 
 describe('the route table', () => {
-  it('has exactly the three routes, each under /api/caixa/', () => {
+  it('has exactly the four routes, each under /api/caixa/', () => {
     const { route } = setup(false)
-    for (const key of ['POST /api/caixa/rpc', 'GET /api/caixa/status', 'GET /api/caixa/events']) {
+    for (const key of ['POST /api/caixa/rpc', 'GET /api/caixa/status', 'GET /api/caixa/events', 'GET /api/caixa/box']) {
       expect(route(key).path.startsWith('/api/caixa/')).toBe(true)
     }
-    expect(caixaRoutes(setup(false).client)).toHaveLength(3)
+    expect(caixaRoutes(setup(false).client)).toHaveLength(4)
   })
 
   it('buffers request bodies (so DSH applies its size cap)', () => {

@@ -9,8 +9,10 @@
  *                            or `{ "ok": false, "error": { "code", "message", "kind", "data" } }`
  * - `GET  /api/caixa/events` a stream (server-sent events) of the worker's notifications
  * - `GET  /api/caixa/status` `{ "worker": "running" | "restarting" | "failed" | "stopped" }`
+ * - `GET|HEAD /api/caixa/box?path=…` a file of the box (see `box-files.ts`)
  */
 
+import { ROUTE as BOX_ROUTE, serveBoxFile } from './box-files.ts'
 import type { Notification, WorkerClient } from './worker-client.ts'
 import { UNAVAILABLE, WorkerError } from './worker-client.ts'
 
@@ -70,6 +72,12 @@ export function caixaRoutes(client: WorkerClient): FetchRoute[] {
       methods: ['GET'],
       requestBody: 'buffered',
       fetch: async () => json({ worker: client.status }),
+    },
+    {
+      path: BOX_ROUTE,
+      methods: ['GET', 'HEAD'],
+      requestBody: 'buffered',
+      fetch: request => serveBoxFile(client, request),
     },
     {
       path: '/api/caixa/events',
