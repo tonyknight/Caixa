@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -39,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -61,7 +62,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
 - Tests: the fixture's long message (over 255 bytes) is complete; multi-byte characters; emoji;
   a truncated blob returns None; the parser returns the full long message from `chat.db`.
 - Verify: `python -m pytest -q tools/chattr/tests/test_typedstream.py`
-- [ ] done
+- [x] done
 
 ### T02: Epochs, UTC and offset
 
@@ -130,3 +131,6 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: the old attributedBody heuristic returned 1 character of a 331-character message (the length byte, not the text). A small purpose-built typedstream decoder (chattr/typedstream.py) replaces it as the first choice; the heuristic remains as fallback. Decision for the open question 'typedstream decoder': no new dependency; confirm against a real export.

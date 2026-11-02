@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-07-imessage-parser** iMessage parser [medium] — Breakdown item 7.
-  - checkboxes: 0/11
+- **20261101-07-imessage-parser** iMessage parser [medium] — Breakdown item 7. · plan in-progress · T02/T06
+  - checkboxes: 1/11
 
 ## Blocked (11)
 
