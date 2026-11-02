@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -75,7 +75,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
   hour; both epochs convert to the same UTC instant; native JSON timestamps are unchanged in
   shape.
 - Verify: `python -m pytest -q tools/chattr/tests/test_imessage_time.py`
-- [ ] done
+- [x] done
 
 ### T03: Spam filter on every path, tagging instead of dropping
 
@@ -134,3 +134,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: the old attributedBody heuristic returned 1 character of a 331-character message (the length byte, not the text). A small purpose-built typedstream decoder (chattr/typedstream.py) replaces it as the first choice; the heuristic remains as fallback. Decision for the open question 'typedstream decoder': no new dependency; confirm against a real export.
+
+### 2026-11-02
+T02: new chattr/apple_time.py (seconds below 1e11, else nanoseconds; aware UTC) is used by the reader and by imessage_tools. Before, seconds-epoch rows (2016 fixture messages) were dated 2001-01-01 and attachment created dates (seconds) were misread as nanoseconds. Message.timestamp is now timezone-aware UTC; the native JSON gains '+00:00'. chat.db has no UTC offset, so none is stored (tz_assumed stays false: Apple stores UTC).
