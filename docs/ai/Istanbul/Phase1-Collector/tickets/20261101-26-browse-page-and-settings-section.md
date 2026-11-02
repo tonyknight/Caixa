@@ -12,7 +12,7 @@ parent:
 depends_on:
 - 20261101-24-import-wizard-and-jobs-pages
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -36,7 +36,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** two more sections, Browse and Settings.
 
@@ -73,7 +73,7 @@ Current task: T02
   (English, Chinese); navigation.
 - Tests: jsdom for both sections, and the form model.
 - Verify: `pnpm --dir harness test`
-- [ ] done
+- [x] done
 
 ### T03: In the real browser
 

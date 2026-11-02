@@ -208,6 +208,20 @@ export interface WorkerInfo {
   readonly methods: readonly string[]
 }
 
+export interface BrowseListing {
+  readonly path: string
+  readonly entries: readonly FileEntry[]
+}
+
+export interface SettingsReply {
+  readonly values: Readonly<Record<string, string | number | boolean>>
+  readonly schema: OptionsSchema
+  readonly box: { readonly root: string; readonly name: string }
+}
+
+/** Where the host serves a file of the box (see src/host/box-files.ts). */
+export const boxUrl = (path: string): string => `/api/caixa/box?path=${encodeURIComponent(path)}`
+
 /** The worker, as the pages use it. Every method resolves to a result; none throws. */
 export interface Api {
   boxStatus(): Promise<CaixaResult<BoxStatus>>
@@ -221,6 +235,9 @@ export interface Api {
   jobLog(job: number): Promise<CaixaResult<JobLog>>
   files(path?: string, showHidden?: boolean): Promise<CaixaResult<FilesListing>>
   inbox(): Promise<CaixaResult<InboxListing>>
+  browse(path?: string): Promise<CaixaResult<BrowseListing>>
+  settings(): Promise<CaixaResult<SettingsReply>>
+  saveSettings(values: Record<string, unknown>): Promise<CaixaResult<SettingsReply>>
   info(): Promise<CaixaResult<WorkerInfo>>
   people(): Promise<CaixaResult<{ people: Person[] }>>
   unresolved(): Promise<CaixaResult<{ handles: Handle[] }>>
@@ -247,6 +264,9 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     jobLog: job => run('jobs.log', { job }),
     files: (path, showHidden = false) => run('files.list', path === undefined ? { show_hidden: showHidden } : { path, show_hidden: showHidden }),
     inbox: () => run('inbox.list'),
+    browse: path => run('browse.list', path === undefined ? {} : { path }),
+    settings: () => run('settings.get'),
+    saveSettings: values => run('settings.set', { values }),
     info: () => run('worker.info'),
     people: () => run('people.list'),
     unresolved: () => run('people.unresolved'),

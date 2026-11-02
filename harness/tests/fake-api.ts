@@ -1,5 +1,5 @@
 import type {
-  Api, BoxStatus, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
+  Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult,
 } from '../src/client/api.ts'
 
@@ -60,6 +60,27 @@ export class FakeApi implements Api {
   inboxReply: CaixaResult<InboxListing> = ok({ path: '/boxes/Our box/Inbox', entries: [] })
   logReply: CaixaResult<JobLog> = ok({ text: 'hello from the collector\n', size: 25, truncated: false })
   readOnly = false
+  browseReply: (path: string | undefined) => CaixaResult<BrowseListing> = path => ok({
+    path: path ?? '',
+    entries: path === 'Messages/Ana Costa'
+      ? [
+          { name: 'Attachments', path: 'Messages/Ana Costa/Attachments', kind: 'directory', size: null, modified: '2024-03-01T00:00:00+00:00' },
+          { name: '(2024) Ana Costa.html', path: 'Messages/Ana Costa/(2024) Ana Costa.html', kind: 'file', size: 4096, modified: '2024-03-01T00:00:00+00:00' },
+          { name: 'photo.png', path: 'Messages/Ana Costa/photo.png', kind: 'file', size: 2_500_000, modified: '2024-03-01T00:00:00+00:00' },
+          { name: 'voice.mp3', path: 'Messages/Ana Costa/voice.mp3', kind: 'file', size: 100, modified: '2024-03-01T00:00:00+00:00' },
+          { name: 'clip.mp4', path: 'Messages/Ana Costa/clip.mp4', kind: 'file', size: 100, modified: '2024-03-01T00:00:00+00:00' },
+          { name: 'doc.pdf', path: 'Messages/Ana Costa/doc.pdf', kind: 'file', size: 100, modified: '2024-03-01T00:00:00+00:00' },
+        ]
+      : path === 'Messages'
+        ? [{ name: 'Ana Costa', path: 'Messages/Ana Costa', kind: 'directory', size: null, modified: '2024-03-01T00:00:00+00:00' }]
+        : [
+            { name: 'Messages', path: 'Messages', kind: 'directory', size: null, modified: '2024-03-01T00:00:00+00:00' },
+            { name: 'index.html', path: 'index.html', kind: 'file', size: 800, modified: '2024-03-01T00:00:00+00:00' },
+          ],
+  })
+  settingsReply: CaixaResult<SettingsReply> = ok(SETTINGS)
+  savedSettings: Record<string, unknown>[] = []
+  saveReply: ((values: Record<string, unknown>) => CaixaResult<SettingsReply>) | undefined
   peopleList: Person[] = PEOPLE
   handleList: Handle[] = HANDLES
   /** Reply to the next people change (link, rename or merge); replace to script failures. */
@@ -77,6 +98,13 @@ export class FakeApi implements Api {
   async jobs() { this.record('jobs'); return ok(this.jobList) }
   async jobLog(id: number) { this.record('jobLog', id); return this.logReply }
   async files(path?: string, showHidden?: boolean) { this.record('files', path, showHidden); return this.filesReply(path) }
+  async browse(path?: string) { this.record('browse', path); return this.browseReply(path) }
+  async settings() { this.record('settings'); return this.settingsReply }
+  async saveSettings(values: Record<string, unknown>) {
+    this.record('saveSettings', values); this.savedSettings.push(values)
+    if (this.saveReply) return this.saveReply(values)
+    return ok({ ...SETTINGS, values: { ...SETTINGS.values, ...values } } as SettingsReply)
+  }
   async info() { this.record('info'); return ok<WorkerInfo>({ version: '0.1.0', protocol: 1, read_only: this.readOnly, methods: [] }) }
   async people() { this.record('people'); return ok({ people: this.peopleList }) }
   async unresolved() { this.record('unresolved'); return ok({ handles: this.handleList }) }
@@ -107,5 +135,18 @@ export const HANDLES: Handle[] = [
   { service: 'WhatsApp', identifier: 'Ana Costa', display_name: null, messages: 7, collector: 'whatsapp' },
   { service: 'iMessage', identifier: '+1 555 0102', display_name: 'Unknown', messages: 3, collector: 'imessage' },
 ]
+
+export const SETTINGS: SettingsReply = {
+  values: { 'privacy.default': 'private', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'speech.model': '', 'speech.language': '' },
+  schema: { type: 'object', properties: {
+    'privacy.default': { type: 'string', default: 'private', enum: ['private', 'family', 'public'], title: 'Who can see new items', description: 'Privacy given to items when first imported.' },
+    'translation.enabled': { type: 'boolean', default: false, title: 'Translate with a local model', description: 'Off by default.' },
+    'translation.endpoint': { type: 'string', default: '', title: 'Translation endpoint', description: 'An address on this computer.' },
+    'translation.model': { type: 'string', default: '', title: 'Translation model' },
+    'speech.model': { type: 'string', default: '', title: 'Speech-to-text model' },
+    'speech.language': { type: 'string', default: '', title: 'Speech language' },
+  } },
+  box: { root: '/boxes/Our box', name: 'Our box' },
+}
 
 export const settle = () => new Promise(resolve => setTimeout(resolve, 0))

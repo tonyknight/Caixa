@@ -56,3 +56,20 @@ describe('what is sent', () => {
     expect(toOptions([ratio!], { ratio: '0.5' }).options).toEqual({})
   })
 })
+
+describe('against what is saved now (a settings page)', () => {
+  const current = { spam_mode: 'disabled', workers: 2, transcribe: true }
+
+  it('starts from the saved values, not the defaults', () => {
+    expect(initialValues(imessage, current)).toEqual({ spam_mode: 'disabled', workers: '2', transcribe: true })
+  })
+
+  it('sends nothing when nothing differs from what is saved', () => {
+    expect(toOptions(imessage, initialValues(imessage, current), current)).toEqual({ options: {}, problems: {} })
+  })
+
+  it('sends a value put back to its default, because that is a change from what is saved', () => {
+    const values = { spam_mode: 'aggressive', workers: '4', transcribe: false }
+    expect(toOptions(imessage, values, current).options).toEqual({ spam_mode: 'aggressive', workers: 4, transcribe: false })
+  })
+})

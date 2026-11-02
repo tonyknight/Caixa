@@ -48,3 +48,13 @@
 .toast { display: flex; gap: 0.75rem; align-items: flex-start; background: Canvas; color: CanvasText; border: 1px solid CanvasText; border-radius: 0.6rem; padding: 0.7rem 0.9rem; box-shadow: 0 4px 16px rgb(0 0 0 / 0.25); }
 .toastBad { border-color: #b3261e; }
 .toast p { margin: 0; flex: 1; }
+.browser { display: grid; grid-template-columns: minmax(14rem, 22rem) 1fr; gap: 1rem; align-items: start; }
+.crumbs { display: flex; flex-wrap: wrap; gap: 0.25rem; margin: 0 0 0.6rem; }
+.listPane { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 0.5rem; padding: 0.4rem 0.6rem; max-height: 70vh; overflow: auto; }
+.viewer { min-height: 20rem; }
+.frame { width: 100%; height: 70vh; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 0.5rem; background: Canvas; }
+.media { max-width: 100%; max-height: 70vh; }
+.size { opacity: 0.6; font-size: 0.8rem; margin-left: auto; }
+.group { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 0.6rem; padding: 0.4rem 1rem 1rem; margin: 0 0 1rem; }
+.group legend { font-weight: 600; padding: 0 0.4rem; }
+@media (max-width: 52rem) { .browser { grid-template-columns: 1fr; } }

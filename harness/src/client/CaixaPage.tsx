@@ -3,12 +3,14 @@ import { useCaixa, useT } from './hooks.tsx'
 import type { CaixaKey } from './locales.ts'
 import { BoxPage } from './pages/BoxPage.tsx'
 import { ImportPage } from './pages/ImportPage.tsx'
+import { BrowsePage } from './pages/BrowsePage.tsx'
 import { JobsPage } from './pages/JobsPage.tsx'
 import { PeoplePage } from './pages/PeoplePage.tsx'
+import { SettingsPage } from './pages/SettingsPage.tsx'
 import css from './caixa.module.css'
 
-export type Section = 'box' | 'import' | 'jobs' | 'people'
-const SECTIONS: Section[] = ['box', 'import', 'jobs', 'people']
+export type Section = 'box' | 'import' | 'jobs' | 'people' | 'browse' | 'settings'
+const SECTIONS: Section[] = ['box', 'import', 'jobs', 'people', 'browse', 'settings']
 
 /** The Caixa page: a small navigation and one section at a time. */
 export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
@@ -36,6 +38,8 @@ export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
       {section === 'import' && <ImportPage onShowJob={(id) => { setJob(id); setSection('jobs') }} onShowPeople={() => setSection('people')} />}
       {section === 'jobs' && <JobsPage selected={job} onSelect={setJob} />}
       {section === 'people' && <PeoplePage />}
+      {section === 'browse' && <BrowsePage />}
+      {section === 'settings' && <SettingsPage onChangeBox={() => setSection('box')} />}
     </main>
   )
 }

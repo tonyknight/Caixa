@@ -40,8 +40,11 @@ function field(name: string, spec: OptionSpec): Field {
 }
 
 /** What each field shows before anyone touches it: the schema's default. */
-export function initialValues(list: readonly Field[]): FormValues {
-  return Object.fromEntries(list.map(f => [f.name, f.kind === 'checkbox' ? f.default === true : f.default === undefined ? '' : String(f.default)]))
+export function initialValues(list: readonly Field[], current: Readonly<Record<string, unknown>> = {}): FormValues {
+  return Object.fromEntries(list.map((f) => {
+    const value = current[f.name] ?? f.default
+    return [f.name, f.kind === 'checkbox' ? value === true : value === undefined ? '' : String(value)]
+  }))
 }
 
 export interface Problem {
@@ -52,14 +55,21 @@ export interface Problem {
 /**
  * The options to send: only what differs from the defaults (so a job records what was chosen), typed
  * as the schema says. A blank number or text means "the default". Problems are per field.
+ *
+ * With `baseline` (a settings page: what is saved now), "differs" is measured from those values
+ * instead, so a setting changed back to its default is still sent.
  */
-export function toOptions(list: readonly Field[], values: FormValues): { options: Record<string, unknown>; problems: Record<string, Problem> } {
+export function toOptions(
+  list: readonly Field[],
+  values: FormValues,
+  baseline: Readonly<Record<string, unknown>> = {},
+): { options: Record<string, unknown>; problems: Record<string, Problem> } {
   const options: Record<string, unknown> = {}
   const problems: Record<string, Problem> = {}
   for (const f of list) {
     const raw = values[f.name]
     if (f.kind === 'checkbox') {
-      if (raw !== (f.default === true)) options[f.name] = raw === true
+      if (raw !== ((baseline[f.name] ?? f.default) === true)) options[f.name] = raw === true
       continue
     }
     const text = String(raw ?? '').trim()
@@ -70,10 +80,11 @@ export function toOptions(list: readonly Field[], values: FormValues): { options
       if (f.integer && !Number.isInteger(n)) { problems[f.name] = { key: 'form.whole', values: { name: f.label } }; continue }
       if (f.min !== undefined && n < f.min) { problems[f.name] = { key: 'form.atLeast', values: { name: f.label, min: f.min } }; continue }
       if (f.max !== undefined && n > f.max) { problems[f.name] = { key: 'form.atMost', values: { name: f.label, max: f.max } }; continue }
-      if (n !== f.default) options[f.name] = n
+      if (n !== (baseline[f.name] ?? f.default)) options[f.name] = n
       continue
     }
-    const fallback = f.default === undefined ? '' : String(f.default)
+    const base = baseline[f.name] ?? f.default
+    const fallback = base === undefined ? '' : String(base)
     if (text !== fallback) options[f.name] = text
   }
   return { options, problems }
