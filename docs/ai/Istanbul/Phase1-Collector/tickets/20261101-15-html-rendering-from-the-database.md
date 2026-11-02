@@ -13,7 +13,7 @@ depends_on:
 - 20261101-13-one-attachment-pipeline
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T03
+current_task: T04
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:** a new renderer (`render.py`) replaces the old `HTMLGenerator` and its template. The old
 template put message text into the page unescaped (`| safe`), left the calendar empty, and wrote one
@@ -96,7 +96,7 @@ told from the owner on services where the owner is just another name (WhatsApp, 
 - `index.html` listing people, groups and mail threads.
 - Tests: fixture threads; names; headers; no HTML injection from a mail body.
 - Verify: `python -m pytest -q tools/chattr/tests/test_render_mail.py`
-- [ ] done
+- [x] done
 
 ### T04: `chattr-cli render`, `--html`, and removing the old generator
 
@@ -122,3 +122,6 @@ T01: render.py: Renderer loads the archive once, plans PageSpecs and builds data
 
 ### 2026-11-02
 T02: pages.py + templates/page.html: self-contained page (inline CSS, light/dark, no external resources, one script element: the data island). Escaped everywhere (jinja autoescape; nl2br escapes before adding <br>); the island is JSON with < > & U+2028/9 escaped so a body containing </script> can't break out. Links only from http(s) addresses; attachment links only to files that exist inside the given roots (path traversal like ../../etc/x is refused and the file shows by name). Reactions: standing ones only (a later removal cancels). Time: local wall-clock at stored precision with its offset, 'UTC', or 'zone unknown'. Calendar levels are relative to the page's busiest day. The old template's unescaped '| safe' output is what this replaces (T04 removes it).
+
+### 2026-11-02
+T03: mail pages (templates/mail.html): per mail the headers (From/To/Cc/Subject/Labels with the sender's own offset), plain body escaped, a note that an HTML version is kept in the data island (not rendered: HTML mail is untrusted), attachments linked only if the file exists in a root. index.html lists people, groups and mail with per-year links and message counts. Shared base.html (CSS) for page/mail/index. Found: a Jinja dict key named 'items' collides with dict.items — keys renamed.
