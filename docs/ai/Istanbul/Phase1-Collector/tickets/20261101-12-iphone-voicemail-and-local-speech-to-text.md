@@ -3,18 +3,18 @@ id: 20261101-12-iphone-voicemail-and-local-speech-to-text
 title: iPhone Voicemail and local speech-to-text
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 12.
+closed: 2026-11-02
+notes: 'Done: iPhone voicemail, local transcription interface (real model untested
+  here).'
 parent:
 depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T03
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,9 +22,9 @@ Parse iPhone voicemail and transcribe it locally.
 
 ## Acceptance criteria
 
-- [ ] A transcription interface with a local model backend and a test stub
-- [ ] Transcript stored with the entry; audio kept as an attachment
-- [ ] No network access during transcription
+- [x] A transcription interface with a local model backend and a test stub
+- [x] Transcript stored with the entry; audio kept as an attachment
+- [x] No network access during transcription
 
 ## Context
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** a `Transcriber` interface (`transcribe(audio) -> Transcript`) with a deterministic
 test stub and two local backends: `WhisperCppTranscriber` (runs a local `whisper-cli` after an
@@ -87,14 +87,58 @@ the completion report.
 - Tests: import with a stub (transcript on the entry, audio attached), re-import idempotent, the
   CLI with a fake `whisper-cli`, no network at any point.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `chattr-cli convert voicemail <backup folder> [--transcribe] [--model PATH]
+  [--language CODE]` imports an iPhone `voicemail.db` and its audio into the central archive: one
+  `voicemail` message per row with the caller, UTC time, duration, the audio kept by hash, and a
+  transcript made locally when asked. `chattr.transcription` provides the interface, a test stub,
+  two local backends (whisper.cpp CLI, faster-whisper) and an offline guard that makes any network
+  connection raise while transcribing. The schema's legacy view now shows a transcript as a
+  voicemail's text (migration 2), so pages and exports show what was said.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `transcription.py`, `parsers/voicemail_parser.py`.
+  - Changed: `schema.py` (migration 2), `commands.py`, `cli.py` (flags, menu choice 7),
+    `defaults/Services/Voicemail.json` (transcription settings), `pyproject.toml` (mypy override).
+  - Tests: `test_transcription`, `test_voicemail_parser`, `test_voicemail_import`, `test_schema`.
+- **Errors:** none in existing code. **What was not verified:** no speech-to-text model or runtime
+  is installed in the build container, so neither real backend has transcribed real audio. The
+  whisper.cpp path is tested end to end with a fake `whisper-cli` and real ffmpeg; the
+  faster-whisper path against a fake module. A first run with a real model is needed.
+- **Verify:** `python -m pytest -q` → 399 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean.
+
+## Review
+
+### 2026-11-02: ef4b18c..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only. One is a decision for the maintainer.
+
+- **Minor (decision):** the open question "which local runtime and model" is answered by offering
+  two backends behind one setting, with no default model and no downloads. The maintainer should
+  choose a recommended default (and may want a model-fetch helper outside Chattr).
+- **Minor:** the offline guard covers this Python process only. A program started by a backend
+  (`whisper-cli`) is outside it; whisper.cpp does not use the network, but the guard can't prove
+  that.
+- **Minor:** every re-import re-transcribes each voicemail (transcripts are not cached by audio
+  hash). Fine for a few hundred; a cache keyed by hash and model would help a large archive.
+- **Minor:** a voicemail's transcript is a machine guess and is stored as `transcript` with
+  `transcript_model` in `service_specific`; later layers (the personal model, Caixa) should treat it
+  as lower-confidence text and cite the audio.
+- **Minor:** the phone's time zone isn't in `voicemail.db`, so the stored instant is exact but the
+  local offset is unknown (stored as UTC).
+- **Minor:** `voicemail.db` layouts differ between iOS versions (column names, audio container, some
+  versions keep audio as `.amr` and others `.m4a`); only the fixture's layout is tested. Verify on
+  a real backup.
+- **Minor:** Google Voice voicemails also carry audio; they use Google's transcript and are not
+  re-transcribed.
+- **Spec:** all three acceptance criteria are met. Files match the plan; migration 2 was added to
+  make the transcript visible in pages and exports.
+- **TDD:** RED then GREEN for every task (collection errors, then passing; T03 first run showed
+  4+ failing, then one fixture mistake in the test fixed).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -108,3 +152,6 @@ T01: transcription.py: Transcriber interface, StubTranscriber, WhisperCppTranscr
 
 ### 2026-11-02
 T02: VoicemailParser reads voicemail.db read-only (chatdb.connect_readonly) and finds each row's audio by <ROWID>.* (extension not trusted); audio kept by hash as the attachment; transcripts from the supplied Transcriber via transcribe_all (offline guard on), failures recorded as service_specific.transcription_error; trashed voicemails kept and flagged; callers without a number are filed under 'unknown'. Message ids are hashes (no stable source id: ROWIDs can collide across backups), so a re-transcription with a different model shows as an update, not a duplicate.
+
+### 2026-11-02
+T03: convert voicemail wired (folder input; --transcribe/--model/--language, settings supply provider/executable/model_path; the menu uses the settings and never prompts for a model). Schema migration 2 recreates messages_view with COALESCE(body, transcript) so voicemail text shows in HTML and JSON. A re-import with a transcriber updates the same messages (version 2) instead of duplicating them. The state file uses total_messages_imported (the older total_voicemails_imported key is unused).
