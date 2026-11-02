@@ -10,13 +10,16 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Tony Knight" }]
-dependencies = []
+dependencies = ["chattr"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "black>=24.0", "mypy>=1.10"]
 
 [project.scripts]
 caixa = "caixa.cli:main"
+
+[project.entry-points."caixa.collectors"]
+chattr = "caixa.collectors.chattr:collectors"
 
 [tool.setuptools.packages.find]
 where = ["."]

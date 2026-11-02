@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Optional
 
 import pytest
 
@@ -95,7 +95,9 @@ class Fake:
             options_schema={"type": "object", "properties": {}},
         )
 
-    def preview(self, source: Path, options: Mapping[str, Any]) -> Preview:
+    def preview(
+        self, source: Path, options: Mapping[str, Any], box: Optional[Box] = None
+    ) -> Preview:
         return Preview(items=1)
 
     def run(

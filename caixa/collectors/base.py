@@ -3,7 +3,7 @@
 A collector declares what it is (`CollectorInfo`: id, name, platform, accepted inputs, "how to
 export" instructions, an options JSON Schema the UI renders as a form) and can
 
-- `preview(source, options)`: a dry run that writes nothing: counts, date range, participants,
+- `preview(source, options, box=None)`: a dry run that writes nothing: counts, date range, participants,
   unresolved handles;
 - `run(box, source, options, progress)`: the real import into a box, reporting `Progress` as it goes.
 
@@ -76,7 +76,9 @@ class RunResult:
 class Collector(Protocol):
     info: CollectorInfo
 
-    def preview(self, source: Path, options: Mapping[str, Any]) -> Preview: ...
+    def preview(
+        self, source: Path, options: Mapping[str, Any], box: Optional["Box"] = None
+    ) -> Preview: ...
 
     def run(
         self,

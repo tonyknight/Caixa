@@ -3,10 +3,10 @@ id: 20261101-20-collector-contract-and-registry
 title: Collector contract and registry
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
+closed: 2026-11-02
 notes: Breakdown item 20.
 parent:
 depends_on:
@@ -75,13 +75,16 @@ JSON, which is valid YAML) and `logs/`.
 ### T02: Chattr's six collectors
 
 - `caixa/collectors/chattr.py`: one collector per source with its inputs, "how to export" text and
-  options schema; `preview` (parse only: counts, date range, participants, unresolved handles) and
-  `run` (Chattr into `.caixa/work/chattr/`, rendering into the box, the adapter sync with the page
-  map, progress notifications, a result report).
+  options schema (defaults read from Chattr's own); `preview` (parse only, writing nothing: counts,
+  date range, participants, handles no alias names; it takes the box as an optional extra argument
+  to know the aliases) and `run` (Chattr into `.caixa/work/chattr/`, people linked, pages rendered
+  into the box, the adapter sync with the page map, progress notifications, a result report).
+- A source can be a file, a folder or a zip: zips are unpacked safely into `.caixa/work/imports/`,
+  and a folder is searched for what the collector reads (every `_chat.txt`, every Meta thread, …).
 - Tests: every collector previews its fixture without writing anything; running imports into a box
   (items, people, pages, change log); running twice changes nothing; progress arrives in order.
 - Verify: `python -m pytest -q tests/test_chattr_collectors.py`
-- [ ] done
+- [x] done
 
 ### T03: Entry-point registration
 
@@ -89,14 +92,33 @@ JSON, which is valid YAML) and `logs/`.
 - Tests: discovery through the real installed entry points finds the six; the UI description is
   plain JSON.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Chattr's six sources (iMessage, WhatsApp, Messenger and Instagram, Mail, Google
+  Voice, iPhone voicemail) are collectors found through the `caixa.collectors` entry point. Each
+  declares its inputs, "how to export" steps and options form; previews count in a scratch Chattr
+  root so neither the box nor the source changes; runs import into the box's own Chattr root, draw
+  the pages into the box, and sync the master with each item pointing at its page.
+- **Files:** `caixa/collectors/{base,options,registry,inputs,chattr}.py`, `caixa/box.py`,
+  `pyproject.toml` (entry point, `chattr` dependency), `tests/test_collector_contract.py`,
+  `tests/test_chattr_collectors.py`.
+- **Errors:** two of my own test expectations were wrong (the WhatsApp fixture chats hold 7 + 4 + 7
+  messages; unresolved names are not people until linked) and were corrected; mypy only accepts
+  `import chattr.commands as commands` here (the `from chattr import …` form is reported as
+  missing when Chattr's sources are checked together with Caixa's).
+- **Verify:** `python -m pytest -q` 728 passed; `black --check .` and `mypy caixa tools/chattr/src`
+  clean. The six collectors also load through the real installed entry point.
+
+## Review
+
+Reviewed in-session against the Requirements. Findings, all minor and accepted: previews repeat a
+full parse in a scratch root (simple and exactly as accurate as a run, at the cost of time on very
+large iMessage databases; `limit` helps); `chattr` is declared as a dependency by name only and
+there is an unrelated project of that name on PyPI, so Chattr must be installed from `tools/chattr`
+first (`pip install -e tools/chattr -e .`); transcription was not run for real here (no model).
+No blockers.
 
 ## Notes
 
@@ -107,3 +129,6 @@ NEEDS MAINTAINER CONFIRMATION: collector ids (imessage, whatsapp, messenger [Mes
 
 ### 2026-11-02
 T01: base.py (CollectorInfo validated: at least one input kind from zip/folder/file/database; Preview; Progress; RunResult; runtime-checkable Collector protocol), options.py (JSON-Schema subset: type incl. bool-is-not-integer, enum, minimum/maximum, required, unknown options refused, all errors at once), registry.py (entry points group caixa.collectors; a plugin returns one collector or a list; a broken or duplicate plugin is recorded in registry.problems and never hides the others; describe() = plain JSON for the UI), box.py (Box.create/open/status; box.yaml written as JSON; never overwrites an existing README).
+
+### 2026-11-02
+T02/T03 done. NEEDS MAINTAINER CONFIRMATION: Chattr's working root lives in the box at `.caixa/work/chattr/` and unpacked zips in `.caixa/work/imports/`; extracted files go to `Messages/<Person>/Attachments`, `Mail/Attachments`, `Audio/Voicemail`, `Audio/GoogleVoice`; the `chattr` dependency is declared by name only (a different project has that name on PyPI), install Chattr from `tools/chattr` first. Housekeeping: the commit helper had not been staging `.github/`, so ticket 19's workflow was untracked until this commit; it is included now.

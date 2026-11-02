@@ -1,0 +1,46 @@
+# Mirror tools/chattr/ to Chattr's own repository (a fast-forward; never forced).
+#
+# Chattr is developed here, in Caixa. This publishes its history to its own repository so it can be
+# used and installed on its own. It needs a write token for that repository, kept as the repository
+# secret CHATTR_MIRROR_TOKEN (see tools/mirror/README.md).
+name: Mirror Chattr
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One mirror run at a time, so two pushes can't race each other.
+concurrency:
+  group: mirror-chattr
+  cancel-in-progress: false
+
+permissions:
+  contents: read # this workflow's own token can only read Caixa
+
+env:
+  CHATTR_REPOSITORY: tonyknight/Chattr
+  CHATTR_BRANCH: main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Caixa with its whole history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # a subtree split needs every commit
+          persist-credentials: false
+
+      - name: Push the tools/chattr history to Chattr's repository
+        env:
+          CHATTR_MIRROR_TOKEN: ${{ secrets.CHATTR_MIRROR_TOKEN }}
+        run: |
+          if [ -z "$CHATTR_MIRROR_TOKEN" ]; then
+            echo "::error::CHATTR_MIRROR_TOKEN is not set. Add it as a repository secret: see tools/mirror/README.md."
+            exit 1
+          fi
+          echo "::add-mask::$CHATTR_MIRROR_TOKEN"
+          bash tools/mirror/mirror-chattr.sh \
+            --remote "https://x-access-token:${CHATTR_MIRROR_TOKEN}@github.com/${CHATTR_REPOSITORY}.git" \
+            --branch "$CHATTR_BRANCH"
