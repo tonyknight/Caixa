@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
-plan_status: in-progress
-current_task: T05
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T05
+Status: done
+Current task: 
 
 Scope is the data layer. Wiring each source parser into it is tickets 07–12; this ticket adapts
 today's WhatsApp/Messenger parser output so the existing CLI and HTML keep working.
@@ -110,7 +109,7 @@ local wall time without a zone (for example WhatsApp) store the offset as unknow
   so every service can still produce JSON.
 - Test: exporting the imported WhatsApp records gives valid JSON with every message.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
