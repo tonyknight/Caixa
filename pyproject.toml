@@ -25,14 +25,29 @@ include = ["caixa*"]
 [tool.black]
 line-length = 100
 target-version = ["py310"]
-# Chattr is imported as-is; ticket 20261101-04 formats it and removes this exclusion.
-extend-exclude = "tools/chattr"
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 files = ["caixa"]
 
+# Chattr's legacy code is type-checked against a baseline (decision in ticket
+# 20261101-04): real type errors are reported, missing annotations are not yet.
+# Later tickets ratchet this towards strict; Caixa's own code stays strict.
+[[tool.mypy.overrides]]
+module = ["chattr", "chattr.*"]
+ignore_missing_imports = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false
+warn_return_any = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests", "tools/chattr/tests"]
 addopts = "-ra --import-mode=importlib"
+
+# Third-party libraries without type information.
+[[tool.mypy.overrides]]
+module = ["tqdm", "tqdm.*", "vobject", "vobject.*", "ffmpeg", "ffmpeg.*", "pillow_heif"]
+ignore_missing_imports = true

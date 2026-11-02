@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
-plan_status: in-progress
-current_task: T08
+plan_status: done
 ---
 ## Description
 
@@ -39,8 +38,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T08
+Status: done
+Current task: 
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -136,7 +135,7 @@ touches the real home folder.
   Strictness for legacy Chattr code ratchets up in later tickets; new Caixa code stays strict.
   The decision is recorded in Notes.
 - Verify: `python -m black --check . && python -m mypy caixa tools/chattr/src && python -m pytest -q`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -157,3 +156,6 @@ T01 done. Maintainer decision 2026-11-02: the terminal command is 'chattr-cli' (
 
 ### 2026-11-02
 T05: the static key-scan test failed on six keys cli.py read (global.output_directory, services.imessage.* without .preferences, imessage.*), confirming the review. Fixed. Debug: the new end-to-end test first failed with 'No module named jinja2' because it isolates HOME and Python derives the per-user site folder from HOME; fixed in the test by passing PYTHONUSERBASE (not a product bug).
+
+### 2026-11-02
+T08 decision (type-check baseline): Caixa stays mypy-strict. Chattr's legacy code gets a recorded baseline via a mypy override for chattr.* (no missing-annotation checks: untyped defs/calls, any-generics, return-any) so real type errors still fail the build; strictness ratchets up in later tickets. Untyped third-party libraries (tqdm, vobject, ffmpeg, pillow_heif) are ignored. mypy surfaced two real bugs, fixed with RED->GREEN regression tests (tests/test_imessage_batch.py): _process_message_batch appended the chat filter to the caller's message_ids list (params aliased the argument), and cli passed None as self to _apple_timestamp_to_datetime (now a staticmethod). Also corrected chat_filter's annotation to Optional[int] (all callers pass chat IDs) and guarded Optional connections with a clear error. Black now formats Chattr (root exclusion removed).
