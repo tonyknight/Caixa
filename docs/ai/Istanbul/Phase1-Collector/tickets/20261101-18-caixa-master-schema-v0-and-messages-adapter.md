@@ -13,7 +13,8 @@ depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -38,7 +39,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `caixa.sqlite` (`<box>/.caixa/caixa.sqlite`) is the master: it sees every domain and
 links items to people. It is separate from Chattr's database; the only contract between them is
@@ -65,7 +66,7 @@ run), and an append-only `change_log` (monotonic change number, item id, operati
 - Tests: migrations are idempotent and ordered; people and aliases rules; aliases.json round-trip;
   the change log's triggers; the item constraints.
 - Verify: `python -m pytest -q tests/test_master.py`
-- [ ] done
+- [x] done
 
 ### T02: The messages adapter
 
@@ -94,3 +95,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 NEEDS MAINTAINER CONFIRMATION: names not in the Requirements: privacy values private (default) / family / public; change-log operations insert / update / link; the people table's is_owner flag; alias kinds phone / email / username / name.
+
+### 2026-11-02
+T01: caixa/schema.py (migration 1: people with one owner at most, aliases unique per kind+normalized value+service, items, item_people with roles, imports, change_log with append-only triggers and AUTOINCREMENT so numbers are never reused) and caixa/master.py (Master context manager: people get-or-create case-insensitive; aliases (an alias can't name two people unless move=True); find_person; export_aliases -> aliases.json {value: person} sorted, byte-stable; imports; log_change/changes). Caixa does not import Chattr: the aliases normalisation here is its own, simpler one (Chattr normalises again when it reads aliases.json).
