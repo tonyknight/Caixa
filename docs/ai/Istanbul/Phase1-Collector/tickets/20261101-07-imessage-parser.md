@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T04
+current_task: T05
 plan_status: in-progress
 ---
 ## Description
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T04
+Current task: T05
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -97,7 +97,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
   `ReactionRecord(target_part=…)`. Removed tapbacks (3000-series) are recorded as removals.
 - Tests: the fixture's `p:0/`, `p:1/` (attachment), removed like and legacy `bp:` forms.
 - Verify: `python -m pytest -q tools/chattr/tests/test_imessage_tapbacks.py`
-- [ ] done
+- [x] done
 
 ### T05: IMessageParser behind BaseParser, into the database
 
@@ -140,3 +140,6 @@ T02: new chattr/apple_time.py (seconds below 1e11, else nanoseconds; aware UTC) 
 
 ### 2026-11-02
 T03: one _row_to_message now serves the single and parallel paths; the filter result is stored as Message.spam_reason and nothing is dropped (JSON export carries spam_reason). Found: the filter's 'null text, no attachments' rule also matched unread tapbacks (text-less by design), so tapback rows now count as tapbacks. Spam stats are updated under a lock. Note the filter only ever considers text-less messages, so the fixture's text spam ('package could not be delivered') is not flagged; the tests add text-less noise rows to a copy of chat.db.
+
+### 2026-11-02
+T04: three duplicated tapback lookups became one (_tapbacks_by_target) that understands p:<part>/GUID, bp:GUID and bare GUIDs. The old bulk loader only matched p:0/ and used IN lists, so tapbacks on parts 1+ and bp: forms were lost, and on databases with more than 32,766 messages the query failed and the error was swallowed (no tapbacks at all). Removals now cancel the tapback they undo (the JSON used to list a like that had been removed). Native JSON puts attachment tapbacks under attachments[i].tapbacks. Assumption to verify on a real export: part indexes count the text (if any) first, then attachments in order, or follow U+FFFC placeholders in the text. Fixture comments mislabeled 2000/2001 (Loved/Liked); corrected.
