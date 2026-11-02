@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -86,7 +86,7 @@ touches the real home folder.
 - State can be saved back per service.
 - Tests: merge, precedence, placeholder substitution, state round-trip.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T04: Non-interactive, non-destructive preflight
 
