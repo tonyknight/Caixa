@@ -6,9 +6,10 @@
 
 Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture
 
-## In progress (0)
+## In progress (1)
 
-_No tickets in progress._
+- **20261101-16-local-first-translation** Local-first translation [low] — Breakdown item 16.
+  - checkboxes: 0/5
 
 ## Blocked (7)
 
@@ -27,12 +28,11 @@ _No tickets in progress._
 - **20261101-26-browse-page-and-settings-section** Browse page and Settings section [medium]
   - depends on: 20261101-24-import-wizard-and-jobs-pages (not yet marked blocked)
 
-## Up next (4)
+## Up next (3)
 
 - **20261101-18-caixa-master-schema-v0-and-messages-adapter** Caixa master schema v0 and messages adapter [high]
 - **20261101-19-chattr-mirror-workflow** Chattr mirror workflow [medium]
 - **20261101-27-chattr-serve-web-ui** chattr-cli serve web UI [medium]
-- **20261101-16-local-first-translation** Local-first translation [low]
 
 ## Recently completed (last 10 of 16)
 
@@ -49,5 +49,5 @@ _No tickets in progress._
 
 ## Stats
 
-- Total: 27 tickets · 16 done · 11 todo · 0 in-progress · 0 blocked
+- Total: 27 tickets · 16 done · 10 todo · 1 in-progress · 0 blocked
 - By type: 24 feature · 3 chore
