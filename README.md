@@ -68,6 +68,19 @@ The browser interface is a plugin for DeepSeek Harness, kept in [`harness/`](har
 for how it fits together, the pinned DeepSeek Harness version and how to develop it. It needs Node
 24.9 or newer; everything else, including `chattr-cli serve`, needs only Python.
 
+```bash
+pnpm --dir harness install && pnpm --dir harness build   # once, from a checkout
+caixa serve --box ~/Our\ Box     # starts everything and opens your browser
+caixa serve --stop               # stops it
+```
+
+`caixa serve` checks Node first and says plainly what is missing. It keeps DeepSeek Harness in Caixa's
+own folder (`~/.local/share/caixa`, or `~/Library/Application Support/Caixa` on a Mac; never your own
+`~/.dsh`), installs the pinned version there on first run (that needs the network once), turns off
+its session logs and telemetry, and listens on `127.0.0.1` only. The link it opens carries a sign-in
+token; it is never printed (unless you pass `--no-browser`) or logged. If you close the terminal
+abruptly, the next `caixa serve` finds the running instance again instead of starting another.
+
 ## Status
 
 Early development. The current work is the message collector and Caixa's data architecture. See

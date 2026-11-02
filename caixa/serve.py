@@ -11,6 +11,7 @@ without the other.
 
 from __future__ import annotations
 
+import http.cookiejar
 import json
 import os
 import re
@@ -304,10 +305,13 @@ def state_path(home: Path) -> Path:
 
 
 def command_line(prepared: Prepared, patch: Path, port: int) -> list[str]:
-    """`dsh web` on this computer only, without opening a browser (Caixa does that), with the patch."""
+    """`dsh web` on this computer only, without opening a browser (Caixa does that), with the patch.
+
+    `--patch` is a launcher option and must come before the profile and the app's own options.
+    """
     return [
-        str(prepared.dsh), "--profile", PROFILE, "--no-open", "--host", "127.0.0.1",
-        "--port", str(port), "--patch", str(patch),
+        str(prepared.dsh), "--patch", str(patch), "--profile", PROFILE, "--no-open",
+        "--host", "127.0.0.1", "--port", str(port),
     ]  # fmt: skip
 
 
@@ -333,8 +337,12 @@ def _alive(pid: int) -> bool:
 
 
 def _answers(url: str, timeout: float = 3) -> bool:
+    """Whether the sign-in link works: DeepSeek Harness sets its cookie and redirects, so follow it
+    with a cookie jar and expect the page."""
+    jar = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     try:
-        with urllib.request.urlopen(url, timeout=timeout) as reply:
+        with opener.open(url, timeout=timeout) as reply:
             return bool(reply.status == 200)
     except (OSError, urllib.error.URLError):
         return False

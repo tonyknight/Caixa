@@ -30,6 +30,10 @@ if args[:1] == ["plugin"]:
     )
     sys.exit(0)
 
+if "--patch" in args and args.index("--patch") > args.index("--profile"):  # as the real dsh
+    print("error: unknown option '--patch'", file=sys.stderr)
+    sys.exit(1)
+
 mode = os.environ.get("FAKE_MODE", "")
 if mode == "early":
     print(

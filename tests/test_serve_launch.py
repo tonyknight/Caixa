@@ -115,6 +115,8 @@ def test_the_command_line_binds_loopback_and_never_opens_a_browser_itself(
     )
     assert "--no-open" in argv and argv[argv.index("--profile") + 1] == "web"
     assert argv[argv.index("--patch") + 1] == str(home / "caixa.patch.yml")
+    # the real dsh refuses `--patch` after the app's own options (found by running it)
+    assert argv.index("--patch") < argv.index("--profile") < argv.index("--no-open")
 
 
 def test_the_token_never_reaches_the_log_or_the_terminal(
