@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `WhatsAppParser` keeps its legacy dict output (`timestamp`, `author`, `message`,
 `type`, `attachment_path`) and gains `precision`, `omitted` and `system` details that
@@ -59,7 +60,7 @@ parser assumes month-first for 12-hour (US) exports and day-first otherwise, and
 - Tests: the three fixture exports (counts, texts, timestamps, precision), plus ambiguous and
   unambiguous generated files.
 - Verify: `python -m pytest -q tools/chattr/tests/test_whatsapp_parser.py`
-- [ ] done
+- [x] done
 
 ### T02: Attachments, groups and records
 
@@ -94,3 +95,6 @@ parser assumes month-first for 12-hour (US) exports and day-first otherwise, and
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: parser rewritten. The old regex only knew the iOS ISO layout and silently dropped 'image omitted' messages; it also stripped continuation-line indentation. Day/month order is decided per file (date_order, date_order_certain; ambiguous 12-hour files assume month-first, ambiguous 24-hour files day-first, with a printed note). Placeholder and encryption-notice wording is English only; other locales need real samples (open follow-up). Attachment lines now set type from the extension and message None; attachment_path resolves against the export folder. Messages are naive local times (no zone in the export), precision minute for Android/US.
