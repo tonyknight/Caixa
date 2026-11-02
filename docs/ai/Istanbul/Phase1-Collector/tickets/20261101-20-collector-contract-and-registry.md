@@ -13,7 +13,8 @@ depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 - 20261101-18-caixa-master-schema-v0-and-messages-adapter
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** a *collector* is how one kind of export enters a box. It declares what it is and what it
 accepts, and can `preview` (a dry run) and `run` (the real import). The UI is built from those
@@ -69,7 +70,7 @@ JSON, which is valid YAML) and `logs/`.
 - `caixa/box.py`: `Box.create/open`, the folder layout, `box.yaml`, `status()`.
 - Tests: the schema subset, discovery with fake entry points, duplicates, a broken plugin.
 - Verify: `python -m pytest -q tests/test_collector_contract.py`
-- [ ] done
+- [x] done
 
 ### T02: Chattr's six collectors
 
@@ -103,3 +104,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 NEEDS MAINTAINER CONFIRMATION: collector ids (imessage, whatsapp, messenger [Messenger and Instagram], mail, googlevoice, voicemail), input kind names (zip, folder, file, database), box.yaml written as JSON (valid YAML; avoids a YAML dependency).
+
+### 2026-11-02
+T01: base.py (CollectorInfo validated: at least one input kind from zip/folder/file/database; Preview; Progress; RunResult; runtime-checkable Collector protocol), options.py (JSON-Schema subset: type incl. bool-is-not-integer, enum, minimum/maximum, required, unknown options refused, all errors at once), registry.py (entry points group caixa.collectors; a plugin returns one collector or a list; a broken or duplicate plugin is recorded in registry.problems and never hides the others; describe() = plain JSON for the UI), box.py (Box.create/open/status; box.yaml written as JSON; never overwrites an existing README).
