@@ -6,17 +6,12 @@
 
 Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture
 
-## In progress (1)
+## In progress (0)
 
-- **20261101-04-chattr-stabilization** Chattr stabilization [high] — Breakdown item 4. · plan done · 8/8
-  - checkboxes: 8/14
+_No tickets in progress._
 
-## Blocked (22)
+## Blocked (20)
 
-- **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high]
-  - depends on: 20261101-04-chattr-stabilization (not yet marked blocked)
-- **20261101-06-interactive-menu-and-command-line** Interactive menu and command line [medium]
-  - depends on: 20261101-04-chattr-stabilization (not yet marked blocked)
 - **20261101-07-imessage-parser** iMessage parser [medium]
   - depends on: 20261101-05-unified-schema-v0-chattr-sqlite (not yet marked blocked)
 - **20261101-08-whatsapp-parser** WhatsApp parser [medium]
@@ -58,17 +53,20 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 - **20261101-27-chattr-serve-web-ui** chattr-cli serve web UI [medium]
   - depends on: 20261101-06-interactive-menu-and-command-line, 20261101-15-html-rendering-from-the-database (not yet marked blocked)
 
-## Up next (1)
+## Up next (3)
 
+- **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high]
+- **20261101-06-interactive-menu-and-command-line** Interactive menu and command line [medium]
 - **20261101-19-chattr-mirror-workflow** Chattr mirror workflow [medium]
 
-## Recently completed (last 3 of 3)
+## Recently completed (last 4 of 4)
 
 - **20261101-02-synthetic-fixture-family** Synthetic fixture family (closed 2026-11-02)
 - **20261101-03-chattr-import-and-licensing** Chattr import and licensing (closed 2026-11-02)
+- **20261101-04-chattr-stabilization** Chattr stabilization (closed 2026-11-02)
 - **20261101-01-caixa-repository-foundations** Caixa repository foundations (closed 2026-11-01)
 
 ## Stats
 
-- Total: 27 tickets · 3 done · 23 todo · 1 in-progress · 0 blocked
+- Total: 27 tickets · 4 done · 23 todo · 0 in-progress · 0 blocked
 - By type: 24 feature · 3 chore

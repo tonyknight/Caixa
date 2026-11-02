@@ -3,11 +3,12 @@ id: 20261101-04-chattr-stabilization
 title: Chattr stabilization
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 4.
+closed: 2026-11-02
+notes: 'Done: installable chattr + chattr-cli; settings wired to root; safe preflight;
+  CLI keys/paths fixed; HTML from DB; black/mypy clean.'
 parent:
 depends_on:
 - 20261101-03-chattr-import-and-licensing
@@ -20,12 +21,12 @@ Make Chattr's v2 scaffolding actually work and remove its contradictions.
 
 ## Acceptance criteria
 
-- [ ] The name is 'Chattr' everywhere (`~/.chattr.json`, `~/Documents/Chattr`, `chattr.sqlite`, `chattr-cli` command)
-- [ ] Preflight and configuration are wired: pointer → root → global `config.json` merged with `Services/<Service>.json`
-- [ ] iMessage configuration keys resolve (Quick/List/Diagnostics no longer fail)
-- [ ] Preflight repair keeps existing preferences and state; `--root` works without prompting
-- [ ] HTML generation no longer crashes and the template uses the database field names
-- [ ] Unused dependencies removed; stale docs consolidated
+- [x] The name is 'Chattr' everywhere (`~/.chattr.json`, `~/Documents/Chattr`, `chattr.sqlite`, `chattr-cli` command)
+- [x] Preflight and configuration are wired: pointer → root → global `config.json` merged with `Services/<Service>.json`
+- [x] iMessage configuration keys resolve (Quick/List/Diagnostics no longer fail)
+- [x] Preflight repair keeps existing preferences and state; `--root` works without prompting
+- [x] HTML generation no longer crashes and the template uses the database field names
+- [x] Unused dependencies removed; stale docs consolidated
 
 ## Context
 
@@ -137,12 +138,55 @@ touches the real home folder.
 - Verify: `python -m black --check . && python -m mypy caixa tools/chattr/src && python -m pytest -q`
 - [x] done
 
+## Review
+
+2026-11-02. Commits `49c396e` (T01), `c164fc1` (T02), `097ca79` (T03), `54cddf2` (T04), `744730f`
+(T05), `9734890` (T06), `e378101` (T07), `ed5353e` (T08), plus the decision commit `0938fa6`
+(`chattr-cli`). **Verdict: clean, minors only.**
+- **Spec:** all six acceptance criteria met. The "chattr command" criterion became `chattr-cli`
+  by the maintainer's decision (recorded in the Requirements).
+- **TDD:** every code task went RED, then GREEN. T05's static key scan failed on the six broken
+  keys before the fix. T08 added regression tests that reproduced two real bugs found by mypy.
+  T07 is a documentation task (exception noted).
+- **Debugging:** `langdetect` failed to build (it was unused, so removed); `HOME` isolation hid
+  per-user packages from a subprocess test (fixed in the test with `PYTHONUSERBASE`). Both are in
+  Notes.
+- **Commits** are authored by Tony Knight, in the ticket format; only source and docs are
+  tracked.
+- **Minor:** Chattr's mypy runs on a recorded baseline (no missing-annotation checks), to be
+  tightened in later tickets.
+- **Minor:** the interactive menu is still the flat legacy menu. The step-by-step menu and full
+  non-interactive commands are ticket 06.
+- **Minor:** the untracked `chattr.egg-info/PKG-INFO` still holds the old README text until the
+  next reinstall. It's git-ignored.
+
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** Chattr is an installable package (`tools/chattr/src/chattr/`) with the
+  `chattr-cli` command and `python -m chattr`. It is named "Chattr" throughout.
+  - **Settings** load from the Chattr root (`--root`, then `CHATTR_ROOT`, then `~/.chattr.json`),
+    merging global and per-service files.
+  - **Preflight** never prompts when given a root, and repairs without overwriting.
+  - **The CLI** reads valid keys and keeps its database at `<root>/Database/chattr.sqlite`.
+  - **HTML** generates from database rows.
+  - **Dependencies** are pruned, and the README describes the current state honestly.
+  - **Checks:** black and mypy pass for the whole repo.
 - **Files:**
+  - `tools/chattr/pyproject.toml` (new), `requirements.txt`, `README.md`, `docs/*.md`
+    (superseded headers);
+  - `src/chattr/` (moved from `src/`, `main.py` → `cli.py`, `Defaults/` → `defaults/`,
+    `templates/` moved) with `config.py` and `preflight.py` rewritten and fixes in `cli.py`,
+    `html_generator.py`, `database_manager.py`, the parsers, `imessage_tools.py` and
+    `attachment_manager.py`;
+  - new tests: `test_package`, `test_naming`, `test_settings`, `test_preflight`,
+    `test_cli_config_keys`, `test_html_from_database`, `test_imessage_batch`;
+  - root `pyproject.toml` (black exclusion removed, mypy overrides).
 - **Errors:**
-- **Verify:**
+  - **Fixed real bugs:** six wrong configuration keys; the HTML crash on `sqlite3.Row`;
+    `message_ids` mutated by the chat filter; `None` passed as `self`.
+  - **Build issue:** `langdetect` failed to build; it was unused, so removed.
+- **Verify:** `python -m pytest -q` → 84 passed; `python -m black --check .` → clean;
+  `python -m mypy caixa tools/chattr/src` → no issues; `chattr-cli --version` → `chattr 2.0.0`.
 
 ## Notes
 
