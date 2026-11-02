@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** one parser reads both Meta formats (Messenger and Instagram share the JSON layout);
 `MessengerParser` stays the class, `InstagramParser` is a subclass that only changes the service.
@@ -57,7 +58,7 @@ name the conversation and detect groups.
   place with the right type.
 - Tests: the fixture Messenger thread, generated split threads, calls, unsent, groups.
 - Verify: `python -m pytest -q tools/chattr/tests/test_messenger_parser.py`
-- [ ] done
+- [x] done
 
 ### T02: Instagram and the unified records
 
@@ -88,3 +89,6 @@ name the conversation and detect groups.
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: parser rewritten. Found: (1) timestamps used datetime.fromtimestamp, i.e. the machine's local zone, so the same export gave different times on different machines; now aware UTC. (2) Only the first photo or video of a message was recorded; now every attachment kind. (3) Threads over one file (message_2.json, …) were silently cut to message_1.json; now read whole. (4) The encoding fix crashed on text that was already proper UTF-8 (newer exports); now tolerant. (5) The share link and preview were folded into the body as '[Shared Link: …] Preview: …'; now shared_link/link_text. Reactions, calls, unsent messages and group events kept. 'photos[i].creation_timestamp' is not used yet (ticket 13 will use file dates).
