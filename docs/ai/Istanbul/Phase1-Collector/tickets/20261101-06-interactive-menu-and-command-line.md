@@ -5,15 +5,14 @@ type: feature
 priority: medium
 status: todo
 created: 2026-11-01
-updated: 2026-11-01
-closed: null
+updated: 2026-11-02
+closed:
 notes: Breakdown item 6.
-parent: null
+parent:
 depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 ---
-
 ## Description
 
 The step-by-step terminal menu plus an equivalent non-interactive command line for every action.
@@ -49,3 +48,6 @@ Current task:
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+Follow-up found while verifying ticket 05: run_preflight prints 'Chattr structure repaired' when it creates a brand-new root given via --root (first_time is only true for the prompt path). Report 'initialized' when config.json didn't exist before. Cosmetic; fix with a test here.

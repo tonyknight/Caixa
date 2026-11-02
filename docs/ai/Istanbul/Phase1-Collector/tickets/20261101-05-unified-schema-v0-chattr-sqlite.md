@@ -3,11 +3,12 @@ id: 20261101-05-unified-schema-v0-chattr-sqlite
 title: Unified schema v0 (chattr.sqlite)
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 5.
+closed: 2026-11-02
+notes: 'Done: unified schema v0, stable IDs, idempotent imports, import runs + service
+  state, JSON export.'
 parent:
 depends_on:
 - 20261101-04-chattr-stabilization
@@ -20,10 +21,10 @@ Chattr's own next milestone: one unified schema and one `DatabaseManager` for al
 
 ## Acceptance criteria
 
-- [ ] Tables per the Requirements data model: conversations, handles, participants, messages, attachments, reactions, imports, schema_version
-- [ ] Ordered migrations; stable IDs; upserts make re-imports idempotent
-- [ ] `imports` and `Services/*.json` `state` updated on every run
-- [ ] Native per-service JSON export still available
+- [x] Tables per the Requirements data model: conversations, handles, participants, messages, attachments, reactions, imports, schema_version
+- [x] Ordered migrations; stable IDs; upserts make re-imports idempotent
+- [x] `imports` and `Services/*.json` `state` updated on every run
+- [x] Native per-service JSON export still available
 
 ## Context
 
@@ -111,12 +112,42 @@ local wall time without a zone (for example WhatsApp) store the offset as unknow
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
 - [x] done
 
+## Review
+
+2026-11-02. Commits `eb35844` (T01), `72a6a55` (T02), `1f576c5` (T03), `2d7bc5a` (T04), `a3b64fc`
+(T05). **Verdict: clean, minors only.**
+- **Spec:** all four acceptance criteria met. End to end on a fresh root, a WhatsApp import added
+  6 messages and the identical re-import added 0. Two `imports` rows and the service state
+  (running total 6) were recorded.
+- **TDD:** each task went RED (missing module or method), then GREEN. The adapter moved from T04
+  to T03 to keep the suite green (in Notes).
+- **Commits** are authored by Tony Knight; 105 tests; black and mypy clean.
+- **Minor:** `executescript` commits implicitly, so a migration and its `schema_version` row
+  aren't one atomic step. This is acceptable for one migration, but should be revisited when a
+  second migration is added.
+- **Minor:** handle normalization is lowercase/trim only. Phone/email normalization and people
+  resolution are ticket 14.
+- **Minor:** WhatsApp times have no time zone (`tz_assumed = 1`). Per-source time-zone handling
+  comes with the parser tickets.
+- **Minor, found here and logged on ticket 06:** preflight prints "repaired" when it creates a
+  brand-new root given with `--root`.
+
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Chattr's unified schema v0 and one `DatabaseManager` for all services.
+  - Ordered, idempotent migrations.
+  - Stable IDs, including for genuine repeats and overlapping exports.
+  - Upserts with inserted / updated / unchanged counts.
+  - Import runs recorded with the source's SHA-256.
+  - Per-service state saved after every import.
+  - A legacy view keeps the HTML/CLI code working.
+  - JSON export from the database for every service.
+- **Files:** `src/chattr/schema.py`, `records.py`, `importing.py` (new); `database_manager.py`
+  (rewritten); `cli.py` (import path); tests `test_schema`, `test_records`, `test_store`,
+  `test_importing`, `test_json_export`.
+- **Errors:** none.
+- **Verify:** `python -m pytest -q` → 105 passed; `python -m black --check .` → clean;
+  `python -m mypy caixa tools/chattr/src` → no issues.
 
 ## Notes
 
