@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T03
+current_task: T04
 plan_status: in-progress
 ---
 ## Description
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -86,7 +86,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
 - Tests: the fixture's "package could not be delivered" message from an unknown number is tagged
   on both paths with identical stats; nothing is dropped; disabled mode tags nothing.
 - Verify: `python -m pytest -q tools/chattr/tests/test_imessage_spam.py`
-- [ ] done
+- [x] done
 
 ### T04: Tapbacks attach to their targets
 
@@ -137,3 +137,6 @@ T01: the old attributedBody heuristic returned 1 character of a 331-character me
 
 ### 2026-11-02
 T02: new chattr/apple_time.py (seconds below 1e11, else nanoseconds; aware UTC) is used by the reader and by imessage_tools. Before, seconds-epoch rows (2016 fixture messages) were dated 2001-01-01 and attachment created dates (seconds) were misread as nanoseconds. Message.timestamp is now timezone-aware UTC; the native JSON gains '+00:00'. chat.db has no UTC offset, so none is stored (tz_assumed stays false: Apple stores UTC).
+
+### 2026-11-02
+T03: one _row_to_message now serves the single and parallel paths; the filter result is stored as Message.spam_reason and nothing is dropped (JSON export carries spam_reason). Found: the filter's 'null text, no attachments' rule also matched unread tapbacks (text-less by design), so tapback rows now count as tapbacks. Spam stats are updated under a lock. Note the filter only ever considers text-less messages, so the fixture's text spam ('package could not be delivered') is not flagged; the tests add text-less noise rows to a copy of chat.db.
