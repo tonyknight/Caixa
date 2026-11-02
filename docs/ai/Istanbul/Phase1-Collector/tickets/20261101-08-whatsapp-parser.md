@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `WhatsAppParser` keeps its legacy dict output (`timestamp`, `author`, `message`,
 `type`, `attachment_path`) and gains `precision`, `omitted` and `system` details that
@@ -73,7 +73,7 @@ parser assumes month-first for 12-hour (US) exports and day-first otherwise, and
 - HTML tolerates messages without a body.
 - Tests: fixture attachments reach the database with hashes; group inference; HTML.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T03: Media renamed and dated by AttachmentManager
 
@@ -98,3 +98,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: parser rewritten. The old regex only knew the iOS ISO layout and silently dropped 'image omitted' messages; it also stripped continuation-line indentation. Day/month order is decided per file (date_order, date_order_certain; ambiguous 12-hour files assume month-first, ambiguous 24-hour files day-first, with a printed note). Placeholder and encryption-notice wording is English only; other locales need real samples (open follow-up). Attachment lines now set type from the extension and message None; attachment_path resolves against the export folder. Messages are naive local times (no zone in the export), precision minute for Android/US.
+
+### 2026-11-02
+T02: records_from_parser now carries attachments (SHA-256 of the file, or of the name when the export names a file that was not included), precision as time_precision, omitted placeholders and system notices; empty bodies are stored as no body. Found: commands.convert computed the conversation but import_messages recomputed its own, so an inferred group type would have been lost; the inferred conversation is now passed through. Groups are inferred from more than two distinct authors (a chat where only two of three members spoke imports as one-to-one).
