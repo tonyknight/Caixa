@@ -33,6 +33,8 @@ export async function startHarness(): Promise<Running> {
   const home = mkdtempSync(join(tmpdir(), 'caixa-dsh-home-'))
   const work = mkdtempSync(join(tmpdir(), 'caixa-dsh-work-'))
   const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
+  // Linking does not rebuild, so build what the browser will load from the current sources.
+  execFileSync(process.execPath, [join(harness, 'scripts', 'build.mjs')], { cwd: harness, stdio: 'ignore' })
   execFileSync(dsh, ['plugin', '--profile', 'web', 'add', harness], { env, stdio: 'ignore', timeout: 180_000 })
   const server: ChildProcess = spawn(dsh, ['--profile', 'web', '--no-open', '--port', '0'], { env, cwd: work, stdio: ['ignore', 'pipe', 'inherit'] })
   const link = await new Promise<string>((resolve, reject) => {
@@ -84,8 +86,10 @@ export function buildFixtures(into: string): Record<string, string> {
     'import json, sys',
     "sys.path.insert(0, 'tools/chattr/tests')",
     'from pathlib import Path',
-    'from fixtures import build_all',
-    'print(json.dumps({k: str(v) for k, v in build_all(Path(sys.argv[1])).paths.items()}))',
+    'from fixtures import build_all, family',
+    'paths = {k: str(v) for k, v in build_all(Path(sys.argv[1])).paths.items()}',
+    "paths['ana_phone'] = family.ANA.phones[0]  # a number the family's daughter texts from",
+    'print(json.dumps(paths))',
   ].join('\n')
   return JSON.parse(execFileSync('python', ['-c', code, into], { cwd: repository, encoding: 'utf8' }).trim().split('\n').pop()!)
 }
