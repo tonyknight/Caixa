@@ -3,11 +3,11 @@ id: 20261101-07-imessage-parser
 title: iMessage parser
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 7.
+closed: 2026-11-02
+notes: 'Done: decoder, epochs, spam tags, tapbacks, central import, read-only.'
 parent:
 depends_on:
 - 20261101-02-synthetic-fixture-family
@@ -21,11 +21,12 @@ Move the working iMessage reader behind `BaseParser` and into the database, with
 
 ## Acceptance criteria
 
-- [ ] attributedBody is decoded with a real typedstream decoder; long messages are not truncated
-- [ ] Both seconds and nanoseconds epochs handled; UTC + offset stored
-- [ ] Spam filter runs on the parallel path and tags rather than drops
-- [ ] Tapbacks on attachments (`p:1/`, `bp:`) attach to their targets
-- [ ] All tools open `chat.db` read-only
+- [x] attributedBody is decoded with a real typedstream decoder; long messages are not truncated
+- [x] Both seconds and nanoseconds epochs handled; UTC + offset stored
+  (chat.db has no local offset, so the stored offset is 0, meaning UTC)
+- [x] Spam filter runs on the parallel path and tags rather than drops
+- [x] Tapbacks on attachments (`p:1/`, `bp:`) attach to their targets
+- [x] All tools open `chat.db` read-only
 
 ## Context
 
@@ -122,10 +123,67 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `chat.db` now converts into the central archive by default (`chattr-cli convert
+  imessage`), one conversation per chat, idempotent on re-import, with `--json` keeping the native
+  export. The reader was fixed along the way:
+  - `attributedBody` is decoded by a real typedstream decoder;
+  - both Apple epochs read as aware UTC;
+  - the spam filter runs on every path and tags;
+  - tapbacks find their targets in all GUID forms, and removals cancel;
+  - `chat.db` is only ever opened read-only.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `typedstream.py`, `apple_time.py`, `chatdb.py`, `parsers/imessage_parser.py`.
+  - Changed: `parsers/imessage_database_parser.py`, `imessage_tools.py`, `imessage_export.py`,
+    `commands.py`, `cli.py`, `importing.py` (`import_conversations`), `database_manager.py`
+    (reactions replaced per message).
+  - Tests: `test_typedstream`, `test_imessage_time`, `test_imessage_spam`,
+    `test_imessage_tapbacks`, `test_imessage_parser`, `test_chatdb_readonly`, plus the menu and
+    subcommand tests for the new route.
+- **Errors:** found and fixed, each with a test:
+  - The old heuristic returned 1 character of a 331-character message.
+  - Seconds-epoch rows were dated 2001; attachment dates in seconds were misread as
+    nanoseconds.
+  - Tapbacks on parts 1+ and in the `bp:` form were lost, and the bulk loader failed silently
+    past 32,766 messages.
+  - A removed like was still listed.
+  - Unread tapbacks matched the spam rule for text-less messages.
+  - The diagnostics tool opened `chat.db` read-write.
+  - Review: a received message with no handle got a sender named "Me"; one-to-one chats were
+    named by phone number even with contacts.
+- **Verify:** `python -m pytest -q` → 223 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean.
+
+## Review
+
+### 2026-11-02: 179a221..HEAD (T01–T06 and review fixes), reviewed in-session
+
+**Verdict:** two Important findings, fixed with tests before marking done; Minor items below.
+
+- **Important (fixed):** a received message with handle 0 became a sender named "Me" (the reader
+  maps handle 0 to "Me"). It now has no sender.
+- **Important (fixed):** one-to-one chats were named by phone number or email even when a contacts
+  file knew the person. They now use the contact name.
+- **Minor:** the typedstream decoder reads only the plain `NSString` payload. Formatting
+  attributes, edits and unsent-message data are ignored, and none of it is verified against a real
+  export. The old heuristic stays as the fallback.
+- **Minor:** tapback part indexes assume the text (if any) comes first, then the attachments, or
+  follow U+FFFC placeholders in the text. Verify on a real export.
+- **Minor:** `IMessageParser.parse` returns `ConversationBatch`es, not the legacy list of dicts that
+  `BaseParser` documents. Ticket 20 (collector contract) should settle the shape.
+- **Minor:** the spam filter only ever considers messages with no text, attachments or tapbacks.
+  Text spam is not flagged; this is the existing rule set.
+- **Minor:** `--verbose` on the central route prints a line per conversation, not per message.
+- **Minor:** the central route stores attachment hashes and filenames but doesn't copy files.
+  Archival naming and per-person folders are ticket 13.
+- **Minor:** the whole database is read into memory. Fine for a family `chat.db`; revisit if a very
+  large one shows up.
+- **Spec:** all five acceptance criteria are met (offset 0 = UTC noted above). The plan named six
+  tasks and `typedstream.py`, `apple_time.py`, `chatdb.py`, `parsers/imessage_parser.py`; the files
+  match, plus `importing.py` and `database_manager.py` for the central import.
+- **TDD:** RED was seen before GREEN for every task: T01 (module missing; the old heuristic
+  returned 1 of 331 characters), T02, T03 (8 failing), T04, T05, T06 (static scan), review fixes
+  (2 failing).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
