@@ -12,7 +12,8 @@ parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -35,7 +36,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** translation is a separate, explicit step after conversion (conversion itself never uses
 the network, N2): `chattr-cli translate` sends the text of messages that need it to an
@@ -59,7 +60,7 @@ themselves).
 - Tests: sample sentences; the heuristic's boundaries (299/301 s, 19%/21%, other author, in between
   messages).
 - Verify: `python -m pytest -q tools/chattr/tests/test_translation_rules.py`
-- [ ] done
+- [x] done
 
 ### T02: The translation client and its settings
 
@@ -95,3 +96,6 @@ themselves).
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: translation.py: detect_language (built-in stopword detector for en/pt/es/fr/de/it; None when thin or tied, so short or mixed text is never guessed), needs_translation (text messages only; not English; not what the same author already translated: the nearest message by the same author on either side, within 300 s, English, length within 20% of that message). The old langdetect dependency never built, so detection is built in; accuracy outside these six languages is nil (they are reported as 'unknown' and not translated).
