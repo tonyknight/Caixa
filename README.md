@@ -37,6 +37,30 @@ into one durable box that their family can actually use.
 files: HTML pages, images with embedded dates, documents. You can open them in a web browser or
 file manager, with or without Caixa.
 
+## Using Caixa from the command line
+
+Everything the browser interface does is also a command, and gives the same result:
+
+```bash
+caixa box create ~/Our\ Box --name "Our box" --owner "Your Name"
+caixa collectors whatsapp                      # how to export from WhatsApp, and its options
+caixa import whatsapp ~/Downloads/chat.zip --box ~/Our\ Box --preview
+caixa import whatsapp ~/Downloads/chat.zip --box ~/Our\ Box
+caixa people unresolved --box ~/Our\ Box        # numbers and names no one is called yet
+caixa people link WhatsApp "Ana Costa" "Ana" --box ~/Our\ Box
+```
+
+Set `CAIXA_BOX` (or run inside the box) to leave out `--box`. Drop exports into the box's `Inbox/`
+folder if you prefer; it is listed in the interface.
+
+`caixa worker [--box PATH] [--read-only]` serves the same operations over standard input and
+output as JSON-RPC 2.0, one JSON object per line. That is how the browser interface talks to
+Python; it is not a network service. Its methods (`box.*`, `collectors.list`, `import.*`,
+`jobs.*`, `people.*`, `browse.*`, `files.list`, `inbox.list`, `settings.*`), notifications
+(`job.progress`, `job.finished`, `inbox.changed`) and error codes are described at the top of
+[`caixa/worker.py`](caixa/worker.py). With `--read-only`, every method that would change the box is
+refused, and nothing is written.
+
 ## Status
 
 Early development. The current work is the message collector and Caixa's data architecture. See
