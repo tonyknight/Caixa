@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T07
+current_task: T08
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T07
+Current task: T08
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -127,7 +127,7 @@ touches the real home folder.
   `iMessageConversionReadMe.md`, `MIGRATION_SUMMARY.md`) get a "superseded" header pointing to
   the README.
 - Verify: `python -m pytest -q && ! grep -rqE "^(beautifulsoup4|langdetect|requests)" tools/chattr/requirements.txt`
-- [ ] done
+- [x] done
 
 ### T08: Formatting and type-check baseline
 
