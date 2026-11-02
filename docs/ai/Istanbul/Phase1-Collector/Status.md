@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high] — Breakdown item 5. · plan in-progress · T02/T05
-  - checkboxes: 1/9
+- **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high] — Breakdown item 5. · plan in-progress · T03/T05
+  - checkboxes: 2/9
 
 ## Blocked (20)
 
