@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -74,7 +74,7 @@ touches the real home folder.
 - Historical docs keep old names only where they describe the past.
 - Test: no old names in `src/chattr/` or its defaults.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T03: Configuration wired to the Chattr root
 

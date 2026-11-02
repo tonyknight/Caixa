@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-04-chattr-stabilization** Chattr stabilization [high] — Breakdown item 4. · plan in-progress · T02/T08
-  - checkboxes: 1/14
+- **20261101-04-chattr-stabilization** Chattr stabilization [high] — Breakdown item 4. · plan in-progress · T03/T08
+  - checkboxes: 2/14
 
 ## Blocked (22)
 
