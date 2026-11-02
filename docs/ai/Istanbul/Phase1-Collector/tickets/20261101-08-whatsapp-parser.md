@@ -3,18 +3,17 @@ id: 20261101-08-whatsapp-parser
 title: WhatsApp parser
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 8.
+closed: 2026-11-02
+notes: 'Done: formats, placeholders, media records, media archive.'
 parent:
 depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T03
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,9 +21,9 @@ Restore WhatsApp processing from `60b276c:main.py` and extend formats.
 
 ## Acceptance criteria
 
-- [ ] iOS and Android/locale date formats parse
-- [ ] Continuation lines keep indentation; 'media omitted' kept as placeholders
-- [ ] Media renamed and dated via AttachmentManager
+- [x] iOS and Android/locale date formats parse
+- [x] Continuation lines keep indentation; 'media omitted' kept as placeholders
+- [x] Media renamed and dated via AttachmentManager
 
 ## Context
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** `WhatsAppParser` keeps its legacy dict output (`timestamp`, `author`, `message`,
 `type`, `attachment_path`) and gains `precision`, `omitted` and `system` details that
@@ -83,14 +82,55 @@ parser assumes month-first for 12-hour (US) exports and day-first otherwise, and
 - Tests: the fixture photo lands as `(2024-03-01) 14-05-09.<ext>` in the archive, the original is
   untouched; Android's `IMG-…-WA0001` likewise.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `WhatsAppParser` reads iOS, Android and US-locale exports (day/month order decided
+  from the file, 12-hour clocks, minute or second precision), keeps continuation-line
+  indentation, keeps omitted media and system notices as messages, and resolves attachment lines to
+  the files in the export folder. Media reaches the archive with a SHA-256, and
+  `convert whatsapp --attachments-dir` copies it through `AttachmentManager`, renamed and dated by
+  the message (originals untouched). Chats with more than two authors import as groups.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `media_archive.py`.
+  - Rewritten: `parsers/whatsapp_parser.py`.
+  - Changed: `records.py` (`records_from_parser` carries attachments, precision, system notices),
+    `commands.py`, `cli.py`.
+  - Tests: `test_whatsapp_parser`, `test_whatsapp_records`, `test_whatsapp_media`.
+- **Errors:** found and fixed, each with a test:
+  - The old parser dropped "image omitted" messages and stripped continuation indentation.
+  - Only the iOS ISO layout parsed at all.
+  - `convert` computed an inferred group type but the import recomputed its own conversation, so
+    it would have been lost.
+  - Lines with no sender (Android group notices) were stored as text.
+- **Verify:** `python -m pytest -q` → 252 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean.
+
+## Review
+
+### 2026-11-02: 18c42d4..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean apart from Minor items; the one defect found during review (sender-less lines
+stored as text) was fixed with a test before closing.
+
+- **Minor:** placeholder and notice wording ("omitted", "end-to-end encrypted", "(file attached)")
+  is English only. Other locales need real samples.
+- **Minor:** a system notice whose text contains ": " (for example a renamed group) would be split
+  into a fake author. Real exports are needed to tell these apart safely.
+- **Minor:** ambiguous files (every date has both numbers 12 or below) are read month-first for
+  12-hour clocks and day-first otherwise; the parser prints a note and sets
+  `date_order_certain = False`, but nothing is stored in the archive about it yet.
+- **Minor:** group detection counts only authors who spoke, so a chat with three members of whom
+  two wrote imports as one-to-one. The People work (ticket 14) can correct it.
+- **Minor:** archived names use the message time, in the export's own (assumed) zone, and the
+  per-service folder layout is ticket 13's to unify. `--attachments-dir` is not yet offered by the
+  menu.
+- **Minor:** the legacy `60b276c` media code (EXIF writing, video handling, ffmpeg) is not revived:
+  `AttachmentManager` is the single path, and ticket 13 extends it.
+- **Spec:** all three acceptance criteria are met. Files match the plan, plus `media_archive.py`.
+- **TDD:** RED then GREEN for every task (T01 12 failing, T02 5, T03 5, review fix 1).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -101,3 +141,6 @@ T01: parser rewritten. The old regex only knew the iOS ISO layout and silently d
 
 ### 2026-11-02
 T02: records_from_parser now carries attachments (SHA-256 of the file, or of the name when the export names a file that was not included), precision as time_precision, omitted placeholders and system notices; empty bodies are stored as no body. Found: commands.convert computed the conversation but import_messages recomputed its own, so an inferred group type would have been lost; the inferred conversation is now passed through. Groups are inferred from more than two distinct authors (a chat where only two of three members spoke imports as one-to-one).
+
+### 2026-11-02
+T03: new media_archive.archive_media wraps AttachmentManager (copy, never move; named and filed by date). convert(..., attachments_dir) and --attachments-dir support WhatsApp only; Messenger/Instagram arrive with ticket 09. The archive path is stored as the attachment's storage_path (relative to the archive folder; ticket 13 will redefine storage). A sender-less line is now always a system notice.
