@@ -13,7 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `GoogleVoiceParser(BaseParser)` reads a Takeout `Calls/` folder (or its `Voice/` or
 `Takeout/` parents). Each page is one text conversation, call or voicemail; the parser reads the
@@ -68,7 +68,7 @@ view. Records: `text`, `call`, `voicemail` content types. Times keep the offset 
 - Tests: fixture conversations; audio bytes intact and stored once; a voicemail without audio
   still imports.
 - Verify: `python -m pytest -q tools/chattr/tests/test_google_voice_parser.py`
-- [ ] done
+- [x] done
 
 ### T03: Import and `chattr-cli convert googlevoice`
 
@@ -92,3 +92,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: GoogleVoiceParser reads Takeout pages with a small stdlib html.parser tree (no new dependency). File-name kind (Text/Received/Placed/Missed/Voicemail) is authoritative, page wording the fallback; 'Me' is the owner (no sender handle). Times keep the offset the page states (aware, tz not assumed). Calls: direction + duration_seconds in service_specific; voicemails: transcript, duration, audio. Pages of other kinds (greetings etc.) are skipped. Group conversation pages are detected by more than one non-owner sender.
+
+### 2026-11-02
+T02: one conversation per counterpart (set of counterparts for a group), so texts, calls and voicemails with a person form one timeline. Voicemail audio is found via the <audio> src or a same-named file beside the page, whatever its extension, and stored by hash (blobs.store_by_hash) when an attachments_dir is given. A voicemail with no audio still imports. A text page where only the owner wrote is filed under the name from the file name.

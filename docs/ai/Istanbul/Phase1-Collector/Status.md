@@ -8,8 +8,8 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 
 ## In progress (1)
 
-- **20261101-11-google-voice-parser** Google Voice parser [medium] — Breakdown item 11. · plan in-progress · T02/T03
-  - checkboxes: 1/5
+- **20261101-11-google-voice-parser** Google Voice parser [medium] — Breakdown item 11. · plan in-progress · T03/T03
+  - checkboxes: 2/5
 
 ## Blocked (11)
 
