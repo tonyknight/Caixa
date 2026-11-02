@@ -13,7 +13,8 @@ depends_on:
 - 20261101-13-one-attachment-pipeline
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** a new renderer (`render.py`) replaces the old `HTMLGenerator` and its template. The old
 template put message text into the page unescaped (`| safe`), left the calendar empty, and wrote one
@@ -73,7 +74,7 @@ told from the owner on services where the owner is just another name (WhatsApp, 
 - Tests: Ana's pages merge iMessage, WhatsApp, Google Voice and voicemail; the group is under
   `Groups`; an unresolved handle gets its own folder; years follow local time; document contents.
 - Verify: `python -m pytest -q tools/chattr/tests/test_render_plan.py`
-- [ ] done
+- [x] done
 
 ### T02: Person and group pages
 
@@ -115,3 +116,6 @@ told from the owner on services where the owner is just another name (WhatsApp, 
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: render.py: Renderer loads the archive once, plans PageSpecs and builds data-island documents (schema 'chattr-page-1': conversations incl. participants and roles, handles, messages with every stored column, attachments, reactions; senders referenced by (service, identifier)). Counterpart rule: non-owner person behind the conversation's handles (owner handles = handles that sent is_from_owner messages or have role owner), else the chat name (WhatsApp prefix stripped). Local time = UTC + stored offset. Mail: one page per thread by first mail's local date, sender and subject. Shared session fixture full_archive (every source fixture + contacts + owner + an alias for the Instagram username). DatabaseManager.connection added for readers.
