@@ -62,6 +62,15 @@ export async function startHarness(): Promise<Running> {
   }
 }
 
+/** DSH's own first-run dialogs ("Preview Notice", "Get started") cover the page on every fresh load. */
+export async function dismissDialogs(page: any): Promise<void> {
+  await page.waitForTimeout(1500)
+  for (const name of ['Continue', 'Close']) {
+    await page.getByRole('button', { name }).first().click({ timeout: 3000 }).catch(() => undefined)
+    await page.waitForTimeout(500)
+  }
+}
+
 /** Open DSH in a browser, signed in, past its first-run dialogs, on the Caixa page. */
 export async function openCaixa(browser: any, running: Running): Promise<any> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } })
@@ -70,11 +79,7 @@ export async function openCaixa(browser: any, running: Running): Promise<any> {
     return { name, value: value.join('='), url: running.base }
   }))
   await page.goto(running.base, { waitUntil: 'networkidle' })
-  await page.waitForTimeout(1500)
-  for (const name of ['Continue', 'Close']) {
-    await page.getByRole('button', { name }).first().click({ timeout: 3000 }).catch(() => undefined)
-    await page.waitForTimeout(500)
-  }
+  await dismissDialogs(page)
   await page.locator('[aria-label="Caixa"]').first().click({ timeout: 15_000 })
   await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 15_000 })
   return page
