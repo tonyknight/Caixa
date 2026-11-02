@@ -11,18 +11,25 @@ a later project) refuses every one of them and never writes anywhere in the box.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import inspect
 import mimetypes
-from dataclasses import dataclass
+import queue
+import threading
+import traceback
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 
 from caixa import settings
 from caixa.box import Box, BoxError
-from caixa.collectors.options import OptionsError
+from caixa.collectors.base import Collector, Progress
+from caixa.collectors.inputs import InputError
+from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
+from caixa.jobs import FINISHED, JobStore
 
 PathLike = Union[str, Path]
 TEXT_LIMIT = 2_000_000  # the largest text file `browse.file` includes in full
@@ -93,6 +100,13 @@ def _listing(folder: Path, show_hidden: bool = False) -> list[Path]:
     return sorted(found, key=lambda p: (not p.is_dir(), p.name.casefold()))
 
 
+class JobCancelled(Exception):
+    """Raised inside a running import, from its progress callback, when a person cancelled it."""
+
+
+Listener = Callable[[str, dict[str, Any]], None]
+
+
 class Service:
     METHODS = _METHODS
 
@@ -107,8 +121,23 @@ class Service:
         self.registry = registry or discover()
         self.roots = [Path(r).resolve() for r in (roots if roots is not None else [Path.home()])]
         self.box: Optional[Box] = None
+        self.jobs: Optional[JobStore] = None
+        self._listeners: list[Listener] = []
+        self._queue: "queue.Queue[Optional[int]]" = queue.Queue()
+        self._runner: Optional[threading.Thread] = None
+        self._cancelled: set[int] = set()
+        self._finished: dict[int, threading.Event] = {}
+        self._lock = threading.Lock()
         if box is not None:
             self.box_open(str(box))
+
+    def close(self) -> None:
+        """Stop the runner; a job still running is left to finish its current step."""
+        with self._lock:
+            runner, self._runner = self._runner, None
+        if runner is not None:
+            self._queue.put(None)
+            runner.join(timeout=30)
 
     # --- Calling by name (what the worker and tests use) ------------------------------------
 
@@ -144,7 +173,7 @@ class Service:
         if owner.strip():
             with box.master() as master:
                 master.add_person(owner, is_owner=True)
-        self.box = box
+        self._attach(box)
         return self.box_status()
 
     @method("box.open")
@@ -159,8 +188,19 @@ class Service:
                 "not_found",
                 f"{path} can't be opened read-only yet: open it once with Caixa first ({error}).",
             ) from None
-        self.box = box
+        self._attach(box)
         return self.box_status()
+
+    def _attach(self, box: Box) -> None:
+        """Make `box` the open box and open its jobs table (marking anything a crash left)."""
+        self.close()
+        self.box = box
+        path = box.caixa_dir / "jobs.sqlite"
+        if self.read_only:
+            self.jobs = JobStore(path, read_only=True) if path.is_file() else None
+        else:
+            self.jobs = JobStore(path)
+            self.jobs.mark_interrupted()
 
     @method("box.status")
     def box_status(self) -> dict[str, Any]:
@@ -281,3 +321,185 @@ class Service:
                 entry["absolute"] = str(child.resolve())
                 entries.append(entry)
         return {"path": str(inbox), "entries": entries}
+
+    # --- Imports ----------------------------------------------------------------------------
+
+    def _collector(self, collector_id: str) -> Collector:
+        try:
+            return self.registry.get(collector_id)
+        except KeyError:
+            raise ServiceError("not_found", f"No collector '{collector_id}'.") from None
+
+    @staticmethod
+    def _options(collector: Collector, options: Optional[dict[str, Any]]) -> dict[str, Any]:
+        try:
+            return validate(collector.info.options_schema, options or {})
+        except OptionsError as error:
+            raise ServiceError("invalid_params", str(error), {"errors": error.errors}) from None
+
+    @method("import.preview")
+    def import_preview(
+        self, collector: str, source: str, options: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
+        """A dry run: what an import would bring in. Writes nothing to the box or the source."""
+        box = self._require_box()
+        found = self._collector(collector)
+        checked = self._options(found, options)
+        try:
+            return asdict(found.preview(Path(source).expanduser(), checked, box))
+        except InputError as error:
+            raise ServiceError("input", str(error)) from None
+
+    @method("import.start", write=True)
+    def import_start(
+        self, collector: str, source: str, options: Optional[dict[str, Any]] = None
+    ) -> dict[str, Any]:
+        """Queue an import; it runs in the background (one at a time) and is followed as a job."""
+        self._require_box()
+        found = self._collector(collector)
+        checked = self._options(found, options)
+        path = Path(source).expanduser()
+        if not path.exists():
+            raise ServiceError("input", f"Not found: {path}")
+        return self._enqueue("import", collector, str(path), checked)
+
+    @method("import.cancel", write=True)
+    def import_cancel(self, job: int) -> dict[str, Any]:
+        """Cancel a queued job at once, or a running one at its next step."""
+        store = self._jobs()
+        current = self._job(job)
+        if current["status"] in FINISHED:
+            raise ServiceError("conflict", f"Job {job} is already {current['status']}.")
+        with self._lock:
+            self._cancelled.add(job)
+        if current["status"] == "queued":
+            store.update(job, status="cancelled", message="Cancelled before it started.")
+            self._announce("job.finished", self._job(job) | {"job": job})
+            self._signal(job)
+        return self._job(job)
+
+    # --- Jobs -------------------------------------------------------------------------------
+
+    def _jobs(self) -> JobStore:
+        if self.jobs is None:
+            raise ServiceError("not_found", "This box has no jobs yet.")
+        return self.jobs
+
+    def _job(self, job: int) -> dict[str, Any]:
+        try:
+            return self._jobs().get(job)
+        except KeyError:
+            raise ServiceError("not_found", f"There is no job {job}.") from None
+
+    @method("jobs.list")
+    def jobs_list(self, limit: int = 50, status: Optional[str] = None) -> list[dict[str, Any]]:
+        self._require_box()
+        return self.jobs.list(limit=limit, status=status) if self.jobs else []
+
+    @method("jobs.get")
+    def jobs_get(self, job: int) -> dict[str, Any]:
+        self._require_box()
+        return self._job(job)
+
+    def subscribe(self, listener: Listener) -> Callable[[], None]:
+        """Be told about `job.progress` and `job.finished`; returns the function that stops it."""
+        self._listeners.append(listener)
+        return lambda: self._listeners.remove(listener)
+
+    def wait(self, job: int, timeout: Optional[float] = None) -> dict[str, Any]:
+        """Block until a job has finished (for scripts and tests); returns its final state."""
+        with self._lock:
+            event = self._finished.setdefault(job, threading.Event())
+        if self._job(job)["status"] in FINISHED:
+            return self._job(job)
+        if not event.wait(timeout):
+            raise ServiceError("busy", f"Job {job} is still running.")
+        return self._job(job)
+
+    def _announce(self, name: str, payload: dict[str, Any]) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener(name, payload)
+            except Exception:  # a listener's bug must never stop an import
+                continue
+
+    def _signal(self, job: int) -> None:
+        with self._lock:
+            self._finished.setdefault(job, threading.Event()).set()
+
+    def _enqueue(
+        self, kind: str, collector: Optional[str], source: Optional[str], options: dict[str, Any]
+    ) -> dict[str, Any]:
+        box = self._require_box()
+        number = self._jobs().create(kind, collector, source, options)
+        self._jobs().update(number, log=str(box.logs_dir / f"job-{number}.log"))
+        with self._lock:
+            self._finished.setdefault(number, threading.Event())
+            if self._runner is None:
+                self._runner = threading.Thread(target=self._work, name="caixa-jobs", daemon=True)
+                self._runner.start()
+        self._queue.put(number)
+        return self._job(number)
+
+    def _work(self) -> None:
+        while True:
+            number = self._queue.get()
+            if number is None:
+                return
+            try:
+                self._run_job(number)
+            except Exception:  # the runner itself must outlive any one job
+                traceback.print_exc()
+
+    def _run_job(self, number: int) -> None:
+        box, store = self._require_box(), self._jobs()
+        job = store.get(number)
+        if job["status"] != "queued":  # cancelled while waiting
+            self._signal(number)
+            return
+        store.update(number, status="running", stage="starting")
+        box.logs_dir.mkdir(parents=True, exist_ok=True)
+
+        def progress(step: Progress) -> None:
+            if number in self._cancelled:
+                raise JobCancelled()
+            store.update(
+                number,
+                stage=step.stage,
+                current=step.current,
+                total=step.total,
+                message=step.message,
+            )
+            self._announce(
+                "job.progress",
+                {
+                    "job": number,
+                    "stage": step.stage,
+                    "current": step.current,
+                    "total": step.total,
+                    "message": step.message,
+                },
+            )
+
+        outcome: dict[str, Any]
+        with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
+            with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+                try:
+                    result = self._execute(box, job, progress)
+                    outcome = {"status": "done", "result": result, "error": None}
+                except JobCancelled:
+                    outcome = {"status": "cancelled", "message": "Cancelled.", "error": None}
+                except (InputError, ServiceError) as error:
+                    outcome = {"status": "failed", "error": str(error)}
+                except Exception as error:
+                    traceback.print_exc()
+                    outcome = {"status": "failed", "error": f"{type(error).__name__}: {error}"}
+        store.update(number, **outcome)
+        self._announce("job.finished", self._job(number) | {"job": number})
+        self._signal(number)
+
+    def _execute(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
+        collector = self._collector(job["collector"])
+        return asdict(collector.run(box, Path(job["source"]), job["options"], progress))
