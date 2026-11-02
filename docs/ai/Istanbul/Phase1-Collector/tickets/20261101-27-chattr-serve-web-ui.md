@@ -13,7 +13,7 @@ depends_on:
 - 20261101-06-interactive-menu-and-command-line
 - 20261101-15-html-rendering-from-the-database
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `chattr-cli serve` is a small local web page for people who only want Chattr. It is
 Python only (the standard library's HTTP server, Jinja2 for pages, htmx for the few live parts) and
@@ -74,7 +74,7 @@ options, run with progress, open the output.
 - Tests: converting each kind through the page matches the CLI; options reach the command; failures
   are explained in plain words; the JSON route; the progress fragment stops polling when done.
 - Verify: `python -m pytest -q tools/chattr/tests/test_web.py`
-- [ ] done
+- [x] done
 
 ### T03: `chattr-cli serve`, packaging and documentation
 
