@@ -13,7 +13,7 @@ depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** today each menu action mixes `input()` prompts with the work. The work moves into
 plain functions in `src/chattr/commands.py`. The step-by-step menu and the `chattr-cli`
@@ -66,7 +66,7 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
 - Tests: central route updates the database and state; service route writes JSON and leaves the
   central archive empty; HTML is written.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T02: iMessage commands with the restored options
 
