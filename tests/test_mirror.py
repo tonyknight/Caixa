@@ -172,3 +172,53 @@ def test_the_real_history_descends_from_chattrs_published_main() -> None:
         ).returncode
         == 0
     ), "pushing the split to Chattr's repository would not be a fast-forward"
+
+
+# --- The workflow, its documentation and the banner ------------------------------------------
+
+WORKFLOW = REPO / ".github" / "workflows" / "mirror-chattr.yml"
+
+
+def test_the_workflow_runs_the_script_on_pushes_to_main_with_full_history() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "push:" in text and "branches: [main]" in text
+    assert "workflow_dispatch" in text  # and by hand
+    assert "fetch-depth: 0" in text  # a subtree split needs the whole history
+    assert "tools/mirror/mirror-chattr.sh" in text
+    assert "concurrency:" in text  # one mirror run at a time
+    assert "--force" not in text and "force-with-lease" not in text
+
+
+def test_the_workflow_uses_a_secret_and_fails_clearly_without_one() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "secrets.CHATTR_MIRROR_TOKEN" in text
+    assert "CHATTR_MIRROR_TOKEN is not set" in text  # a plain message, not a push error
+    assert "contents: read" in text  # the workflow's own token can only read Caixa
+    assert "::add-mask::" in text  # the token never appears in a log
+
+
+def test_the_workflow_never_writes_the_token_anywhere_it_could_leak() -> None:
+    text = WORKFLOW.read_text(encoding="utf-8")
+    assert "set -x" not in text and 'echo "$CHATTR_MIRROR_TOKEN"' not in text
+    assert "persist-credentials: false" in text
+
+
+def test_the_token_is_documented_for_the_maintainer() -> None:
+    for readme in (REPO / "README.md", REPO / "tools" / "mirror" / "README.md"):
+        text = readme.read_text(encoding="utf-8")
+        assert "CHATTR_MIRROR_TOKEN" in text, readme
+    guide = (REPO / "tools" / "mirror" / "README.md").read_text(encoding="utf-8")
+    for needed in (
+        "fine-grained",
+        "Contents",
+        "Read and write",
+        "repository secret",
+        "fast-forward",
+    ):
+        assert needed in guide, needed
+
+
+def test_chattrs_readme_says_it_is_developed_in_caixa() -> None:
+    first = (REPO / "tools" / "chattr" / "README.md").read_text(encoding="utf-8").splitlines()[:6]
+    banner = "\n".join(first)
+    assert "Developed in" in banner and "Caixa" in banner and "tools/chattr" in banner

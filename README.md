@@ -43,6 +43,14 @@ Early development. The current work is the message collector and Caixa's data ar
 [`docs/ai/Istanbul/Phase1-Collector/`](docs/ai/Istanbul/Phase1-Collector/) for the project
 briefing, requirements and status.
 
+## Chattr and its mirror
+
+Chattr lives in `tools/chattr/` and is mirrored to its own repository by
+`.github/workflows/mirror-chattr.yml` (a fast-forward of `git subtree split`, never forced). The
+workflow needs a write token for Chattr's repository, stored as the repository secret
+`CHATTR_MIRROR_TOKEN`. The maintainer creates it once; the steps are in
+[`tools/mirror/README.md`](tools/mirror/README.md).
+
 ## Contributing
 
 Work is organized into release trains and projects with
