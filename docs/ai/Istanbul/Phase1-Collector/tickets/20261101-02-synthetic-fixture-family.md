@@ -3,11 +3,12 @@ id: 20261101-02-synthetic-fixture-family
 title: Synthetic fixture family
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 2.
+closed: 2026-11-02
+notes: 'Done: deterministic synthetic family for all six sources + vCard; build_all
+  and fixture_family fixture.'
 parent:
 depends_on:
 - 20261101-01-caixa-repository-foundations
@@ -21,13 +22,13 @@ Build a fictional family's synthetic exports for every Phase 1 source, used by a
 
 ## Acceptance criteria
 
-- [ ] A builder script creates a synthetic iMessage `chat.db` (long attributedBody messages, both epoch formats, same-second attachments, tapbacks on attachments, a group chat)
-- [ ] WhatsApp exports in iOS and Android formats with media and 'media omitted' lines
-- [ ] Messenger/Instagram JSON with mojibake text, shares and attachments
-- [ ] An MBOX with RFC 2047 headers, HTML-only mail, attachments and threads
-- [ ] A Google Voice Takeout sample (texts, calls, voicemails with audio) and iPhone voicemail audio + metadata
-- [ ] A vCard file linking the family's handles
-- [ ] Fixtures are generated deterministically and contain only fictional names and numbers
+- [x] A builder script creates a synthetic iMessage `chat.db` (long attributedBody messages, both epoch formats, same-second attachments, tapbacks on attachments, a group chat)
+- [x] WhatsApp exports in iOS and Android formats with media and 'media omitted' lines
+- [x] Messenger/Instagram JSON with mojibake text, shares and attachments
+- [x] An MBOX with RFC 2047 headers, HTML-only mail, attachments and threads
+- [x] A Google Voice Takeout sample (texts, calls, voicemails with audio) and iPhone voicemail audio + metadata
+- [x] A vCard file linking the family's handles
+- [x] Fixtures are generated deterministically and contain only fictional names and numbers
 
 ## Context
 
@@ -156,12 +157,40 @@ Current task:
 - Verify: `python -m pytest -q` (root, both suites) `&& python -m black --check . && python -m mypy caixa`
 - [x] done
 
+## Review
+
+2026-11-02. Commits `5c531d4` (T01), `8f0f07c` (T02), `dfac30a` (T03), `cabb0e9` (T04),
+`5a19e94` (T05), `23c3f69` (T06), `e7ce69e` (T07). **Verdict: clean, minors only.**
+- **Spec:** all seven acceptance criteria met. Each export has tests for its specific cases
+  (41 fixture tests), plus a whole-family determinism test.
+- **TDD:** every task went RED (missing module) and then GREEN. T05 added a determinism test
+  that went RED for a real bug before the fix. T04's single failure was a test path error,
+  recorded in Notes.
+- **Data:** a scan found only 555-01xx phone numbers and example.com/org email addresses. Only
+  source and docs are committed (no caches or databases).
+- **Commits** are authored by Tony Knight.
+- **Minor:** format assumptions (Google Voice HTML classes, iPhone `voicemail.db` columns, Meta
+  folder names) come from public descriptions, not real exports. They are recorded in
+  `tools/chattr/tests/fixtures/README.md` to verify before release.
+- **Minor:** audio is WAV whatever the extension, and there's no HEIC sample (standard-library
+  limits). Both are documented; ticket 13 needs its own HEIC asset.
+- **Minor:** `tools/chattr` stays excluded from `black --check` until ticket 04. The new fixture
+  code was formatted with black anyway.
+
 ## Completion report
 
-- **Outcome:**
-- **Files:**
+- **Outcome:** a deterministic synthetic fixture family (standard library only) for all six
+  Phase 1 sources plus contacts, with `build_all()` and a session-scoped `fixture_family` pytest
+  fixture. Root `pytest` runs Caixa's and Chattr's suites together.
+- **Files:** `tools/chattr/tests/` (`conftest.py`, `fixtures/` with `family.py`, `builders/`
+  for vcard, imessage, whatsapp, meta, mbox, voice, media, plus `README.md`, and seven
+  `test_fixture_*.py` files); `tests/fixtures/README.md`; `pyproject.toml` (pytest `testpaths`,
+  importlib mode).
 - **Errors:**
-- **Verify:**
+  - **MBOX determinism bug:** random MIME boundaries and current-time From_ lines; fixed in T05.
+  - **Test path error in T04:** fixed.
+- **Verify:** `python -m pytest -q` → 43 passed; `python -m black --check .` → clean;
+  `python -m mypy caixa` → no issues.
 
 ## Notes
 
