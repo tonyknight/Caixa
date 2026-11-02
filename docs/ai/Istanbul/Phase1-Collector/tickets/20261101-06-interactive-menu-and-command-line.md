@@ -3,11 +3,11 @@ id: 20261101-06-interactive-menu-and-command-line
 title: Interactive menu and command line
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 6.
+closed: 2026-11-02
+notes: 'Done: commands layer, chattr-cli subcommands, menu on the same commands.'
 parent:
 depends_on:
 - 20261101-04-chattr-stabilization
@@ -20,10 +20,11 @@ The step-by-step terminal menu plus an equivalent non-interactive command line f
 
 ## Acceptance criteria
 
-- [ ] Waterfall menu: services → central DB or service folder → optional HTML, with overridable defaults
-- [ ] `chattr-cli convert <service> <export> [--root] [--db|--json] [--contacts] [--aliases] [--html]`
-- [ ] Restored iMessage flags: `--region`, `--attachment-root`, `--batch-size`, `--verbose`, `--attachment-workers`
-- [ ] Every menu action can be performed non-interactively
+- [x] Waterfall menu: services → central DB or service folder → optional HTML, with overridable defaults
+- [x] `chattr-cli convert <service> <export> [--root] [--db|--json] [--contacts] [--aliases] [--html]`
+  (`--contacts` applies to iMessage for now; WhatsApp and Messenger get it with ticket 14)
+- [x] Restored iMessage flags: `--region`, `--attachment-root`, `--batch-size`, `--verbose`, `--attachment-workers`
+- [x] Every menu action can be performed non-interactively
 
 ## Context
 
@@ -110,10 +111,74 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** Chattr's work now lives in prompt-free functions in `chattr.commands`:
+  - `convert` (WhatsApp and Messenger, into the central archive or a service folder, with
+    optional HTML and aliases);
+  - `generate_html`;
+  - `convert_imessage` (native JSON with the restored options, plus archival attachment copies);
+  - `list_chats` and `doctor`.
+
+  `chattr-cli` gains the `convert`, `html`, `chats` and `doctor` subcommands. The step-by-step
+  menu (convert / generate HTML / iMessage tools / exit) runs the same functions, so every menu
+  action has a subcommand. Preflight reports a new root as "initialized".
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `tools/chattr/src/chattr/commands.py`, `tools/chattr/src/chattr/imessage_export.py`.
+  - Changed: `cli.py` (rewritten; 716 → about 400 lines), `attachment_manager.py`
+    (iMessage paths re-rooted; numbered names on collision), `database_manager.py`
+    (`get_messages_for_conversation`), `preflight.py`.
+  - Tests: `test_commands.py`, `test_imessage_commands.py`, `test_cli_subcommands.py`,
+    `test_cli_menu.py`, plus updates to `test_cli_config_keys.py`, `test_importing.py`,
+    `test_json_export.py`, `test_preflight.py` and `conftest.py` (`chattr_root` fixture).
+- **Errors:** found in review and fixed with tests:
+  - `--attachment-root` and `--attachment-workers` had no effect: iMessage attachment paths
+    were expanded against the current home, and the CLI never asked for archival copies.
+  - Turning archiving on exposed silent overwriting of different attachments that share a
+    timestamp.
+  - Full Disk Access refusals, files that aren't SQLite, and unreadable aliases files crashed
+    with a traceback.
+- **Verify:** `python -m pytest -q` → 155 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean; `chattr-cli --version` → `chattr 2.0.0`.
+
+## Review
+
+### 2026-11-02: e119138..12fe4ed (T01–T05 and review fixes), reviewed in-session
+
+**Verdict:** two Important findings, both fixed with tests before marking done. Minor items
+are listed below and carried forward.
+
+- **Important (fixed):** `--attachment-root` and `--attachment-workers` were inert.
+  - Root cause: `create_attachment_info_from_message_attachment` expanded
+    `~/Library/Messages/Attachments/…` against the current home, ignoring the source folder.
+  - The parser stores `attachment_root` but never uses it.
+  - The CLI never requested archival copies.
+  - Fix: those paths are re-rooted under the source folder, and `convert imessage` takes
+    `--attachments-dir`, Chattr's earlier flag name for the archive folder.
+  - Enabling archiving showed that two different attachments with the same timestamp
+    overwrote each other. Within a run they are now numbered " 2", " 3", as a stopgap.
+    Ticket 13 owns full collision-free naming.
+- **Important (fixed):** failures other than `CommandError` crashed the menu and the
+  subcommands with a traceback. The cases: macOS Full Disk Access (`PermissionError`), a file
+  that isn't SQLite, and an unreadable aliases file. They are now command errors, and the
+  parser's Full Disk Access advice is kept.
+- **Minor:** `--contacts` applies to iMessage only until ticket 14.
+- **Minor:** `load_dotenv("API_Key.env")` in `cli.main` is dead code, since nothing reads
+  environment variables. Remove it when translation is revisited.
+- **Minor:** every iMessage conversion writes `Output/iMessage/imessage_export.json`, so a
+  `--chat` export replaces a full one. Revisit with ticket 07.
+- **Minor:** spam filtering doesn't apply on the parallel path (no `--limit`). This is the
+  parser's existing limitation.
+- **Minor:** the HTML path is printed twice, because `HTMLGenerator` prints its own line.
+  Ctrl-C during a subcommand prints a traceback.
+- **Spec:** all acceptance criteria are met (`--contacts` as noted). The plan named
+  `commands.py`. The helpers moved into `imessage_export.py`, and `database_manager.py` and
+  `attachment_manager.py` changed for T01 and the review fixes.
+- **TDD:** RED was seen before GREEN for every task:
+  - T02: the command functions were missing;
+  - T03: 11 failing;
+  - T04: 10 failing;
+  - T05: 1 failing;
+  - review fixes: 6, then 1 failing.
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -131,3 +196,6 @@ T04: the menu is now Convert / Generate HTML / iMessage tools / Exit, built on `
 - iMessage `contacts` and `region` now default to `global.contacts.vcf_file_path` and `global.contacts.phone_region`.
 - The start-up no longer creates an empty `chattr.sqlite`. The installed-command test now runs the menu's Exit and a real `convert` subcommand.
 - Cosmetic: `HTMLGenerator` prints its own "HTML file generated at" line, so the path shows twice.
+
+### 2026-11-02
+Review: two Important findings, fixed (attachment root and archive flags; error handling). Minors recorded in the Review section.
