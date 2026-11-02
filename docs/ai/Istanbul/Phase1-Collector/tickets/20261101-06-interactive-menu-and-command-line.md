@@ -13,7 +13,7 @@ depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 plan_status: in-progress
-current_task: T04
+current_task: T05
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T04
+Current task: T05
 
 **Design:** today each menu action mixes `input()` prompts with the work. The work moves into
 plain functions in `src/chattr/commands.py`. The step-by-step menu and the `chattr-cli`
@@ -99,7 +99,7 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
 - The old processing paths are removed; diagnostics live under iMessage tools.
 - Tests drive the menu with scripted input and check the results match the subcommands.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T05: Preflight reports a new root as initialized
 
@@ -124,3 +124,11 @@ Append-only running log. Each entry dated.
 Follow-up found while verifying ticket 05: run_preflight prints 'Chattr structure repaired' when it creates a brand-new root given via --root (first_time is only true for the prompt path). Report 'initialized' when config.json didn't exist before. Cosmetic; fix with a test here.
 T02: `convert_imessage` also takes `attachments_dir` (the name `export_to_json` already uses). Archival copies of attachments are written only when it's given, which matches the old advanced menu's default of "no". The parallel fetch path (no `--limit`) doesn't apply spam filtering. That's a known limitation documented in the parser, and it's unchanged here. `--limit` uses the filtered single-threaded path.
 T03: `--contacts` is accepted for iMessage, where the parser uses it. For WhatsApp and Messenger it's a usage error ("applies to iMessage only") until people resolution (ticket 14) gives those services a contacts step. `--aliases` covers sender naming for them meanwhile. Options that don't apply to the chosen service are rejected before anything runs (exit 2): `--db/--json`, `--html`, `--aliases` and `--owner` with iMessage; the iMessage flags with the others. `--root` works before or after the command. `doctor` runs every check unless `--check` is given (repeatable). With iMessage, `batch_size` and `attachment_workers` also fall back to `services.imessage.preferences` (`performance.batch_size`, `attachments.general.max_attachment_workers`). The config-key scan now covers `commands.py` too.
+T04: the menu is now Convert / Generate HTML / iMessage tools / Exit, built on `commands`. `cli.py` is down from 716 to 393 lines. Removed: `main_menu`, `process_and_import`, the iMessage quick/advanced paths, the diagnostics submenu functions, `generate_html_submenu`, and the `imessage_export` re-exports.
+- The menu also asks for the archive owner's name (Enter skips); without it, sent messages can't be marked.
+- A missing export file is reported right after the path is entered, before the remaining questions.
+- Quoted and drag-and-dropped (backslash-escaped) paths are accepted.
+- End of input exits with 0; Ctrl-C exits with 130.
+- iMessage `contacts` and `region` now default to `global.contacts.vcf_file_path` and `global.contacts.phone_region`.
+- The start-up no longer creates an empty `chattr.sqlite`. The installed-command test now runs the menu's Exit and a real `convert` subcommand.
+- Cosmetic: `HTMLGenerator` prints its own "HTML file generated at" line, so the path shows twice.
