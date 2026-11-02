@@ -16,7 +16,7 @@ from pathlib import Path
 from types import TracebackType
 from typing import Optional, Union
 
-from caixa.schema import apply_migrations, current_version
+from caixa.schema import CURRENT_VERSION, apply_migrations, current_version
 
 PathLike = Union[str, Path]
 ALIAS_KINDS = ("phone", "email", "username", "name")
@@ -83,10 +83,27 @@ class Change:
 class Master:
     """The master database; use as a context manager."""
 
-    def __init__(self, path: PathLike) -> None:
+    def __init__(self, path: PathLike, read_only: bool = False) -> None:
+        """Open (and create or migrate) the database; `read_only` opens an existing, current one
+        without writing anything, not even a migration."""
         self.path = Path(path)
+        self.read_only = read_only
+        if read_only:
+            if not self.path.is_file():
+                raise FileNotFoundError(self.path)
+            self._db = sqlite3.connect(f"{self.path.resolve().as_uri()}?mode=ro", uri=True)
+            self._db.row_factory = sqlite3.Row
+            if current_version(self._db) != CURRENT_VERSION:
+                self._db.close()
+                raise RuntimeError(
+                    f"{self.path} needs updating before it can be read; open it once without "
+                    "read-only."
+                )
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._db = sqlite3.connect(self.path, uri=True)  # uri: lets ATTACH open "file:" paths
+        # uri: lets ATTACH open "file:" paths; the timeout waits out a short write by another
+        # connection (an import syncing while a person is renamed)
+        self._db = sqlite3.connect(self.path, uri=True, timeout=30)
         self._db.row_factory = sqlite3.Row
         self._db.execute("PRAGMA foreign_keys = ON")
         self._db.execute("PRAGMA journal_mode = WAL")

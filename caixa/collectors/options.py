@@ -33,14 +33,16 @@ def defaults(schema: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def validate(schema: Mapping[str, Any], options: Mapping[str, Any]) -> dict[str, Any]:
+def validate(
+    schema: Mapping[str, Any], options: Mapping[str, Any], subject: str = "this source"
+) -> dict[str, Any]:
     """The options with defaults filled in; raises `OptionsError` listing every problem."""
     properties: Mapping[str, Any] = schema.get("properties", {})
     errors: list[str] = []
     cleaned = {**defaults(schema), **options}
     for name in options:
         if name not in properties:
-            errors.append(f"'{name}' is not an option of this source.")
+            errors.append(f"'{name}' is not an option of {subject}.")
     for name in schema.get("required", []):
         if name not in cleaned:
             errors.append(f"'{name}' is required.")

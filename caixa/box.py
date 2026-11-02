@@ -3,6 +3,7 @@
     <Box name>/
       README.md            plain language: what this is, and how to use it with or without Caixa
       Messages/  Mail/  People/  …     the generated, durable files
+      Inbox/               drop exports here for Caixa to import
       .caixa/
         caixa.sqlite       the master database
         work/<collector>/  each collector's working files (Chattr's root, …)
@@ -25,7 +26,8 @@ from caixa import __version__
 from caixa.master import Master
 
 PathLike = Union[str, Path]
-FOLDERS = ("Messages", "Mail", "People")
+INBOX = "Inbox"
+FOLDERS = ("Messages", "Mail", "People", INBOX)
 README = """# {name}
 
 This folder is a box made with Caixa: a person's messages, mail and other records, kept in plain
@@ -35,6 +37,7 @@ files that open without any special software.
   they sent.
 - `Mail/` has one page per mail conversation, by year.
 - `People/` holds notes about the people in the box.
+- `Inbox/` is where you drop an export (a .zip or a folder) for Caixa to import.
 - `.caixa/` is Caixa's own working data. Everything above it is yours to keep, copy and open.
 
 To add more, use Caixa. To read, just open a page in a web browser.
@@ -70,7 +73,10 @@ class Box:
             "caixa_version": __version__,
         }
         (folder / ".caixa" / "box.yaml").write_text(json.dumps(settings, indent=2) + "\n", "utf-8")
-        return cls(folder, title)
+        box = cls(folder, title)
+        with box.master():  # create the master database now, so a read-only viewer can open it
+            pass
+        return box
 
     @classmethod
     def open(cls, root: PathLike) -> "Box":
@@ -101,13 +107,20 @@ class Box:
         path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def master(self) -> Master:
-        return Master(self.master_path)
+    @property
+    def inbox_dir(self) -> Path:
+        """Where exports are dropped; made when asked, so older boxes get one too."""
+        path = self.root / INBOX
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def master(self, read_only: bool = False) -> Master:
+        return Master(self.master_path, read_only=read_only)
 
     # --- What is in it ------------------------------------------------------------------
 
-    def status(self) -> dict[str, Any]:
-        with self.master() as master:
+    def status(self, read_only: bool = False) -> dict[str, Any]:
+        with self.master(read_only=read_only) as master:
             db = master.connection
             by_type = {
                 row[0]: row[1]
@@ -119,6 +132,7 @@ class Box:
                 "items": sum(by_type.values()),
                 "by_type": by_type,
                 "people": len(master.people()),
+                "owner": next((p.name for p in master.people() if p.is_owner), None),
                 "imports": [
                     {
                         "id": i.id,
