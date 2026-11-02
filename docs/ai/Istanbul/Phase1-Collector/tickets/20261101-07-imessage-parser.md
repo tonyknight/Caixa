@@ -13,8 +13,7 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T06
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -39,8 +38,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T06
+Status: done
+Current task: 
 
 **Design:** the existing reader (`parsers/imessage_database_parser.py`) is kept and fixed, not
 rewritten. A new `IMessageParser(BaseParser)` sits on top: `parse(chat.db)` returns normalized
@@ -119,7 +118,7 @@ stays as a fallback for blobs the decoder rejects. To be confirmed against a rea
   behavioural check that the diagnostics run on a read-only copy and leave the file's bytes
   unchanged.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -146,3 +145,6 @@ T04: three duplicated tapback lookups became one (_tapbacks_by_target) that unde
 
 ### 2026-11-02
 T05: new parsers/imessage_parser.py (IMessageParser(BaseParser)) returns ConversationBatch(conversation, records) per chat (chat GUID as source id, message GUID as stable id, tapbacks as reactions on target part, owner = sender None + is_from_owner). BaseParser's docstring still says list of dicts; the collector contract (ticket 20) will generalize. commands.convert_imessage now defaults to route central (import_conversations: one imports row for the whole run, idempotent on re-import) with --json keeping native JSON; HTML per conversation; --owner/--aliases/--html need the central route, --attachments-dir needs --json (attachment files are archived by ticket 13). Reactions are replaced per message on upsert (INSERT OR IGNORE duplicated NULL-sender rows on every re-import). Records store UTC with offset 0 because chat.db has no local offset. Tapback and attachment hashing: attachment sha256 is of the file bytes when present, else of the chat.db attachment GUID. Menu asks the destination for iMessage.
+
+### 2026-11-02
+T06: new chattr/chatdb.connect_readonly (file: URI with mode=ro, built with Path.as_uri) is the only way chat.db is opened: the reader (4 sites) and the diagnostics tool (4 sites, which opened it read-write). The old URI form 'file:{path}?mode=ro' broke on paths containing ?, # or %. Not touched: DatabaseManager (Chattr's own database, writable by design). A static test forbids sqlite3.connect in the iMessage modules.
