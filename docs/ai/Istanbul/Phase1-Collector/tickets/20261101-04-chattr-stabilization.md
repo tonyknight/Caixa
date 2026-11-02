@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T06
+current_task: T07
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T06
+Current task: T07
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -115,7 +115,7 @@ touches the real home folder.
 - Test: the synthetic iOS WhatsApp export → `WhatsAppParser` → `DatabaseManager` → HTML file
   containing the messages.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T07: Dependencies and documentation
 
