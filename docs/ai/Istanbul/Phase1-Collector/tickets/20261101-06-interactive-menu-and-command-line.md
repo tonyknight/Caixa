@@ -13,7 +13,7 @@ depends_on:
 - 20261101-04-chattr-stabilization
 subtasks: []
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:** today each menu action mixes `input()` prompts with the work. The work moves into
 plain functions in `src/chattr/commands.py`. The step-by-step menu and the `chattr-cli`
@@ -88,7 +88,7 @@ iMessage writes its native JSON; iMessage import into the central archive is tic
   `chattr-cli doctor [<chat.db>] [--check …]`. With no subcommand, the menu runs.
 - Tests call `cli.main([...])` for each.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T04: Step-by-step menu on the same commands
 
@@ -123,3 +123,4 @@ Append-only running log. Each entry dated.
 ### 2026-11-02
 Follow-up found while verifying ticket 05: run_preflight prints 'Chattr structure repaired' when it creates a brand-new root given via --root (first_time is only true for the prompt path). Report 'initialized' when config.json didn't exist before. Cosmetic; fix with a test here.
 T02: `convert_imessage` also takes `attachments_dir` (the name `export_to_json` already uses). Archival copies of attachments are written only when it's given, which matches the old advanced menu's default of "no". The parallel fetch path (no `--limit`) doesn't apply spam filtering. That's a known limitation documented in the parser, and it's unchanged here. `--limit` uses the filtered single-threaded path.
+T03: `--contacts` is accepted for iMessage, where the parser uses it. For WhatsApp and Messenger it's a usage error ("applies to iMessage only") until people resolution (ticket 14) gives those services a contacts step. `--aliases` covers sender naming for them meanwhile. Options that don't apply to the chosen service are rejected before anything runs (exit 2): `--db/--json`, `--html`, `--aliases` and `--owner` with iMessage; the iMessage flags with the others. `--root` works before or after the command. `doctor` runs every check unless `--check` is given (repeatable). With iMessage, `batch_size` and `attachment_workers` also fall back to `services.imessage.preferences` (`performance.batch_size`, `attachments.general.max_attachment_workers`). The config-key scan now covers `commands.py` too.
