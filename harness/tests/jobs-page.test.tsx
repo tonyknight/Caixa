@@ -122,6 +122,12 @@ describe('the toasts', () => {
     expect(screen.queryByRole('region')).toBeNull()
   })
 
+  it('announce failed page updates in their own words, not as an import', async () => {
+    const view = await renderWith(<ToastHost />)
+    await view.emit('job.finished', finished(9, { kind: 'refresh', collector: null, status: 'failed', error: 'disk full', result: null }))
+    expect(screen.getByText('Updating the pages failed: disk full')).toBeTruthy()
+  })
+
   it('speak Chinese when asked', async () => {
     const view = await renderWith(<ToastHost />, () => undefined, 'zh')
     await view.emit('job.finished', finished(5))

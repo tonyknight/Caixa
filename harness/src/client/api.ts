@@ -178,6 +178,36 @@ export interface JobLog {
   readonly truncated: boolean
 }
 
+export interface Person {
+  readonly id: number
+  readonly name: string
+  readonly is_owner: boolean
+  readonly aliases: number
+  readonly items: number
+}
+
+/** A number, address or name that no person is known for yet. */
+export interface Handle {
+  readonly service: string
+  readonly identifier: string
+  readonly display_name: string | null
+  readonly messages: number
+  readonly collector: string
+}
+
+/** What a change to people returns: the person as they now are, and the job that redraws pages. */
+export interface PersonChange {
+  readonly person: Person
+  readonly job: Job | null
+}
+
+export interface WorkerInfo {
+  readonly version: string
+  readonly protocol: number
+  readonly read_only: boolean
+  readonly methods: readonly string[]
+}
+
 /** The worker, as the pages use it. Every method resolves to a result; none throws. */
 export interface Api {
   boxStatus(): Promise<CaixaResult<BoxStatus>>
@@ -191,6 +221,12 @@ export interface Api {
   jobLog(job: number): Promise<CaixaResult<JobLog>>
   files(path?: string, showHidden?: boolean): Promise<CaixaResult<FilesListing>>
   inbox(): Promise<CaixaResult<InboxListing>>
+  info(): Promise<CaixaResult<WorkerInfo>>
+  people(): Promise<CaixaResult<{ people: Person[] }>>
+  unresolved(): Promise<CaixaResult<{ handles: Handle[] }>>
+  link(service: string, identifier: string, person: number | string, move?: boolean): Promise<CaixaResult<PersonChange>>
+  rename(person: number, name: string): Promise<CaixaResult<PersonChange>>
+  merge(source: number, target: number): Promise<CaixaResult<PersonChange>>
   /** Any worker method, for the pages that need one the wrappers above do not cover. */
   call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<CaixaResult<T>>
   /** Follow the worker's notifications; returns the function that stops following. */
@@ -211,6 +247,12 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     jobLog: job => run('jobs.log', { job }),
     files: (path, showHidden = false) => run('files.list', path === undefined ? { show_hidden: showHidden } : { path, show_hidden: showHidden }),
     inbox: () => run('inbox.list'),
+    info: () => run('worker.info'),
+    people: () => run('people.list'),
+    unresolved: () => run('people.unresolved'),
+    link: (service, identifier, person, move = false) => run('people.link', { service, identifier, person, move }),
+    rename: (person, name) => run('people.rename', { person, name }),
+    merge: (source, target) => run('people.merge', { source, target }),
     call: run,
     follow: onEvent => follow(onEvent, makeSource),
   }

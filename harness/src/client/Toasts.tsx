@@ -4,6 +4,7 @@ import css from './caixa.module.css'
 
 function Message({ toast }: { toast: Toast }) {
   const t = useT()
+  if (toast.kind !== 'import') return <>{t('toast.refreshFailed', { error: toast.error ?? '' })}</>
   if (toast.outcome === 'done') return <>{t('toast.done', { name: toast.collector, count: toast.inserted })}</>
   if (toast.outcome === 'failed') return <>{t('toast.failed', { name: toast.collector, error: toast.error ?? '' })}</>
   if (toast.outcome === 'cancelled') return <>{t('toast.cancelled', { name: toast.collector })}</>

@@ -100,7 +100,7 @@ describe('the event stream', () => {
     await settle()
     expect(store.job(5)).toMatchObject({ status: 'done', result: { inserted: 7 } })
     expect(store.getState().toasts).toEqual([
-      { id: 1, job: 5, outcome: 'done', collector: 'WhatsApp', inserted: 7, error: null },
+      { id: 1, job: 5, outcome: 'done', kind: 'import', collector: 'WhatsApp', inserted: 7, error: null },
     ])
     expect(api.calls.filter(call => call[0] === 'boxStatus').length).toBeGreaterThan(1)
   })
@@ -152,5 +152,37 @@ describe('the event stream', () => {
     leave()
     api.emit('inbox.changed', {})
     expect(heard).toBe(afterStart)
+  })
+})
+
+describe('read-only and the pages-redrawn jobs', () => {
+  it('learns from the worker whether it refuses changes', async () => {
+    const { api, store } = make()
+    api.readOnly = true
+    await store.start()
+    expect(store.getState().readOnly).toBe(true)
+    const writable = make()
+    await writable.store.start()
+    expect(writable.store.getState().readOnly).toBe(false)
+  })
+
+  it('says nothing when the pages were redrawn, but tells lists to re-read', async () => {
+    const { api, store } = make()
+    await store.start()
+    const before = store.getState().boxVersion
+    api.emit('job.finished', { ...job({ id: 9, kind: 'refresh', collector: null, result: null }), job: 9 })
+    await settle()
+    expect(store.getState().toasts).toEqual([])
+    expect(store.getState().boxVersion).toBeGreaterThan(before)
+  })
+
+  it('does tell when redrawing the pages failed, in its own words', async () => {
+    const { api, store } = make()
+    await store.start()
+    api.emit('job.finished', { ...job({ id: 9, kind: 'refresh', collector: null, status: 'failed', error: 'disk full', result: null }), job: 9 })
+    await settle()
+    expect(store.getState().toasts).toEqual([
+      { id: 1, job: 9, outcome: 'failed', kind: 'refresh', collector: '', inserted: 0, error: 'disk full' },
+    ])
   })
 })

@@ -1,5 +1,5 @@
 import type {
-  Api, BoxStatus, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
+  Api, BoxStatus, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult,
 } from '../src/client/api.ts'
 
@@ -59,6 +59,11 @@ export class FakeApi implements Api {
   })
   inboxReply: CaixaResult<InboxListing> = ok({ path: '/boxes/Our box/Inbox', entries: [] })
   logReply: CaixaResult<JobLog> = ok({ text: 'hello from the collector\n', size: 25, truncated: false })
+  readOnly = false
+  peopleList: Person[] = PEOPLE
+  handleList: Handle[] = HANDLES
+  /** Reply to the next people change (link, rename or merge); replace to script failures. */
+  changeReply: (kind: string, args: unknown[]) => CaixaResult<PersonChange> = (_kind, _args) => ok({ person: PEOPLE[2]!, job: job({ id: 9, kind: 'refresh', collector: null, source: null, status: 'queued', stage: null, result: null }) })
   generic: Record<string, (params: Record<string, unknown>) => CaixaResult<unknown>> = {}
 
   private record(name: string, ...args: unknown[]) { this.calls.push([name, ...args]) }
@@ -72,6 +77,12 @@ export class FakeApi implements Api {
   async jobs() { this.record('jobs'); return ok(this.jobList) }
   async jobLog(id: number) { this.record('jobLog', id); return this.logReply }
   async files(path?: string, showHidden?: boolean) { this.record('files', path, showHidden); return this.filesReply(path) }
+  async info() { this.record('info'); return ok<WorkerInfo>({ version: '0.1.0', protocol: 1, read_only: this.readOnly, methods: [] }) }
+  async people() { this.record('people'); return ok({ people: this.peopleList }) }
+  async unresolved() { this.record('unresolved'); return ok({ handles: this.handleList }) }
+  async link(service: string, identifier: string, person: number | string, move?: boolean) { this.record('link', service, identifier, person, move); return this.changeReply('link', [service, identifier, person, move]) }
+  async rename(person: number, name: string) { this.record('rename', person, name); return this.changeReply('rename', [person, name]) }
+  async merge(source: number, target: number) { this.record('merge', source, target); return this.changeReply('merge', [source, target]) }
   async inbox() { this.record('inbox'); return this.inboxReply }
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}) {
     this.record('call', method, params)
@@ -85,5 +96,16 @@ export class FakeApi implements Api {
   }
   emit(name: string, payload: unknown) { this.listener?.(name, payload) }
 }
+
+export const PEOPLE: Person[] = [
+  { id: 1, name: 'Maria Costa', is_owner: true, aliases: 2, items: 9 },
+  { id: 2, name: 'Rui Pereira', is_owner: false, aliases: 1, items: 4 },
+  { id: 3, name: 'Ana A', is_owner: false, aliases: 1, items: 2 },
+]
+
+export const HANDLES: Handle[] = [
+  { service: 'WhatsApp', identifier: 'Ana Costa', display_name: null, messages: 7, collector: 'whatsapp' },
+  { service: 'iMessage', identifier: '+1 555 0102', display_name: 'Unknown', messages: 3, collector: 'imessage' },
+]
 
 export const settle = () => new Promise(resolve => setTimeout(resolve, 0))

@@ -11,8 +11,8 @@ type Step = 'source' | 'export' | 'input' | 'options' | 'preview' | 'run'
 const STEPS: Step[] = ['source', 'export', 'input', 'options', 'preview', 'run']
 
 /** The import wizard: source → how to export → choose → options → preview → run → report. */
-export function ImportPage({ onShowJob }: { onShowJob: (job: number) => void }) {
-  const { box } = useCaixa()
+export function ImportPage({ onShowJob, onShowPeople }: { onShowJob: (job: number) => void; onShowPeople: () => void }) {
+  const { box, readOnly } = useCaixa()
   const store = useStore()
   const t = useT()
   const [collectors, setCollectors] = useState<CollectorDescription[] | undefined>()
@@ -32,6 +32,7 @@ export function ImportPage({ onShowJob }: { onShowJob: (job: number) => void }) 
   const reset = () => { setStep('source'); setCollector(undefined); setSource(''); setJobId(undefined) }
 
   if (!box) return <p className={css.banner}>{t('import.needBox')}</p>
+  if (readOnly) return <p className={css.banner}>{t('import.readOnly')}</p>
 
   const choose = (picked: CollectorDescription) => {
     setCollector(picked)
@@ -64,7 +65,7 @@ export function ImportPage({ onShowJob }: { onShowJob: (job: number) => void }) 
                      onStarted={(job) => { setJobId(job.id); setStep('run') }} />
       )}
       {step === 'run' && collector && jobId !== undefined && (
-        <RunStep collector={collector} jobId={jobId} onAgain={reset} onShowJob={onShowJob} />
+        <RunStep collector={collector} jobId={jobId} onAgain={reset} onShowJob={onShowJob} onShowPeople={onShowPeople} />
       )}
     </div>
   )
@@ -215,7 +216,7 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
   )
 }
 
-function RunStep({ collector, jobId, onAgain, onShowJob }: { collector: CollectorDescription; jobId: number; onAgain: () => void; onShowJob: (job: number) => void }) {
+function RunStep({ collector, jobId, onAgain, onShowJob, onShowPeople }: { collector: CollectorDescription; jobId: number; onAgain: () => void; onShowJob: (job: number) => void; onShowPeople: () => void }) {
   const { jobs } = useCaixa()
   const store = useStore()
   const t = useT()
@@ -247,7 +248,10 @@ function RunStep({ collector, jobId, onAgain, onShowJob }: { collector: Collecto
           <h3>{t('import.report.done')}</h3>
           <p>{t('import.report.counts', { inserted: result.inserted, updated: result.updated, unchanged: result.unchanged })}</p>
           <p>{t('import.report.pages', { count: result.pages })}</p>
-          {result.unresolved.length > 0 && <p>{t('import.report.unresolved', { count: result.unresolved.length })}</p>}
+          {result.unresolved.length > 0 && (
+            <p>{t('import.report.unresolved', { count: result.unresolved.length })}{' '}
+              <button type="button" className={css.link} onClick={onShowPeople}>{t('import.report.name')}</button></p>
+          )}
           {result.warnings.length > 0 && <><h3>{t('import.report.warnings')}</h3><ul>{result.warnings.map(w => <li key={w}>{w}</li>)}</ul></>}
         </>
       ) : job.status === 'failed' ? (

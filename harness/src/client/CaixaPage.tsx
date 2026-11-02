@@ -4,10 +4,11 @@ import type { CaixaKey } from './locales.ts'
 import { BoxPage } from './pages/BoxPage.tsx'
 import { ImportPage } from './pages/ImportPage.tsx'
 import { JobsPage } from './pages/JobsPage.tsx'
+import { PeoplePage } from './pages/PeoplePage.tsx'
 import css from './caixa.module.css'
 
-export type Section = 'box' | 'import' | 'jobs'
-const SECTIONS: Section[] = ['box', 'import', 'jobs']
+export type Section = 'box' | 'import' | 'jobs' | 'people'
+const SECTIONS: Section[] = ['box', 'import', 'jobs', 'people']
 
 /** The Caixa page: a small navigation and one section at a time. */
 export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
@@ -32,8 +33,9 @@ export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
         ))}
       </nav>
       {section === 'box' && <BoxPage onImport={() => setSection('import')} />}
-      {section === 'import' && <ImportPage onShowJob={(id) => { setJob(id); setSection('jobs') }} />}
+      {section === 'import' && <ImportPage onShowJob={(id) => { setJob(id); setSection('jobs') }} onShowPeople={() => setSection('people')} />}
       {section === 'jobs' && <JobsPage selected={job} onSelect={setJob} />}
+      {section === 'people' && <PeoplePage />}
     </main>
   )
 }

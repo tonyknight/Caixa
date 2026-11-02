@@ -15,6 +15,8 @@ export interface Toast {
   readonly id: number
   readonly job: number
   readonly outcome: 'done' | 'failed' | 'cancelled' | 'interrupted'
+  /** `import`, or `refresh` (pages redrawn after a change to people). */
+  readonly kind: string
   readonly collector: string
   readonly inserted: number
   readonly error: string | null
@@ -22,6 +24,8 @@ export interface Toast {
 
 export interface State {
   readonly worker: WorkerStatus
+  /** True when the worker refuses every change (`--read-only`). */
+  readonly readOnly: boolean
   /** The open box; null when none is open (or the worker has none yet). */
   readonly box: BoxStatus | null
   /** True once the first look at the worker has finished, so pages do not flash "no box". */
@@ -49,7 +53,7 @@ const FINISHED = new Set(['done', 'failed', 'cancelled', 'interrupted'])
 
 export class Store {
   private state: State = {
-    worker: 'unknown', box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0,
+    worker: 'unknown', readOnly: false, box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0,
   }
   private listeners = new Set<() => void>()
   private stopFollowing: (() => void) | undefined
@@ -77,6 +81,8 @@ export class Store {
   /** Open the event stream and take a first look at the worker. */
   async start(): Promise<void> {
     this.stopFollowing ??= this.api.follow((name, payload) => this.heard(name, payload))
+    const info = await this.api.info()
+    if (info.ok) this.set({ readOnly: info.result.read_only })
     await this.refreshBox()
     if (this.state.box === null) await this.reopenLastBox()
     await this.refreshJobs()
@@ -177,6 +183,8 @@ export class Store {
     const merged = { ...rest, id } as Job
     this.set({ jobs: known ? this.state.jobs.map(existing => existing.id === id ? merged : existing) : [merged, ...this.state.jobs] })
     if (!FINISHED.has(job.status)) return
+    // Redrawing pages after a change to people is routine: only its failure is worth a notice.
+    if (merged.kind !== 'import' && merged.status === 'done') { this.set({ boxVersion: this.state.boxVersion + 1 }); return }
     void this.loadNames().then(() => this.toast(merged))
     void this.refreshBox() // the counts changed
   }
@@ -186,6 +194,7 @@ export class Store {
       id: this.nextToast++,
       job: job.id,
       outcome: job.status as Toast['outcome'],
+      kind: job.kind,
       collector: (job.collector && this.state.names[job.collector]) || job.collector || '',
       inserted: job.result?.inserted ?? 0,
       error: job.error,

@@ -13,7 +13,7 @@ describe('the Caixa page', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Caixa' })).toBeTruthy()
     expect(screen.getByText('Collect, preserve and pass on a digital life.')).toBeTruthy()
     const nav = screen.getByRole('navigation', { name: 'Caixa sections' })
-    expect(Array.from(nav.querySelectorAll('button')).map(b => b.textContent)).toEqual(['Box', 'Import', 'Jobs'])
+    expect(Array.from(nav.querySelectorAll('button')).map(b => b.textContent)).toEqual(['Box', 'Import', 'Jobs', 'People'])
     expect(screen.getByRole('button', { name: 'Box' }).getAttribute('aria-current')).toBe('page')
     expect(screen.getByRole('heading', { name: 'Our box' })).toBeTruthy()
   })

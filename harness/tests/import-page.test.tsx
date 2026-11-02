@@ -7,7 +7,7 @@ import { renderWith } from './render.tsx'
 
 afterEach(cleanup)
 
-const wizard = (onShowJob = vi.fn()) => renderWith(<ImportPage onShowJob={onShowJob} />)
+const wizard = (onShowJob = vi.fn(), onShowPeople = vi.fn()) => renderWith(<ImportPage onShowJob={onShowJob} onShowPeople={onShowPeople} />)
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
 const type = (label: string | RegExp, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } })
 const currentStep = () => screen.getByRole('list', { name: 'Steps' }).querySelector('[aria-current="step"]')!.textContent
@@ -24,8 +24,16 @@ async function toPreview(view: Awaited<ReturnType<typeof wizard>>, path = '/expo
 
 describe('before a box is open', () => {
   it('says to open one first', async () => {
-    await renderWith(<ImportPage onShowJob={() => undefined} />, (api) => { api.box = fail('no_box', 'x') })
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.box = fail('no_box', 'x') })
     expect(screen.getByText('Open or create a box first (see the Box section).')).toBeTruthy()
+  })
+})
+
+describe('a read-only box', () => {
+  it('cannot import, and says so', async () => {
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.readOnly = true })
+    expect(screen.getByText('This box is open read-only, so nothing can be imported.')).toBeTruthy()
+    expect(screen.queryByText('Where do your messages come from?')).toBeNull()
   })
 })
 
@@ -40,7 +48,7 @@ describe('step 1: the source', () => {
   })
 
   it('says when nothing is installed', async () => {
-    await renderWith(<ImportPage onShowJob={() => undefined} />, (api) => { api.collectorList = [] })
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [] })
     expect(screen.getByText('No sources are installed.')).toBeTruthy()
   })
 })
@@ -249,6 +257,18 @@ describe('step 6: running and the report', () => {
     await view.flush()
     await view.emit('job.finished', { ...job({ id: 5, status: 'interrupted', result: null }), job: 5 })
     expect(screen.getByText('Caixa stopped before the import finished. Run it again to continue.')).toBeTruthy()
+  })
+
+  it('leads from the unnamed handles to the People section', async () => {
+    const onShowPeople = vi.fn()
+    const view = await wizard(vi.fn(), onShowPeople)
+    await toPreview(view)
+    click('Import')
+    await view.flush()
+    await view.emit('job.finished', { ...job({ id: 5, result: { inserted: 7, updated: 0, unchanged: 0, pages: 2, unresolved: ['Ana Costa', 'Rui'], warnings: [] } }), job: 5 })
+    expect(screen.getByText(/2 handles still need a name/)).toBeTruthy()
+    click('Name them')
+    expect(onShowPeople).toHaveBeenCalledOnce()
   })
 
   it('goes to the job, or starts over', async () => {
