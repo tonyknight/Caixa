@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -76,7 +76,7 @@ Current task: T01
   - the unknown handle is absent;
   - two builds are byte-identical.
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T02: Synthetic iMessage `chat.db`
 

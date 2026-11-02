@@ -34,5 +34,5 @@ strict = true
 files = ["caixa"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
-addopts = "-ra"
+testpaths = ["tests", "tools/chattr/tests"]
+addopts = "-ra --import-mode=importlib"
