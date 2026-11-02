@@ -49,5 +49,5 @@ addopts = "-ra --import-mode=importlib"
 
 # Third-party libraries without type information.
 [[tool.mypy.overrides]]
-module = ["tqdm", "tqdm.*", "vobject", "vobject.*", "ffmpeg", "ffmpeg.*", "pillow_heif"]
+module = ["tqdm", "tqdm.*", "vobject", "vobject.*", "ffmpeg", "ffmpeg.*", "pillow_heif", "faster_whisper"]
 ignore_missing_imports = true

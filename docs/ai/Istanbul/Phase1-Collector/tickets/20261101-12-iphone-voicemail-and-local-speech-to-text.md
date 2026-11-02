@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -37,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** a `Transcriber` interface (`transcribe(audio) -> Transcript`) with a deterministic
 test stub and two local backends: `WhisperCppTranscriber` (runs a local `whisper-cli` after an
@@ -64,7 +65,7 @@ the completion report.
 - Tests: stub; guard blocks sockets and restores them; the whisper.cpp wiring against a fake
   executable and real ffmpeg; faster-whisper against a fake module; error cases; factory.
 - Verify: `python -m pytest -q tools/chattr/tests/test_transcription.py`
-- [ ] done
+- [x] done
 
 ### T02: iPhone voicemail parser
 
@@ -101,3 +102,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 OPEN QUESTION (speech-to-text runtime/model) answered conservatively, NEEDS MAINTAINER CONFIRMATION: two local backends (whisper.cpp CLI, faster-whisper) behind one interface, selected by setting; no default model, no downloads. No STT model/runtime is installed in the build container, so real transcription is untested here.
+
+### 2026-11-02
+T01: transcription.py: Transcriber interface, StubTranscriber, WhisperCppTranscriber (ffmpeg → 16 kHz mono wav → local whisper-cli) and FasterWhisperTranscriber (local model folder, local_files_only), make_transcriber(settings). offline_only() raises NetworkBlocked on any non-loopback connect/connect_ex/getaddrinfo and sets HF_HUB_OFFLINE/TRANSFORMERS_OFFLINE, restoring all on exit. LIMITATION: a child process (whisper-cli) is outside the guard; whisper.cpp does not use the network. Voicemail defaults changed: transcription now {enabled false, provider 'whisper.cpp', model_path '', executable 'whisper-cli', language ''} ('whisper' still accepted as the old provider name; the unusable 'model: base' name key is gone for new roots; existing roots keep theirs). Real models are not installed here: the backends are tested against a fake whisper-cli (real ffmpeg) and a fake faster_whisper module.
