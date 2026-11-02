@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261101-01-caixa-repository-foundations
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -23,7 +22,7 @@ Bring Chattr into Caixa with its purged history and settle its license.
 
 - [ ] `git subtree add --prefix=tools/chattr` imports Chattr `main` (0152912) with full history
 - [ ] `src/parsers/imessage_database_parser.py` and `src/imessage_tools.py` are reviewed for code derived from imessage-exporter (GPL-3.0); findings recorded in this ticket's Notes and any derived parts flagged for rewrite
-- [ ] Chattr carries an MIT `LICENSE`
+- [ ] Chattr carries a GPL-3.0-or-later `LICENSE` and a `NOTICE` attributing the parts derived from imessage-exporter (decision 2026-11-02, replacing the original MIT plan)
 - [ ] No `.db`, key material or IDE files enter Caixa's history
 
 ## Context
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 This ticket is import, review and licensing work, with no new production code. Per bora-tdd's
 config/docs exception, each task's Verify command is the gate.
@@ -64,14 +63,22 @@ config/docs exception, each task's Verify command is the gate.
   per flagged part.
 - [x] done
 
-### T03: MIT license for Chattr
+### T03: GPL-3.0-or-later license and attribution for Chattr
 
-- `tools/chattr/LICENSE`: MIT, "Copyright (c) 2025-2026 Tony Knight". If T02 found derived
-  code, add `tools/chattr/NOTICE` naming the affected files and their pending rewrite (ticket 07)
-  so the license status is honest until then.
-- Chattr `README.md`: a License section.
-- Verify: `grep -q "MIT License" tools/chattr/LICENSE && grep -qi "license" tools/chattr/README.md`
-- [ ] done
+Rewritten 2026-11-02 after T02 found derived code and the maintainer chose GPL-3.0-or-later for
+Chattr and Caixa (the original MIT plan is replaced).
+- `tools/chattr/LICENSE`: the verbatim GNU GPL v3 text (from imessage-exporter's `LICENSE`, which
+  is the FSF text).
+- `tools/chattr/NOTICE`: Chattr's copyright (© 2025-2026 Tony Knight), licensed
+  GPL-3.0-or-later; attribution of the derived parts (diagnostics tool, message-query structure,
+  tapback GUID parsing, one comment) to imessage-exporter, © Christopher Sardegna,
+  GPL-3.0-or-later; other schema knowledge learned from studying it.
+- Correct the "port" wording to say accurately what was derived and what was learned:
+  `docs/MIGRATION_SUMMARY.md`, `docs/iMessageConversionReadMe.md`, and the docstrings in
+  `src/parsers/imessage_database_parser.py` and `src/imessage_tools.py`.
+- Chattr `README.md`: a License section (GPL-3.0-or-later, pointing to `NOTICE`).
+- Verify: `grep -q "GNU GENERAL PUBLIC LICENSE" tools/chattr/LICENSE && grep -q imessage-exporter tools/chattr/NOTICE && ! grep -rniE "port of the rust|convert rust" tools/chattr/docs tools/chattr/src && grep -q "GPL-3.0-or-later" tools/chattr/README.md && python -m pytest -q && python -m black --check .`
+- [x] done
 
 ## Completion report
 
