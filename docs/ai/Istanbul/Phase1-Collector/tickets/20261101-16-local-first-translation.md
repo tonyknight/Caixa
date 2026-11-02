@@ -3,17 +3,16 @@ id: 20261101-16-local-first-translation
 title: Local-first translation
 type: feature
 priority: low
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 16.
+closed: 2026-11-02
+notes: 'Done: local-first translation step with the skip heuristic.'
 parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T03
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -21,8 +20,8 @@ Optional translation through an OpenAI-compatible endpoint, local by default.
 
 ## Acceptance criteria
 
-- [ ] Endpoint configurable; local default; key from environment only
-- [ ] Translation-skip heuristic restored from `60b276c`
+- [x] Endpoint configurable; local default; key from environment only
+- [x] Translation-skip heuristic restored from `60b276c`
 
 ## Context
 
@@ -35,8 +34,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** translation is a separate, explicit step after conversion (conversion itself never uses
 the network, N2): `chattr-cli translate` sends the text of messages that need it to an
@@ -84,14 +83,55 @@ themselves).
 - Pages show the translation under the original; defaults updated (`ai_translation`).
 - Tests: stub transport over a fixture archive; resumability; failures; the command; page text.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `chattr-cli translate [--endpoint URL] [--model NAME] [--service S] [--limit N]`
+  translates the non-English text messages of the archive through an OpenAI-compatible chat endpoint
+  (default `http://localhost:11434/v1`), in place (`messages.translation` and `.language`), resumably.
+  A non-local endpoint is refused unless `global.ai_translation.allow_remote` is set; the API key is
+  read only from the environment variable named in the settings. The first version's skip rule is
+  restored: text the same author already translated within five minutes (English, about the same
+  length) is left alone. Pages show the translation under the original. Conversion itself still
+  never touches the network (a test cuts the network and converts and renders every service).
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `translation.py` (detection, rules, client, settings, `translate_archive`).
+  - Changed: `commands.py` (`translate`), `cli.py` (`translate` command), `pages.py` and the page
+    template (translation under the text), `defaults/config.json` (`ai_translation`).
+  - Tests: `test_translation_rules`, `test_translation_client` (with a local stub server in
+    `stub_server.py`), `test_translate_archive`, `test_no_network`.
+- **Errors:** none in existing code. The old defaults pointed at OpenRouter with a placeholder key
+  environment variable; they are replaced by the local-first defaults. The `langdetect` dependency
+  the first version used never built here, so language detection is built in.
+- **Verify:** `python -m pytest -q` → 616 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean. Not verified against a real model server: the client
+  is tested against a stub that speaks the OpenAI chat-completions shape.
+
+## Review
+
+### 2026-11-02: ae929a2..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only; one decision for the maintainer.
+
+- **Minor (decision):** the default endpoint `http://localhost:11434/v1` (Ollama's OpenAI-compatible
+  address) and that no model is preset: confirm, or name a preferred local runtime.
+- **Minor:** the built-in detector knows six languages (English, Portuguese, Spanish, French, German,
+  Italian) and returns "unknown" otherwise, so text in other languages is never translated. A real
+  language-identification model could replace it behind the same function.
+- **Minor:** the heuristic compares an English neighbour's *length* only; it does not check that the
+  neighbour actually says the same thing (the first version didn't either).
+- **Minor:** the system prompt always asks for the configured target language; the source language is
+  not named (the first version said "from Brazilian Portuguese").
+- **Minor:** `translate` sends one request per message, sequentially. Fine for a family archive on a
+  local model; batching and concurrency are possible later.
+- **Minor:** local servers are reached without any proxy; a remote endpoint (when allowed) uses the
+  environment's proxy settings.
+- **Minor:** translations are not part of the message's content hash, so a changed translation
+  doesn't bump the message `version`.
+- **Spec:** both acceptance criteria are met. Files match the plan.
+- **TDD:** RED then GREEN for every task (collection errors, then passing).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -102,3 +142,6 @@ T01: translation.py: detect_language (built-in stopword detector for en/pt/es/fr
 
 ### 2026-11-02
 T02: OpenAICompatibleTranslator over stdlib urllib (no 'requests' dependency); local endpoints bypass any configured internet proxy; error cases become TranslationError. make_translator: endpoint must be loopback unless global.ai_translation.allow_remote; key only from the env var named by api_key_env_var (an api_key in the file is ignored with a note). Defaults changed: ai_translation is now {enabled false, endpoint http://localhost:11434/v1, model '', target_language English, api_key_env_var CHATTR_TRANSLATION_API_KEY, allow_remote false, timeout_seconds 60} (the old OpenRouter defaults are gone for new roots; existing roots keep their old keys and gain the new ones). The default endpoint is Ollama's OpenAI-compatible address: a choice to confirm.
+
+### 2026-11-02
+T03: translate_archive(db, translator, service, limit): per conversation in time order; sets messages.language for every detected text message and messages.translation for translated ones; resumable (existing translations skipped); one failure doesn't stop the rest but 5 consecutive failures abort the run; stats separate English / author-translated / unknown / failed. chattr-cli translate (a --model turns it on). Pages show the translation (escaped) under the text. Added test_no_network (N2: every service converts and renders with sockets cut).
