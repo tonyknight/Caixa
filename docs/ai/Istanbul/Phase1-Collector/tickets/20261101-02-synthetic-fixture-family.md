@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T04
+current_task: T05
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T04
+Current task: T05
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -116,7 +116,7 @@ Current task: T04
 - All text double-encoded the way Facebook does it (UTF-8 bytes read as latin-1). A test proves
   the encoding fix recovers the original.
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T05: MBOX email
 
@@ -170,3 +170,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-01
 Now depends on ticket 03: the message-source fixture builders live in Chattr's test tree (tools/chattr/tests/fixtures/, a location named in the Requirements), so standalone Chattr can run its own tests after mirroring; Caixa's tests reuse them. That folder exists only after the Chattr subtree import.
+
+### 2026-11-02
+T04: first GREEN run failed one test because the test computed the export root as path.parents[3] (one level short); the builder was right. Fixed the test (parents[4]) and documented the folder chain.
