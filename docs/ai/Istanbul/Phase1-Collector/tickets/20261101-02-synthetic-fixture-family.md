@@ -14,7 +14,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T06
+current_task: T07
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T06
+Current task: T07
 
 **Design**
 - One data definition of a fictional family drives builders that write each export format into a
@@ -142,7 +142,7 @@ Current task: T06
 - Audio payloads are short PCM WAV data whatever the extension, because the standard library
   can't encode MP3/AMR. Parsers must not trust extensions, and speech-to-text tests use a stub.
 - Verify: `python -m pytest tools/chattr/tests -q`
-- [ ] done
+- [x] done
 
 ### T07: `build_all`, determinism and documentation
 
