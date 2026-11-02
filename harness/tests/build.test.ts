@@ -36,7 +36,7 @@ describe('the browser bundle', () => {
     new Function('window', code)(window)
     const exports = loaded!.factory((id) => {
       if (id === 'react/jsx-runtime') return { jsx: () => null, jsxs: () => null, Fragment: 'f' }
-      if (id === 'react') return { useState: () => [undefined, () => undefined], useEffect: () => undefined, useCallback: (f: unknown) => f }
+      if (id === 'react') return new Proxy({ createContext: () => ({ Provider: 'Provider' }) }, { get: (target, name: string) => (target as Record<string, unknown>)[name] ?? (() => undefined) })
       throw new Error(`unexpected require(${id})`)
     })
     expect(typeof exports.apply).toBe('function')

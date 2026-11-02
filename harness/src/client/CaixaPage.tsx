@@ -1,47 +1,39 @@
-import { useCallback, useEffect, useState } from 'react'
-import { call, workerState, type WorkerState } from './api.ts'
+import { useState } from 'react'
+import { useCaixa, useT } from './hooks.tsx'
+import type { CaixaKey } from './locales.ts'
+import { BoxPage } from './pages/BoxPage.tsx'
+import { ImportPage } from './pages/ImportPage.tsx'
+import { JobsPage } from './pages/JobsPage.tsx'
+import css from './caixa.module.css'
 
-/** What the page needs from its host: translated text. */
-export interface CaixaPageInjected {
-  readonly t: (key: string, values?: Record<string, string>) => string
-}
+export type Section = 'box' | 'import' | 'jobs'
+const SECTIONS: Section[] = ['box', 'import', 'jobs']
 
-interface Info {
-  readonly version: string
-  readonly read_only: boolean
-}
-
-/** The Caixa page. For now it only says whether the worker is there; later tickets add the pages. */
-export function CaixaPage({ t }: CaixaPageInjected) {
-  const [state, setState] = useState<WorkerState | 'checking'>('checking')
-  const [info, setInfo] = useState<Info | undefined>()
-
-  const check = useCallback(async () => {
-    setState('checking')
-    const current = await workerState()
-    setState(current)
-    if (current !== 'running') return setInfo(undefined)
-    const reply = await call<Info>('worker.info')
-    setInfo(reply.ok ? reply.result : undefined)
-  }, [])
-
-  useEffect(() => { void check() }, [check])
+/** The Caixa page: a small navigation and one section at a time. */
+export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
+  const t = useT()
+  const { worker } = useCaixa()
+  const [section, setSection] = useState<Section>(initial)
+  const [job, setJob] = useState<number | undefined>()
 
   return (
-    <main style={{ padding: '2rem', maxWidth: '44rem' }} data-testid="caixa-page">
-      <h1>{t('page.title')}</h1>
-      <p>{t('page.lead')}</p>
-      <p role="status">
-        {state === 'checking' && t('worker.checking')}
-        {state === 'running' && t('worker.running', { version: info?.version ?? '' })}
-        {state === 'restarting' && t('worker.restarting')}
-        {state === 'failed' && t('worker.failed')}
-        {state === 'stopped' && t('worker.stopped')}
-      </p>
-      {info?.read_only && <p>{t('worker.readOnly')}</p>}
-      {state !== 'running' && state !== 'checking' && (
-        <button type="button" onClick={() => void check()}>{t('worker.retry')}</button>
+    <main className={css.page} data-testid="caixa-page">
+      <h1 className={css.title}>{t('page.title')}</h1>
+      <p className={css.lead}>{t('page.lead')}</p>
+      {(worker === 'restarting' || worker === 'failed' || worker === 'stopped') && (
+        <p className={css.banner} role="status">{t(`worker.${worker}` as CaixaKey)}</p>
       )}
+      <nav className={css.nav} aria-label={t('nav.label')}>
+        {SECTIONS.map(name => (
+          <button key={name} type="button" className={`${css.tab} ${name === section ? css.tabActive : ''}`}
+                  aria-current={name === section ? 'page' : undefined} onClick={() => setSection(name)}>
+            {t(`nav.${name}` as CaixaKey)}
+          </button>
+        ))}
+      </nav>
+      {section === 'box' && <BoxPage onImport={() => setSection('import')} />}
+      {section === 'import' && <ImportPage onShowJob={(id) => { setJob(id); setSection('jobs') }} />}
+      {section === 'jobs' && <JobsPage selected={job} onSelect={setJob} />}
     </main>
   )
 }

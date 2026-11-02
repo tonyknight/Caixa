@@ -123,7 +123,8 @@ run('Caixa inside the real DeepSeek Harness', () => {
       await page.locator('[aria-label="Caixa"]').first().click({ timeout: 15_000 })
       const text = await page.locator('[data-testid="caixa-page"]').innerText({ timeout: 15_000 })
       expect(text).toContain('Collect, preserve and pass on a digital life.')
-      expect(text).toContain('The Caixa worker is running')
+      expect(text).toContain('Test box') // the box the earlier steps made is open
+      expect(text).toContain('Messages: 2')
     } finally {
       await browser.close()
     }

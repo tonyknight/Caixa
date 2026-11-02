@@ -13,7 +13,7 @@ depends_on:
 - 20261101-22-harness-plugin-skeleton
 - 20261101-23-caixa-serve-launcher
 subtasks: []
-current_task: T02
+current_task: T04
 plan_status: in-progress
 ---
 ## Description
@@ -39,7 +39,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T04
 
 **Design:** the Caixa page grows from a status line into the authoring application: one sidebar icon,
 one page, with sections (Box, Import, Jobs now; People and Browse and Settings in tickets 25 and 26).
@@ -77,14 +77,14 @@ React 18, CSS Modules, no component library, all text in `locales.ts` (English a
   file picker and inbox.
 - Tests: jsdom component tests driving each step with a fake API.
 - Verify: `pnpm --dir harness test`
-- [ ] done
+- [x] done
 
 ### T03: Jobs page and toasts
 
 - Jobs section (list, details, log, cancel) and the toast host in `shell.overlay`.
 - Tests: jsdom; the toast text and dismissal.
 - Verify: `pnpm --dir harness test`
-- [ ] done
+- [x] done
 
 ### T04: In the real browser, against the CLI
 

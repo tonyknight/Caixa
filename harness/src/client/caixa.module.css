@@ -1,0 +1,50 @@
+/* Neutral on purpose: only system colors and currentColor, so DSH's light and dark themes both work. */
+.page { padding: 1.5rem 2rem 3rem; max-width: 62rem; font-size: 0.95rem; line-height: 1.5; }
+.title { margin: 0 0 0.25rem; font-size: 1.6rem; }
+.lead { margin: 0 0 1rem; opacity: 0.75; }
+.nav { display: flex; gap: 0.25rem; margin: 1rem 0 1.5rem; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
+.tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; padding: 0.5rem 0.9rem; color: inherit; font: inherit; cursor: pointer; opacity: 0.7; }
+.tab:hover { opacity: 1; }
+.tabActive { border-bottom-color: currentColor; opacity: 1; font-weight: 600; }
+.banner { padding: 0.6rem 0.9rem; border: 1px solid color-mix(in srgb, currentColor 30%, transparent); border-radius: 0.5rem; margin-bottom: 1rem; }
+.section h2 { margin: 1.5rem 0 0.5rem; font-size: 1.15rem; }
+.section h3 { margin: 1.2rem 0 0.4rem; font-size: 1rem; }
+.card { border: 1px solid color-mix(in srgb, currentColor 20%, transparent); border-radius: 0.6rem; padding: 0.9rem 1.1rem; margin: 0 0 1rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.75rem; list-style: none; margin: 0; padding: 0; }
+.choice { display: block; width: 100%; text-align: left; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); background: none; color: inherit; border-radius: 0.6rem; padding: 0.8rem 1rem; font: inherit; cursor: pointer; }
+.choice:hover, .choice:focus-visible { border-color: currentColor; }
+.choice strong { display: block; }
+.choice span { opacity: 0.7; font-size: 0.85rem; }
+.steps { display: flex; flex-wrap: wrap; gap: 0.4rem; list-style: none; margin: 0 0 1.25rem; padding: 0; }
+.step { padding: 0.15rem 0.7rem; border-radius: 1rem; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); font-size: 0.85rem; opacity: 0.6; }
+.stepCurrent { opacity: 1; border-color: currentColor; font-weight: 600; }
+.stepDone { opacity: 0.9; }
+.howto { white-space: pre-line; }
+.field { display: block; margin: 0.9rem 0 0; font-weight: 600; }
+.help { display: block; margin: 0.1rem 0 0.3rem; font-weight: 400; opacity: 0.7; font-size: 0.85rem; }
+.input, .select { width: 100%; max-width: 32rem; padding: 0.4rem 0.6rem; font: inherit; color: inherit; background: transparent; border: 1px solid color-mix(in srgb, currentColor 35%, transparent); border-radius: 0.4rem; }
+.check { display: flex; gap: 0.5rem; align-items: flex-start; margin: 0.9rem 0 0; font-weight: 600; }
+.check input { margin-top: 0.3rem; }
+.problem { color: #b3261e; font-size: 0.85rem; margin: 0.2rem 0 0; }
+.actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.1rem; }
+.button { appearance: none; border: 1px solid currentColor; background: none; color: inherit; font: inherit; padding: 0.4rem 1rem; border-radius: 0.4rem; cursor: pointer; }
+.button:disabled { opacity: 0.45; cursor: not-allowed; }
+.primary { background: CanvasText; color: Canvas; border-color: CanvasText; font-weight: 600; }
+.error { border: 1px solid #b3261e; color: #b3261e; border-radius: 0.5rem; padding: 0.6rem 0.9rem; margin: 0.9rem 0; }
+.picker { border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 0.5rem; margin-top: 0.5rem; max-height: 18rem; overflow: auto; }
+.where { padding: 0.4rem 0.7rem; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); font-size: 0.85rem; opacity: 0.8; overflow-wrap: anywhere; }
+.entries { list-style: none; margin: 0; padding: 0.2rem 0.4rem; }
+.entries li { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.15rem 0.3rem; }
+.link { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; text-decoration: underline; cursor: pointer; text-align: left; }
+.muted { opacity: 0.65; font-size: 0.85rem; }
+.numbers { display: flex; gap: 1.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+.number { font-size: 1.5rem; font-weight: 600; }
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid color-mix(in srgb, currentColor 15%, transparent); vertical-align: top; }
+.badge { display: inline-block; padding: 0 0.5rem; border-radius: 0.8rem; border: 1px solid currentColor; font-size: 0.8rem; }
+.progress { width: 100%; max-width: 32rem; }
+.log { background: color-mix(in srgb, currentColor 6%, transparent); border-radius: 0.4rem; padding: 0.6rem 0.8rem; max-height: 20rem; overflow: auto; font-size: 0.8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.toasts { position: fixed; right: 1rem; bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; z-index: 2000; max-width: 24rem; }
+.toast { display: flex; gap: 0.75rem; align-items: flex-start; background: Canvas; color: CanvasText; border: 1px solid CanvasText; border-radius: 0.6rem; padding: 0.7rem 0.9rem; box-shadow: 0 4px 16px rgb(0 0 0 / 0.25); }
+.toastBad { border-color: #b3261e; }
+.toast p { margin: 0; flex: 1; }
