@@ -3,18 +3,17 @@ id: 20261101-27-chattr-serve-web-ui
 title: chattr-cli serve web UI
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
+closed: 2026-11-02
 notes: Breakdown item 27.
 parent:
 depends_on:
 - 20261101-06-interactive-menu-and-command-line
 - 20261101-15-html-rendering-from-the-database
 subtasks: []
-current_task: T03
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,8 +21,8 @@ Chattr's small Python-only browser UI for standalone users.
 
 ## Acceptance criteria
 
-- [ ] Jinja2 + htmx; service, export, options, run with progress, open output
-- [ ] Works without Caixa, Node or DeepSeek Harness
+- [x] Jinja2 + htmx; service, export, options, run with progress, open output
+- [x] Works without Caixa, Node or DeepSeek Harness
 
 ## Context
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** `chattr-cli serve` is a small local web page for people who only want Chattr. It is
 Python only (the standard library's HTTP server, Jinja2 for pages, htmx for the few live parts) and
@@ -82,15 +81,37 @@ options, run with progress, open the output.
   NOTICE (htmx), and the "works without Caixa, Node or DeepSeek Harness" check.
 - Tests: the real command in a subprocess; `chattr.web` imports nothing from Caixa.
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `chattr-cli serve` opens a small local web page (standard-library HTTP server, Jinja2,
+  vendored htmx): choose a service, read how to export, point at the export (with a folder browser),
+  set options seeded from the settings, convert with live progress, open the pages. The form becomes
+  the arguments `chattr-cli convert` takes and runs through `chattr.cli.main`, so the page and the
+  command line give the same archive. It listens on 127.0.0.1 only, behind a token cookie with Host
+  and Origin checks; `/output/` and the browser are confined to their folders. It imports nothing
+  from Caixa and loads nothing from the network.
+- **Files:** `tools/chattr/src/chattr/{web,cli}.py`, `templates/web/*.html`, `static/htmx.min.js`
+  and its license, `pyproject.toml` (package data), `README.md`, `NOTICE`,
+  `tests/{test_web,test_web_convert,test_serve_command,web_helpers}.py`.
+- **Errors:** a refused POST left its body unread and the next request on the connection failed
+  ("bad request syntax"); the body is now always read (regression test added). The wheel could not
+  be built here (the system setuptools is patched and breaks `pip wheel`), so packaging is checked by
+  matching `package-data` globs against the files instead. A subprocess test lost the user-site
+  packages when HOME was isolated; `PYTHONUSERBASE` fixes that.
+- **Verify:** `python -m pytest -q` 873 passed; black and mypy clean.
+
+## Review
+
+Reviewed in-session. Accepted: no real browser was driven here (htmx behaviour is verified at the
+HTTP level: the fragments poll and stop); jobs are kept in memory for the session; progress is the
+command's printed output, not a percentage; the Chattr README's feature table was refreshed (it
+had been stale since ticket 15) and says what was tested. No blockers.
 
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01-T03 done. NEEDS MAINTAINER CONFIRMATION: subcommand `serve` with `--port` (default: any free port) and `--no-browser`; cookie name `chattr_session`; no `--host` option on purpose (loopback only).
