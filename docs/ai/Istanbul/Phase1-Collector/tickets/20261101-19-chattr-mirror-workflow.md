@@ -12,7 +12,8 @@ parent:
 depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -36,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `tools/chattr/` is developed in Caixa and mirrored to Chattr's own repository. The
 mirror is `git subtree split --prefix=tools/chattr` pushed as a fast-forward: the split recreates
@@ -60,7 +61,7 @@ here pushes to Chattr's repository from this environment**: that needs the maint
   nothing; a diverged remote is refused and left alone; the real history descends from Chattr's
   published `main`.
 - Verify: `python -m pytest -q tests/test_mirror.py`
-- [ ] done
+- [x] done
 
 ### T02: The workflow, the token documentation and the README banner
 
@@ -85,3 +86,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 NEEDS MAINTAINER CONFIRMATION: secret name CHATTR_MIRROR_TOKEN; target repository tonyknight/Chattr branch main; the mirror triggers on pushes to Caixa's main (production). No push to Chattr's repository is made from this environment.
+
+### 2026-11-02
+T01: tools/mirror/mirror-chattr.sh: split, ls-remote (exit 2 = no such branch = first push; other failures stop), fast-forward check via merge-base --is-ancestor, push 'split:refs/heads/<branch>' with no force; exits: 0 pushed / up to date / dry run, 1 cannot reach or push, 2 usage, 3 not a fast-forward. Credentials in the URL are masked in everything printed (git's own error text is captured and masked). Verified on the real repository: Chattr's published main 0152912 is an ancestor of today's split, so the first real run will be a fast-forward.
