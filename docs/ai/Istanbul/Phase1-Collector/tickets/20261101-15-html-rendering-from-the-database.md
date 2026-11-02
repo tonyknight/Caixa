@@ -13,7 +13,7 @@ depends_on:
 - 20261101-13-one-attachment-pipeline
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T02
+current_task: T03
 plan_status: in-progress
 ---
 ## Description
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** a new renderer (`render.py`) replaces the old `HTMLGenerator` and its template. The old
 template put message text into the page unescaped (`| safe`), left the calendar empty, and wrote one
@@ -87,7 +87,7 @@ told from the owner on services where the owner is just another name (WhatsApp, 
 - Tests: HTML and script in messages render as text; anchors; badges; calendar counts; entry kinds;
   attachment links resolve; island parses and matches.
 - Verify: `python -m pytest -q tools/chattr/tests/test_render_pages.py`
-- [ ] done
+- [x] done
 
 ### T03: Mail pages by thread, and the index
 
@@ -119,3 +119,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-02
 T01: render.py: Renderer loads the archive once, plans PageSpecs and builds data-island documents (schema 'chattr-page-1': conversations incl. participants and roles, handles, messages with every stored column, attachments, reactions; senders referenced by (service, identifier)). Counterpart rule: non-owner person behind the conversation's handles (owner handles = handles that sent is_from_owner messages or have role owner), else the chat name (WhatsApp prefix stripped). Local time = UTC + stored offset. Mail: one page per thread by first mail's local date, sender and subject. Shared session fixture full_archive (every source fixture + contacts + owner + an alias for the Instagram username). DatabaseManager.connection added for readers.
+
+### 2026-11-02
+T02: pages.py + templates/page.html: self-contained page (inline CSS, light/dark, no external resources, one script element: the data island). Escaped everywhere (jinja autoescape; nl2br escapes before adding <br>); the island is JSON with < > & U+2028/9 escaped so a body containing </script> can't break out. Links only from http(s) addresses; attachment links only to files that exist inside the given roots (path traversal like ../../etc/x is refused and the file shows by name). Reactions: standing ones only (a later removal cancels). Time: local wall-clock at stored precision with its offset, 'UTC', or 'zone unknown'. Calendar levels are relative to the page's busiest day. The old template's unescaped '| safe' output is what this replaces (T04 removes it).
