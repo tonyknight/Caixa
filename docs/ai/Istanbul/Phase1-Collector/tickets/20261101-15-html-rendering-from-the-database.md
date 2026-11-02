@@ -3,18 +3,18 @@ id: 20261101-15-html-rendering-from-the-database
 title: HTML rendering from the database
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 15.
+closed: 2026-11-02
+notes: 'Done: page plan, person/group/mail pages, index, data island; old generator
+  removed.'
 parent:
 depends_on:
 - 20261101-13-one-attachment-pipeline
 - 20261101-14-people-roles-contacts-and-aliases
 subtasks: []
-current_task: T04
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,9 +22,9 @@ Render per-person-per-year pages from `chattr.sqlite`.
 
 ## Acceptance criteria
 
-- [ ] Date-named, self-contained pages merging all platforms with platform badges
-- [ ] Stable `id="m-<id>"` anchors and an embedded JSON data island
-- [ ] Escaped content; heatmap calendar; call/voicemail entries; mail pages by thread
+- [x] Date-named, self-contained pages merging all platforms with platform badges
+- [x] Stable `id="m-<id>"` anchors and an embedded JSON data island
+- [x] Escaped content; heatmap calendar; call/voicemail entries; mail pages by thread
 
 ## Context
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T04
+Status: done
+Current task: 
 
 **Design:** a new renderer (`render.py`) replaces the old `HTMLGenerator` and its template. The old
 template put message text into the page unescaped (`| safe`), left the calendar empty, and wrote one
@@ -104,14 +104,60 @@ told from the owner on services where the owner is just another name (WhatsApp, 
   `html` use it; the old `HTMLGenerator`, its template and its tests are removed.
 - Tests: the commands and CLI; `--html` on the JSON route renders from the temporary database.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `chattr-cli html` (and `convert --html`) renders the archive as self-contained pages:
+  `Messages/<Person>/(YYYY) <Person>.html` merging every platform, `Messages/Groups/<Group>/…`,
+  `Mail/<YYYY>/(YYYY-MM-DD) <sender> — <subject>.html` per thread, and `index.html`. Each page has a
+  platform badge per entry, stable `id="m-<id>"` anchors, the year's heatmap calendar, year
+  navigation, call and voicemail entries (transcript and audio), standing reactions, escaped text,
+  http-only links, links to attachment files only where they exist, and an escaped JSON data island
+  holding every stored column of its messages. Dates and years are the event's local time.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `render.py` (page plan, data-island documents), `pages.py` (HTML), templates `base.html`,
+    `page.html`, `mail.html`, `index.html`.
+  - Changed: `commands.py` (`generate_html`, `attachment_roots`, `--html` on every route),
+    `cli.py` (`html --out DIR --attachments-dir DIR`), `database_manager.py` (`connection`).
+  - Removed: `html_generator.py`, `templates/template.html`, `test_html_from_database.py`.
+  - Tests: `test_render_plan`, `test_render_pages`, `test_render_mail`; the convert/menu/CLI HTML
+    tests moved to the new layout; shared `full_archive` fixture in `conftest.py`.
+- **Errors:** found and fixed by replacing the old generator:
+  - It inserted message text unescaped (`| safe`), so a message containing HTML or script ran in the
+    page.
+  - Its calendar was always empty (placeholder data).
+  - It wrote one page per conversation rather than per person per year, and without platform
+    badges or anchors.
+- **Verify:** `python -m pytest -q` → 521 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean.
+
+## Review
+
+### 2026-11-02: cc95119..HEAD (T01–T04), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a two-person chat on a service where the owner is just another name (WhatsApp,
+  Messenger) needs the owner configured, otherwise it lands under the chat's own name and doesn't merge
+  with that person's other platforms. Say so in the README (the Chattr README still describes the
+  pre-board state and needs a refresh).
+- **Minor:** `convert --html` renders the whole archive each time; fine for a family archive, slow
+  for a very large one (planning loads every message into memory).
+- **Minor:** attachment links depend on the files being inside the known folders (`<out>/Messages`,
+  `Output/*/Attachments`, or `--attachments-dir`); pages for iMessage imported on the central route
+  show attachments by name only, because that route does not copy files.
+- **Minor:** the per-person attachment folder (named at convert time from the chat) can differ from
+  the page's person folder once people resolve; links still work, because they are computed from
+  the stored path, but the two folders are not unified until the box is assembled (tickets 18, 21).
+- **Minor:** the calendar levels are relative to the page's busiest day, and the page has no search
+  or filtering (the old template had none either).
+- **Minor:** HTML mail is kept in the data island only; it is never rendered.
+- **Minor:** the index is a flat list; very many people make a long page.
+- **Spec:** all three acceptance criteria are met. Files match the plan.
+- **TDD:** RED then GREEN for every task (collection errors, then passing; T04 moved 10 old HTML
+  tests to the new layout).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -125,3 +171,6 @@ T02: pages.py + templates/page.html: self-contained page (inline CSS, light/dark
 
 ### 2026-11-02
 T03: mail pages (templates/mail.html): per mail the headers (From/To/Cc/Subject/Labels with the sender's own offset), plain body escaped, a note that an HTML version is kept in the data island (not rendered: HTML mail is untrusted), attachments linked only if the file exists in a root. index.html lists people, groups and mail with per-year links and message counts. Shared base.html (CSS) for page/mail/index. Found: a Jinja dict key named 'items' collides with dict.items — keys renamed.
+
+### 2026-11-02
+T04: commands.generate_html now renders the whole archive (returns the index page; None when empty); convert --html renders the central archive into Output/Chattr (or, on the JSON route, the temporary database into the service folder); attachment links are looked up in --attachments-dir, <out>/Messages and Output/*/Attachments. CLI: html --out DIR --attachments-dir DIR (the old --owner is gone: the owner is derived from settings now). The old HTMLGenerator, its template and tests are removed. Menu 'Generate HTML' no longer asks for the owner.
