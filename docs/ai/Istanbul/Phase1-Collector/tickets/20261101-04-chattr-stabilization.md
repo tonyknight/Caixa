@@ -13,7 +13,7 @@ depends_on:
 - 20261101-03-chattr-import-and-licensing
 subtasks: []
 plan_status: in-progress
-current_task: T05
+current_task: T06
 ---
 ## Description
 
@@ -40,7 +40,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T05
+Current task: T06
 
 Chattr's modules import each other as `src.…`. The `chattr-cli` command and the Requirements' type
 check (`mypy … tools/chattr/src`) call for an installable `chattr` package in a src layout:
@@ -106,7 +106,7 @@ touches the real home folder.
 - Test: every configuration key the CLI reads resolves in a freshly prepared root (a static scan
   of `cli.py`, so mismatched keys can't return).
 - Verify: `python -m pytest -q`
-- [ ] done
+- [x] done
 
 ### T06: HTML generation works from the database
 
@@ -154,3 +154,6 @@ T01 debug: 'pip install -e tools/chattr' failed building langdetect (sdist-only;
 
 ### 2026-11-02
 T01 done. Maintainer decision 2026-11-02: the terminal command is 'chattr-cli' (not 'chattr', which would shadow Linux's e2fsprogs /usr/bin/chattr). Package and import name stay 'chattr'; 'python -m chattr' works; a test asserts no bare 'chattr' console script is installed.
+
+### 2026-11-02
+T05: the static key-scan test failed on six keys cli.py read (global.output_directory, services.imessage.* without .preferences, imessage.*), confirming the review. Fixed. Debug: the new end-to-end test first failed with 'No module named jinja2' because it isolates HOME and Python derives the per-user site folder from HOME; fixed in the test by passing PYTHONUSERBASE (not a product bug).
