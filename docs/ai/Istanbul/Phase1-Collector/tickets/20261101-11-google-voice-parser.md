@@ -13,7 +13,8 @@ depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -36,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `GoogleVoiceParser(BaseParser)` reads a Takeout `Calls/` folder (or its `Voice/` or
 `Takeout/` parents). Each page is one text conversation, call or voicemail; the parser reads the
@@ -56,7 +57,7 @@ view. Records: `text`, `call`, `voicemail` content types. Times keep the offset 
 - Tests: the fixture folder (6 records), durations (`PT5M12S`, `PT95S`, `PT1H2M3S`), groups,
   pages with unknown names.
 - Verify: `python -m pytest -q tools/chattr/tests/test_google_voice_parser.py`
-- [ ] done
+- [x] done
 
 ### T02: Conversations and voicemail audio kept
 
@@ -88,3 +89,6 @@ view. Records: `text`, `call`, `voicemail` content types. Times keep the offset 
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: GoogleVoiceParser reads Takeout pages with a small stdlib html.parser tree (no new dependency). File-name kind (Text/Received/Placed/Missed/Voicemail) is authoritative, page wording the fallback; 'Me' is the owner (no sender handle). Times keep the offset the page states (aware, tz not assumed). Calls: direction + duration_seconds in service_specific; voicemails: transcript, duration, audio. Pages of other kinds (greetings etc.) are skipped. Group conversation pages are detected by more than one non-owner sender.
