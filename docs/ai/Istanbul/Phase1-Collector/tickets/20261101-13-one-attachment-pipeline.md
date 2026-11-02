@@ -12,7 +12,8 @@ parent:
 depends_on:
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T01
+current_task: T02
+plan_status: in-progress
 ---
 ## Description
 
@@ -36,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:** `AttachmentManager` (first built for iMessage) becomes the one pipeline. It archives
 `(file, time, sender, person)` items into `<archive>/<Person>/Attachments/` (groups under
@@ -64,7 +65,7 @@ when the box is assembled (tickets 18, 21): recorded as a Minor follow-up.
 - Same second + same sender → numbered; a re-run reuses the names it already placed.
 - Tests: `tests/test_attachment_pipeline.py` (manager directly).
 - Verify: `python -m pytest -q tools/chattr/tests/test_attachment_pipeline.py`
-- [ ] done
+- [x] done
 
 ### T02: Metadata, originals kept, failures isolated
 
@@ -94,3 +95,6 @@ when the box is assembled (tickets 18, 21): recorded as a Minor follow-up.
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-02
+T01: AttachmentManager rebuilt as the one pipeline in three steps (hash+capture date in parallel; names assigned sequentially in time-then-source order; copy in parallel). Names: (YYYY-MM-DD) HH-MM-SS [mmm] <sender> <n>.<ext> in <Person>/Attachments/ or Groups/<Name>/Attachments/; the time is shown as the message states it (its own offset). A manifest .attachments.json (relative path -> source SHA-256) lets a re-run reuse names it already placed; a file it does not know is never overwritten. Names/folders are sanitised (no path escapes). Found: the previous '_claim_path' numbering was nondeterministic across parallel workers and only protected one run.
