@@ -3,18 +3,17 @@ id: 20261101-10-mbox-email-parser
 title: MBOX email parser
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 10.
+closed: 2026-11-02
+notes: 'Done: threads, headers, bodies, attachments by hash; names need confirmation.'
 parent:
 depends_on:
 - 20261101-02-synthetic-fixture-family
 - 20261101-05-unified-schema-v0-chattr-sqlite
 subtasks: []
-current_task: T03
-plan_status: in-progress
+plan_status: done
 ---
 ## Description
 
@@ -22,9 +21,9 @@ Parse MBOX email (Gmail Takeout) into the unified schema.
 
 ## Acceptance criteria
 
-- [ ] Threads by Message-ID / In-Reply-To / References and Gmail thread ID
-- [ ] RFC 2047 headers decoded; HTML and plain bodies kept
-- [ ] Attachments stored by hash
+- [x] Threads by Message-ID / In-Reply-To / References and Gmail thread ID
+- [x] RFC 2047 headers decoded; HTML and plain bodies kept
+- [x] Attachments stored by hash
 
 ## Context
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** `MboxParser(BaseParser)` reads an MBOX with the standard library `mailbox` and
 `email` (default policy, so RFC 2047 headers and charsets decode themselves) and returns
@@ -88,14 +87,52 @@ Notes.
 - Tests: fixture import (conversations, offsets stored, attachment path, content type `email`),
   idempotent re-import, owner flag, subcommand, JSON route.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `chattr-cli convert mail <file.mbox>` imports an MBOX (Gmail Takeout or any
+  other) into the central archive: one conversation per mail thread (Gmail thread id, else the root
+  of the References chain), each mail an `email` message with decoded headers, plain and HTML
+  bodies, the sender's own UTC offset, Message-ID based stable ids, and attachments stored once
+  under their content hash (default `Output/Mail/Attachments/`). Re-importing changes nothing.
 - **Files:**
-- **Errors:**
-- **Verify:**
+  - New: `parsers/mbox_parser.py`, `parsers/batch.py`, `blobs.py`, `defaults/Services/Mail.json`.
+  - Changed: `commands.py` (`_convert_mail`, shared page writer), `cli.py`, `preflight.py`,
+    `importing.py`, `parsers/imessage_parser.py` (shared `ConversationBatch`).
+  - Tests: `test_mbox_parser`, `test_mbox_threads`, `test_mbox_import`, plus the menu.
+- **Errors:** none in existing code. Decisions with consequences:
+  - Names the Requirements don't define (service "Mail", key `mail`, folder `Output/Mail/`)
+    need the maintainer's confirmation.
+  - A mail with no Message-ID gets `nomid-<hash>`, stable for identical content only.
+- **Verify:** `python -m pytest -q` → 327 passed; `python -m black --check .` clean;
+  `python -m mypy caixa tools/chattr/src` clean.
+
+## Review
+
+### 2026-11-02: 04d9d69..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the fixture mbox is synthetic; Gmail Takeout details (`X-GM-THRID`, `X-Gmail-Labels`,
+  `From ` line quoting, very large files) are from the format's documentation, not from a real
+  export. Check against a real Takeout.
+- **Minor:** a thread's key can change between exports (a later export gains the Gmail thread id,
+  or the missing root mail), which would file the same mails under a new conversation; message ids
+  include the conversation id. The Caixa master (ticket 18) should key mail by Message-ID alone.
+- **Minor:** `is_from_owner` is true only when the owner is the sender; recipients are not
+  linked to people yet (ticket 14).
+- **Minor:** HTML is stored as given (not sanitised) in `service_specific.body_html`; the
+  renderer (ticket 15) must escape or sandbox it.
+- **Minor:** an mbox's `Status`/`X-Status` flags (read, starred) and other mail clients' labels are
+  not recorded; only Gmail's `X-Gmail-Labels` are.
+- **Minor:** two threads with the same subject and date span would write the same HTML page name
+  (the second overwrites the first).
+- **Minor:** the whole mbox is read message by message (`mailbox` keeps an index in memory); a
+  50 GB Takeout may need a streaming pass.
+- **Spec:** all three acceptance criteria are met. Files match the plan.
+- **TDD:** RED then GREEN for every task (collection errors, then passing).
+- **Commits:** all follow `{ticket-id} {task-id}: {title}` and are authored by Tony Knight.
 
 ## Notes
 
@@ -109,3 +146,6 @@ T01: MboxParser reads the mbox with mailbox + the default email policy (decoded 
 
 ### 2026-11-02
 T02: threads: Gmail X-GM-THRID when present ('gmail:<id>'), else the root of the References/In-Reply-To chain ('msgid:<root>'; stable when the first mail is missing from the file; reference cycles stop). Subject prefixes (Re/Fwd/Aw/Sv/…) stripped for the thread name; >2 addresses on From/To/Cc make a group. Known limitation: a thread key can change if a later export adds a Gmail thread id or the missing root, which would re-file mails (message ids include the conversation id). New blobs.store_by_hash (<hh>/<sha256><ext>, written atomically, suffix sanitised) keeps attachments, inline files and forwarded mails exactly once; without an attachments_dir they are hashed but not kept.
+
+### 2026-11-02
+T03: convert mail wired (central default, --json, --html per thread, --attachments-dir default Output/Mail/Attachments, --owner by address or name, --aliases). Mail service defaults, Output/Mail and state added; the menu offers 'Mail (MBOX)' as choice 5 (iMessage stays 4). The per-thread HTML writer is shared with iMessage.
