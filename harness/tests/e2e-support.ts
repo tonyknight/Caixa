@@ -33,8 +33,7 @@ export async function startHarness(): Promise<Running> {
   const home = mkdtempSync(join(tmpdir(), 'caixa-dsh-home-'))
   const work = mkdtempSync(join(tmpdir(), 'caixa-dsh-work-'))
   const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
-  // Linking does not rebuild, so build what the browser will load from the current sources.
-  execFileSync(process.execPath, [join(harness, 'scripts', 'build.mjs')], { cwd: harness, stdio: 'ignore' })
+  // (lib/ is built once by tests/global-setup.ts: rebuilding here would hot-reload other files' DSH)
   execFileSync(dsh, ['plugin', '--profile', 'web', 'add', harness], { env, stdio: 'ignore', timeout: 180_000 })
   const server: ChildProcess = spawn(dsh, ['--profile', 'web', '--no-open', '--port', '0'], { env, cwd: work, stdio: ['ignore', 'pipe', 'inherit'] })
   const link = await new Promise<string>((resolve, reject) => {
@@ -62,13 +61,28 @@ export async function startHarness(): Promise<Running> {
   }
 }
 
-/** DSH's own first-run dialogs ("Preview Notice", "Get started") cover the page on every fresh load. */
+/**
+ * DSH's own first-run dialogs ("Preview Notice", "Get started") cover the page on every fresh load, and
+ * on a busy machine they can appear well after the page does. So instead of dismissing them once, a
+ * handler dismisses them whenever one shows up, for the life of the page, and the first sweep waits
+ * until none is left.
+ */
 export async function dismissDialogs(page: any): Promise<void> {
-  await page.waitForTimeout(1500)
-  for (const name of ['Continue', 'Close']) {
-    await page.getByRole('button', { name }).first().click({ timeout: 3000 }).catch(() => undefined)
-    await page.waitForTimeout(500)
+  if (!page.__caixaHandlers) {
+    page.__caixaHandlers = true
+    for (const name of ['Continue', 'Close']) {
+      // only inside DSH's modal root: the Caixa wizard has a "Continue" button of its own
+      const button = page.locator('[role="presentation"]').getByRole('button', { name, exact: true })
+      await page.addLocatorHandler(button, async (found: any) => { await found.first().click({ timeout: 5000 }).catch(() => undefined) })
+    }
   }
+  // Give them time to come, then make sure none is still covering the page.
+  const quiet = Date.now() + 4000
+  while (Date.now() < quiet) {
+    if (await page.locator('[class*="_mask_"]').count() > 0) { await page.waitForTimeout(300); continue }
+    await page.waitForTimeout(300)
+  }
+  await page.waitForFunction(() => document.querySelectorAll('[class*="_mask_"]').length === 0, undefined, { timeout: 20_000 }).catch(() => undefined)
 }
 
 /** Open DSH in a browser, signed in, past its first-run dialogs, on the Caixa page. */

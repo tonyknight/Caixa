@@ -72,11 +72,22 @@ run('the import wizard, in a browser', () => {
         await page.getByRole('button', { name: card }).click()
         await page.getByRole('button', { name: 'I have the export' }).click()
         await page.getByLabel('Path to the export').fill(source)
-        await page.getByRole('button', { name: 'Continue' }).click()
+        await page.getByRole('button', { name: 'Continue' }).click({ timeout: 10_000 }).catch(async (error: Error) => {
+          const text = await page.locator('[data-testid="caixa-page"]').innerText()
+          const typed = await page.getByLabel('Path to the export').inputValue().catch(() => '(no field)')
+          throw new Error(`${id}: could not continue. Field holds ${JSON.stringify(typed)} (wanted ${JSON.stringify(source)}). Page: ${text.slice(0, 500)}\n${error.message.slice(0, 200)}`)
+        })
         await page.getByRole('button', { name: 'Preview' }).click()
-        await page.getByText(`${items} items in`, { exact: false }).waitFor({ timeout: 60_000 })
+        await page.getByText(`${items} items in`, { exact: false }).waitFor({ timeout: 60_000 }).catch(async (error: Error) => {
+          // say what the page showed, not just that something was missing
+          throw new Error(`${id}: no "${items} items in" in the preview. The page said: ${(await page.locator('[data-testid="caixa-page"]').innerText()).slice(0, 600)}\n${error.message}`)
+        })
         await page.getByRole('button', { name: 'Import', exact: true }).last().click()
-        await page.getByRole('heading', { name: 'Import finished' }).waitFor({ timeout: 120_000 })
+        await page.getByRole('heading', { name: 'Import finished' }).waitFor({ timeout: 120_000 }).catch(async (error: Error) => {
+          const jobs = (await running.rpc('jobs.list', { limit: 3 })).result as { id: number; status: string; stage: string; error: string | null; log: string }[]
+          const log = jobs[0] ? (await running.rpc('jobs.log', { job: jobs[0].id })).result?.text?.slice(-800) : ''
+          throw new Error(`${id}: the import did not finish. Jobs: ${JSON.stringify(jobs.map(j => [j.id, j.status, j.stage, j.error]))}\nLog tail: ${log}\n${error.message}`)
+        })
         const report = await page.getByText(/\d+ new, \d+ changed, \d+ unchanged/).first().innerText()
         expect(report, id).toContain(`${items} new, 0 changed`) // this import's own items; "unchanged" counts the rest of the box
         jobs += 1
