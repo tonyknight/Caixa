@@ -3,11 +3,12 @@ id: 20261101-03-chattr-import-and-licensing
 title: Chattr import and licensing
 type: chore
 priority: high
-status: in-progress
+status: done
 created: 2026-11-01
 updated: 2026-11-02
-closed:
-notes: Breakdown item 3.
+closed: 2026-11-02
+notes: 'Done: Chattr imported (full history); GPL-3.0-or-later with imessage-exporter
+  attribution; Caixa relicensed to match.'
 parent:
 depends_on:
 - 20261101-01-caixa-repository-foundations
@@ -20,10 +21,10 @@ Bring Chattr into Caixa with its purged history and settle its license.
 
 ## Acceptance criteria
 
-- [ ] `git subtree add --prefix=tools/chattr` imports Chattr `main` (0152912) with full history
-- [ ] `src/parsers/imessage_database_parser.py` and `src/imessage_tools.py` are reviewed for code derived from imessage-exporter (GPL-3.0); findings recorded in this ticket's Notes and any derived parts flagged for rewrite
-- [ ] Chattr carries a GPL-3.0-or-later `LICENSE` and a `NOTICE` attributing the parts derived from imessage-exporter (decision 2026-11-02, replacing the original MIT plan)
-- [ ] No `.db`, key material or IDE files enter Caixa's history
+- [x] `git subtree add --prefix=tools/chattr` imports Chattr `main` (0152912) with full history
+- [x] `src/parsers/imessage_database_parser.py` and `src/imessage_tools.py` are reviewed for code derived from imessage-exporter (GPL-3.0); findings recorded in this ticket's Notes and any derived parts flagged for rewrite
+- [x] Chattr carries a GPL-3.0-or-later `LICENSE` and a `NOTICE` attributing the parts derived from imessage-exporter (decision 2026-11-02, replacing the original MIT plan)
+- [x] No `.db`, key material or IDE files enter Caixa's history
 
 ## Context
 
@@ -80,12 +81,41 @@ Chattr and Caixa (the original MIT plan is replaced).
 - Verify: `grep -q "GNU GENERAL PUBLIC LICENSE" tools/chattr/LICENSE && grep -q imessage-exporter tools/chattr/NOTICE && ! grep -rniE "port of the rust|convert rust" tools/chattr/docs tools/chattr/src && grep -q "GPL-3.0-or-later" tools/chattr/README.md && python -m pytest -q && python -m black --check .`
 - [x] done
 
+## Review
+
+2026-11-02. Commits `a09ccfa`, `6e7c19b` (T01), `91ffc19` (T02), `1481835` (T03), plus the
+related Caixa relicensing commit `47e44e9`. **Verdict: clean, minors only.**
+- Spec: all four acceptance criteria met. The licensing criterion was changed by the maintainer's
+  2026-11-02 decision (GPL instead of MIT), and the Requirements record it.
+- TDD: no production code; import, review and licensing tasks were gated by their Verify
+  commands, which pass.
+- Commits are authored by real people: Caixa commits by Tony Knight; Chattr's imported history
+  keeps its original author.
+- **Minor:** `tools/chattr` is excluded from black until ticket 04 formats it.
+- **Minor:** Chattr's own GitHub repository doesn't yet carry the new `LICENSE`/`NOTICE`. They
+  reach it through the mirror (ticket 19), keeping Caixa the single place of change.
+- **Minor:** the derived portions remain in the code by the maintainer's choice; their
+  attribution is in `NOTICE`. Ticket 07 may rewrite the iMessage reader anyway, and `NOTICE`
+  should then be updated to match.
+
 ## Completion report
 
 - **Outcome:**
-- **Files:**
-- **Errors:**
+  - Chattr imported with its full history (8 commits, head `0152912`) at `tools/chattr`.
+  - The license review found portions derived from imessage-exporter.
+  - Chattr licensed GPL-3.0-or-later with attribution, and its docs corrected.
+  - Caixa relicensed GPL-3.0-or-later to match.
+- **Files:** `tools/chattr/**` (import), `tools/chattr/LICENSE`, `tools/chattr/NOTICE`,
+  `tools/chattr/README.md`, `tools/chattr/docs/MIGRATION_SUMMARY.md`,
+  `tools/chattr/docs/iMessageConversionReadMe.md`, two docstrings in `tools/chattr/src/`,
+  `pyproject.toml`; plus (relicensing) `LICENSE`, `NOTICE`, `README.md` and the Requirements and
+  briefing.
+- **Errors:** none. One whole-history scan matched the ticket's own `grep` pattern for the key
+  prefix; a stricter scan for full 73-character keys finds none.
 - **Verify:**
+  - history: `a09ccfa^2` = `0152912`, 8 commits; 0 `.db`/`.idea` files; 0 key-shaped strings;
+  - both `LICENSE` files are identical to the official GPL-3 text;
+  - `python -m pytest -q` → 2 passed; `black --check` clean; `mypy caixa` clean.
 
 ## Notes
 

@@ -6,17 +6,12 @@
 
 Message collection: Chattr becomes Caixa's message converter, on top of Caixa's data architecture
 
-## In progress (1)
+## In progress (0)
 
-- **20261101-03-chattr-import-and-licensing** Chattr import and licensing [high] — Breakdown item 3. · plan done · 3/3
-  - checkboxes: 3/7
+_No tickets in progress._
 
-## Blocked (25)
+## Blocked (22)
 
-- **20261101-02-synthetic-fixture-family** Synthetic fixture family [high]
-  - depends on: 20261101-03-chattr-import-and-licensing (not yet marked blocked)
-- **20261101-04-chattr-stabilization** Chattr stabilization [high]
-  - depends on: 20261101-03-chattr-import-and-licensing (not yet marked blocked)
 - **20261101-05-unified-schema-v0-chattr-sqlite** Unified schema v0 (chattr.sqlite) [high]
   - depends on: 20261101-04-chattr-stabilization (not yet marked blocked)
 - **20261101-06-interactive-menu-and-command-line** Interactive menu and command line [medium]
@@ -45,8 +40,6 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
   - depends on: 20261101-15-html-rendering-from-the-database (not yet marked blocked)
 - **20261101-18-caixa-master-schema-v0-and-messages-adapter** Caixa master schema v0 and messages adapter [high]
   - depends on: 20261101-05-unified-schema-v0-chattr-sqlite, 20261101-14-people-roles-contacts-and-aliases (not yet marked blocked)
-- **20261101-19-chattr-mirror-workflow** Chattr mirror workflow [medium]
-  - depends on: 20261101-03-chattr-import-and-licensing (not yet marked blocked)
 - **20261101-20-collector-contract-and-registry** Collector contract and registry [high]
   - depends on: 20261101-05-unified-schema-v0-chattr-sqlite, 20261101-18-caixa-master-schema-v0-and-messages-adapter (not yet marked blocked)
 - **20261101-21-caixa-service-layer-and-caixa-worker** Caixa service layer and caixa worker [high]
@@ -64,15 +57,18 @@ Message collection: Chattr becomes Caixa's message converter, on top of Caixa's 
 - **20261101-27-chattr-serve-web-ui** chattr serve web UI [medium]
   - depends on: 20261101-06-interactive-menu-and-command-line, 20261101-15-html-rendering-from-the-database (not yet marked blocked)
 
-## Up next (0)
+## Up next (3)
 
-_No actionable todo tickets._
+- **20261101-02-synthetic-fixture-family** Synthetic fixture family [high]
+- **20261101-04-chattr-stabilization** Chattr stabilization [high]
+- **20261101-19-chattr-mirror-workflow** Chattr mirror workflow [medium]
 
-## Recently completed (last 1 of 1)
+## Recently completed (last 2 of 2)
 
+- **20261101-03-chattr-import-and-licensing** Chattr import and licensing (closed 2026-11-02)
 - **20261101-01-caixa-repository-foundations** Caixa repository foundations (closed 2026-11-01)
 
 ## Stats
 
-- Total: 27 tickets · 1 done · 25 todo · 1 in-progress · 0 blocked
+- Total: 27 tickets · 2 done · 25 todo · 0 in-progress · 0 blocked
 - By type: 24 feature · 3 chore
