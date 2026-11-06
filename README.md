@@ -328,6 +328,18 @@ its session logs and telemetry, and listens on `127.0.0.1` only. The link it ope
 token; it is never printed (unless you pass `--no-browser`) or logged. If you close the terminal
 abruptly, the next `caixa serve` finds the running instance again instead of starting another.
 
+**What you should see.** The browser opens straight onto the harness with **Caixa** in the left-hand
+list. Click it for the Caixa page: create or open a box, then Import, Jobs, People, Browse and
+Settings. There is no sign-in prompt and no welcome notice to dismiss. DeepSeek's own pages (new
+session, plugins, automation tasks) are still there around Caixa for now; the Caixa page is the one
+to use. Making the whole window Caixa's own is planned work.
+
+**If an earlier `caixa serve` showed a "Preview Notice" you could not dismiss** ("The
+acknowledgement could not be saved"), update Caixa and run `caixa serve --stop`, then `caixa serve`
+again. The first run after updating replaces the harness with the exact build Caixa is tested with
+(about a minute, with the network). The cause and how it is pinned are in
+[`caixa/data/dsh/README.md`](caixa/data/dsh/README.md).
+
 ## Chattr and its mirror
 
 Chattr lives in `tools/chattr/` and is mirrored to its own repository by

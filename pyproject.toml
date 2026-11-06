@@ -25,6 +25,9 @@ chattr = "caixa.collectors.chattr:collectors"
 where = ["."]
 include = ["caixa*"]
 
+[tool.setuptools.package-data]
+caixa = ["data/dsh/package.json", "data/dsh/package-lock.json"]
+
 [tool.black]
 line-length = 100
 target-version = ["py310"]

@@ -29,13 +29,19 @@ export interface Running {
 }
 
 /** Install the plugin into a fresh DSH home, start `dsh web`, sign in. */
-export async function startHarness(): Promise<Running> {
+export async function startHarness(options: { caixaPatch?: boolean } = {}): Promise<Running> {
   const home = mkdtempSync(join(tmpdir(), 'caixa-dsh-home-'))
   const work = mkdtempSync(join(tmpdir(), 'caixa-dsh-work-'))
   const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
   // (lib/ is built once by tests/global-setup.ts: rebuilding here would hot-reload other files' DSH)
   execFileSync(dsh, ['plugin', '--profile', 'web', 'add', harness], { env, stdio: 'ignore', timeout: 180_000 })
-  const server: ChildProcess = spawn(dsh, ['--profile', 'web', '--no-open', '--port', '0'], { env, cwd: work, stdio: ['ignore', 'pipe', 'inherit'] })
+  // `caixaPatch`: the configuration layer `caixa serve` really writes, so a test sees what a user sees.
+  const patch = options.caixaPatch ? join(work, 'caixa.patch.yml') : undefined
+  if (patch) {
+    const code = 'import sys; from caixa.serve import write_patch; from pathlib import Path; write_patch(Path(sys.argv[1]), None, False, sys.executable)'
+    execFileSync('python', ['-c', code, work], { cwd: repository })
+  }
+  const server: ChildProcess = spawn(dsh, [...(patch ? ['--patch', patch] : []), '--profile', 'web', '--no-open', '--port', '0'], { env, cwd: work, stdio: ['ignore', 'pipe', 'inherit'] })
   const link = await new Promise<string>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('dsh web did not print its link')), 60_000)
     server.stdout!.on('data', (chunk: Buffer) => {

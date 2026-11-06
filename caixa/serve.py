@@ -11,6 +11,7 @@ without the other.
 
 from __future__ import annotations
 
+import hashlib
 import http.cookiejar
 import json
 import os
@@ -182,6 +183,12 @@ def privacy_patch(
         "  disabled: true",
         "- id: session-telemetry-otel",
         "  disabled: true",
+        "# No DeepSeek welcome notice, sign-in prompt or brand: Caixa is not DeepSeek's product.",
+        "# (The notice and the prompt live in the models settings page, which Caixa does not show.)",
+        "- id: ui-settings-models",
+        "  disabled: true",
+        "- id: ui-brand-official",
+        "  disabled: true",
         "- id: llm-pi-ai",
         "  config:",
         "    providers:",
@@ -250,17 +257,12 @@ def prepare(
     harness_home = dsh_home(home)
     env = child_env(node, harness_home)
     program = dsh or home / "dsh" / "node_modules" / ".bin" / "dsh"
-    if not program.exists():
-        npm = node.path.parent / "npm"
-        install = run(
-            [str(npm) if npm.exists() else "npm", "install", "--prefix", str(home / "dsh"),
-             "--no-audit", "--no-fund", f"@deepseek-ai/dsh@{DSH_VERSION}"],
-            capture_output=True, text=True, env=env, timeout=900,
-        )  # fmt: skip
-        if install.returncode != 0 or not program.exists():
+    if dsh is None and (not program.exists() or not _install_is_current(home / "dsh")):
+        _install_harness(home / "dsh", node, env, run)
+        if not program.exists():
             raise ServeError(
-                f"Could not install DeepSeek Harness {DSH_VERSION}. Installing it needs the "
-                f"network, on first run only:\n{_tail(install.stderr or install.stdout)}"
+                f"Could not install DeepSeek Harness {DSH_VERSION}: the install finished but "
+                "left no `dsh` program."
             )
     if not _plugin_added(harness_home):
         added = run(
@@ -278,6 +280,48 @@ def prepare(
                 f"Could not add the Caixa plugin to DeepSeek Harness:\n{_tail(output)}"
             )
     return Prepared(program, harness_home, env)
+
+
+# The harness is installed from a lockfile that ships with Caixa. A plain `npm install` of the
+# pinned version resolves the harness's own pre-release dependencies to newer builds than the ones
+# Caixa's plugin was tested with, and one of those cannot save the harness's settings.
+LOCK_STAMP = ".caixa-lock"
+
+
+def _data_file(name: str) -> bytes:
+    return (Path(__file__).resolve().parent / "data" / "dsh" / name).read_bytes()
+
+
+def _lock_digest() -> str:
+    return hashlib.sha256(_data_file("package.json") + _data_file("package-lock.json")).hexdigest()
+
+
+def _install_is_current(prefix: Path) -> bool:
+    """True when the harness in `prefix` was installed from the lockfile this Caixa ships."""
+    try:
+        return (prefix / LOCK_STAMP).read_text(encoding="utf-8").strip() == _lock_digest()
+    except OSError:
+        return False
+
+
+def _install_harness(prefix: Path, node: Node, env: Mapping[str, str], run: Runner) -> None:
+    """Install exactly the locked harness into `prefix`, replacing any other install there."""
+    shutil.rmtree(prefix / "node_modules", ignore_errors=True)
+    prefix.mkdir(parents=True, exist_ok=True)
+    for name in ("package.json", "package-lock.json"):
+        (prefix / name).write_bytes(_data_file(name))
+    npm = node.path.parent / "npm"
+    install = run(
+        [str(npm) if npm.exists() else "npm", "ci", "--prefix", str(prefix),
+         "--no-audit", "--no-fund"],
+        capture_output=True, text=True, env=env, timeout=900,
+    )  # fmt: skip
+    if install.returncode != 0:
+        raise ServeError(
+            f"Could not install DeepSeek Harness {DSH_VERSION}. Installing it needs the "
+            f"network, on first run only:\n{_tail(install.stderr or install.stdout)}"
+        )
+    (prefix / LOCK_STAMP).write_text(_lock_digest() + "\n", encoding="utf-8")
 
 
 def _plugin_added(harness_home: Path) -> bool:

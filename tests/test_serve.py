@@ -171,6 +171,12 @@ def test_the_patch_turns_off_session_logs_and_telemetry() -> None:
     assert "session-log-deepseek" in text and "dsh-otel-collector" not in text
 
 
+def test_the_patch_removes_deepseeks_notice_sign_in_prompt_and_brand() -> None:
+    text = _patch()
+    for row in ("ui-settings-models", "ui-brand-official"):
+        assert f"- id: {row}\n  disabled: true" in text
+
+
 def test_the_patch_configures_the_plugin_with_this_python_the_box_and_read_only() -> None:
     text = _patch(box="/boxes/Our Box", read_only=True, python="/opt/py thon/bin/python")
     assert "- id: caixa" in text
@@ -250,7 +256,9 @@ def test_preparing_installs_the_pinned_dsh_once_and_adds_the_plugin_once(tmp_pat
     run = Recorder(serve.dsh_home(home))
     first = serve.prepare(home, node, _plugin(tmp_path), run=run)
     installs = [argv for argv, _ in run.calls if argv[0].endswith("npm")]
-    assert len(installs) == 1 and f"@deepseek-ai/dsh@{serve.DSH_VERSION}" in installs[0]
+    assert len(installs) == 1 and installs[0][1] == "ci"  # from the shipped lockfile, not a range
+    locked = json.loads((home / "dsh" / "package.json").read_text())
+    assert locked["dependencies"]["@deepseek-ai/dsh"] == serve.DSH_VERSION
     adds = [(argv, env) for argv, env in run.calls if "plugin" in argv]
     assert len(adds) == 1
     argv, env = adds[0]
@@ -264,6 +272,39 @@ def test_preparing_installs_the_pinned_dsh_once_and_adds_the_plugin_once(tmp_pat
     run.calls.clear()
     serve.prepare(home, node, _plugin(tmp_path), run=run)
     assert run.calls == []  # nothing to do the second time
+
+
+def test_the_shipped_lockfile_pins_the_harness_and_its_prereleases() -> None:
+    manifest = json.loads(serve._data_file("package.json"))
+    lock = json.loads(serve._data_file("package-lock.json"))
+    assert manifest["dependencies"] == {"@deepseek-ai/dsh": serve.DSH_VERSION}
+    packages = lock["packages"]
+    assert packages["node_modules/@deepseek-ai/dsh"]["version"] == serve.DSH_VERSION
+    # the build the plugin was tested with: a newer cordis cannot save the harness's settings
+    assert packages["node_modules/@deepseek-ai/cordis"]["version"] == "4.0.6-alpha.1"
+    for name, version in manifest["overrides"].items():
+        assert packages[f"node_modules/{name}"]["version"] == version
+    assert all(
+        entry["resolved"].startswith("https://registry.npmjs.org/")
+        for entry in packages.values()
+        if "resolved" in entry
+    )
+
+
+def test_an_install_made_without_the_lockfile_is_replaced(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    node = serve.Node(_fake_node(tmp_path / "n", "24.9.0"), (24, 9, 0))
+    old = home / "dsh" / "node_modules" / ".bin"  # what `npm install dsh@version` left before
+    old.mkdir(parents=True)
+    (old / "dsh").write_text("#!/bin/sh\n")
+    (home / "dsh" / "node_modules" / "stray").write_text("x")
+    run = Recorder(serve.dsh_home(home))
+    serve.prepare(home, node, _plugin(tmp_path), run=run)
+    assert [argv[1] for argv, _ in run.calls if argv[0].endswith("npm")] == ["ci"]
+    assert not (home / "dsh" / "node_modules" / "stray").exists()
+    run.calls.clear()
+    serve.prepare(home, node, _plugin(tmp_path), run=run)
+    assert run.calls == []  # and then left alone
 
 
 def test_a_dsh_given_by_the_environment_is_used_and_nothing_is_installed(tmp_path: Path) -> None:
