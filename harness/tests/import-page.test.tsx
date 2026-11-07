@@ -22,6 +22,51 @@ async function toPreview(view: Awaited<ReturnType<typeof wizard>>, path = '/expo
   await view.flush()
 }
 
+const VOICEMAIL = {
+  id: 'voicemail', name: 'iPhone voicemail', platform: 'iPhone', inputs: ['folder', 'zip'], source: 'chattr',
+  how_to_export: 'Point Caixa at a folder or a .zip of voicemail.',
+  options_schema: { type: 'object', properties: {
+    transcribe: { type: 'boolean', default: false, title: 'Transcribe on this computer' },
+    model: { type: 'string', default: '/models/saved.bin', title: 'Speech model', 'x-setting': 'speech.model', 'x-picker': 'file' },
+    language: { type: 'string', default: 'pt', title: 'Language', 'x-setting': 'speech.language' },
+  } },
+} as const
+
+describe('the speech model on the options step', () => {
+  const toOptions = async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [VOICEMAIL as never] })
+    click(/iPhone voicemail/)
+    click('I have the export')
+    type(/Path to the export/, '/exports/iPhone Voicemail.zip')
+    click('Continue')
+    return view
+  }
+
+  it('starts from what Settings says', async () => {
+    await toOptions()
+    expect((screen.getByLabelText('Speech model') as HTMLInputElement).value).toBe('/models/saved.bin')
+    expect((screen.getByLabelText('Language') as HTMLInputElement).value).toBe('pt')
+    expect((screen.getByLabelText('Transcribe on this computer') as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('browses for the model file and puts its path in the field', async () => {
+    const view = await toOptions()
+    click('Browse this computer')
+    await view.flush()
+    fireEvent.click(within(screen.getByText('chat.zip').parentElement!).getByRole('button', { name: 'Choose' }))
+    expect((screen.getByLabelText('Speech model') as HTMLInputElement).value).toBe('/home/me/chat.zip')
+    expect(screen.queryByText('Up one level')).toBeNull() // the picker closed
+  })
+
+  it('sends only what was changed: ticking transcribe leaves the saved model to the worker', async () => {
+    const view = await toOptions()
+    fireEvent.click(screen.getByLabelText('Transcribe on this computer'))
+    click('Preview')
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['preview', 'voicemail', '/exports/iPhone Voicemail.zip', { transcribe: true }])
+  })
+})
+
 describe('before a box is open', () => {
   it('says to open one first', async () => {
     await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.box = fail('no_box', 'x') })

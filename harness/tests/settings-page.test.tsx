@@ -63,6 +63,17 @@ describe('the settings form', () => {
     expect(view.api.savedSettings).toEqual([{ 'translation.enabled': true }])
   })
 
+  it('browses for the speech model file and saves the path it picked', async () => {
+    const view = await page()
+    fireEvent.click(screen.getByRole('button', { name: 'Browse this computer' }))
+    await view.flush()
+    fireEvent.click(within(screen.getByText('chat.zip').parentElement!).getByRole('button', { name: 'Choose' }))
+    expect((screen.getByLabelText('Speech-to-text model') as HTMLInputElement).value).toBe('/home/me/chat.zip')
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await view.flush()
+    expect(view.api.savedSettings).toEqual([{ 'speech.model': '/home/me/chat.zip' }])
+  })
+
   it('undoes unsaved changes', async () => {
     await page()
     change('Speech language', 'pt')

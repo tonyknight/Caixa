@@ -1,6 +1,7 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import type { Field, FormValues, Problem } from '../options-form.ts'
 import { useT } from '../hooks.tsx'
+import { FilePicker } from './FilePicker.tsx'
 import css from '../caixa.module.css'
 
 /** A form drawn from `fields` (see options-form.ts); it keeps no state of its own. */
@@ -14,6 +15,7 @@ export function OptionsForm({
 }) {
   const t = useT()
   const prefix = useId()
+  const [browsing, setBrowsing] = useState<string | undefined>()
   return (
     <div>
       {fields.map((f) => {
@@ -50,6 +52,12 @@ export function OptionsForm({
               <input id={id} className={css.input} type={f.kind === 'number' ? 'number' : 'text'} value={String(values[f.name] ?? '')}
                      min={f.min} max={f.max} step={f.integer ? 1 : 'any'} aria-invalid={problem ? true : undefined} aria-describedby={described}
                      onChange={event => onChange(f.name, event.target.value)} />
+            )}
+            {f.picker && (
+              <>
+                <button type="button" className={css.button} aria-expanded={browsing === f.name} onClick={() => setBrowsing(browsing === f.name ? undefined : f.name)}>{t('import.input.browse')}</button>
+                {browsing === f.name && <FilePicker onPick={(path) => { onChange(f.name, path); setBrowsing(undefined) }} />}
+              </>
             )}
           </div>
         )

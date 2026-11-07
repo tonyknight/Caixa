@@ -47,13 +47,20 @@ SCHEMA: dict[str, Any] = {
             "type": "string",
             "default": "",
             "title": "Speech-to-text model",
-            "description": "Path to a speech model stored on this computer (never downloaded).",
+            "description": (
+                "Path to a speech model file stored on this computer (never downloaded). "
+                "The import wizard starts from it; transcription itself is switched on there."
+            ),
+            "x-picker": "file",
         },
         "speech.language": {
             "type": "string",
             "default": "",
             "title": "Speech language",
-            "description": "A language code such as 'en' or 'pt'; empty detects it.",
+            "description": (
+                "A language code such as 'en' or 'pt'; empty detects it. "
+                "The import wizard starts from it."
+            ),
         },
     },
 }

@@ -94,6 +94,8 @@ export interface OptionSpec {
   readonly maximum?: number
   readonly title?: string
   readonly description?: string
+  /** The option is a file on this computer: the form offers to browse for it. */
+  readonly 'x-picker'?: 'file'
 }
 
 export interface OptionsSchema {

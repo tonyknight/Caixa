@@ -143,7 +143,7 @@ export const SETTINGS: SettingsReply = {
     'translation.enabled': { type: 'boolean', default: false, title: 'Translate with a local model', description: 'Off by default.' },
     'translation.endpoint': { type: 'string', default: '', title: 'Translation endpoint', description: 'An address on this computer.' },
     'translation.model': { type: 'string', default: '', title: 'Translation model' },
-    'speech.model': { type: 'string', default: '', title: 'Speech-to-text model' },
+    'speech.model': { type: 'string', default: '', title: 'Speech-to-text model', 'x-picker': 'file' },
     'speech.language': { type: 'string', default: '', title: 'Speech language' },
   } },
   box: { root: '/boxes/Our box', name: 'Our box' },

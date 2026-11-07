@@ -24,6 +24,22 @@ describe('the form model', () => {
   })
 })
 
+describe('a field that points at a file on this computer', () => {
+  const [model, language] = fields({
+    type: 'object',
+    properties: {
+      model: { type: 'string', default: '', title: 'Speech model', 'x-picker': 'file' },
+      language: { type: 'string', default: '', title: 'Language' },
+    },
+  })
+
+  it('is marked, so the form can offer to browse for it', () => {
+    expect(model!.picker).toBe(true)
+    expect(language!.picker).toBe(false)
+    expect(imessage.some(f => f.picker)).toBe(false)
+  })
+})
+
 describe('what is sent', () => {
   it('nothing, when nothing was changed', () => {
     expect(toOptions(imessage, initialValues(imessage))).toEqual({ options: {}, problems: {} })

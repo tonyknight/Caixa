@@ -218,9 +218,22 @@ voicemail audio is copied into `Audio/GoogleVoice/`.
 
 *(`voicemail`; takes a folder or a .zip)*
 
-**Export.** Voicemail is not something an iPhone lets you browse, so copy it out of a Finder or iTunes
-backup: the folder holds `voicemail.db` and the numbered `.amr` audio files (in a backup they are under
-`Library/Voicemail`). Point Caixa at that folder.
+**Export.** Voicemail comes in either of two forms. Point Caixa at a folder or a `.zip` of either:
+
+- **Audio files named for the time and the caller**, as most export tools write them:
+  `(2018-12-21) 15 02 31 - Diana Belenky.amr`. That is the date, the time, then a dash and the caller (a
+  name or a phone number; the caller can be missing). The time can be written `15 02 31`, `15.02.31`,
+  `15-02-31` or `15:02:31`, and the seconds can be left out. The audio can be `.amr`, `.m4a`, `.mp3`,
+  `.wav`, `.aac`, `.caf`, `.qta`, `.3gp`, `.ogg`, `.opus` or `.flac`, and may sit in folders inside the zip.
+  Files whose names do not start that way are not imported (a zip made on a Mac also holds `__MACOSX`
+  and `._…` copies; those are ignored).
+- **A device backup**: copy it out of a Finder or iTunes backup. The folder holds `voicemail.db` and the
+  numbered `.amr` audio files (in a backup they are under `Library/Voicemail`). If a folder has both, the
+  database is used.
+
+The time in a file name has no time zone, so Caixa keeps it exactly as written and marks it as assumed;
+the database form records an exact instant. The caller from a file name is a name or number to link to a
+person in the People step, like a WhatsApp name.
 
 **Import.**
 
@@ -235,8 +248,12 @@ caixa import voicemail ~/iphone-backup/Voicemail --box ~/Our\ Box \
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `transcribe` | `false` | Turn each voicemail into text with a speech model on this computer. |
-| `model` | *(empty)* | Path to a local speech model (a whisper.cpp model file, or a faster-whisper model folder). Caixa never downloads one. |
-| `language` | *(empty)* | A language code such as `en` or `pt`; empty lets the model detect it. |
+| `model` | *(empty)* | Path to a local speech model (a whisper.cpp model file, or a faster-whisper model folder). Caixa never downloads one. Empty uses **Speech-to-text model** in Settings. |
+| `language` | *(empty)* | A language code such as `en` or `pt`. Empty uses **Speech language** in Settings, and if that is empty too, the model detects it. |
+
+In the browser, the wizard's options step starts the model and language from Settings and has a **Browse
+this computer** button for the model file. Transcription only happens when **Transcribe on this computer**
+is ticked (or `transcribe=true`); a model saved in Settings never turns it on by itself.
 
 **What you get.** Each voicemail as an item (who, when, how long), its audio in `Audio/Voicemail/`, and with
 transcription on, its text beside the player on the page.
@@ -485,7 +502,7 @@ agree exactly (same reader, same rules):
 | WhatsApp | Roughly the number of lines that begin with a date. System lines, multi-line messages and encryption notices make an exact match unlikely, so trust preview = run and check the first and last dates. |
 | Messenger / Instagram | Each thread's `message_N.json` files hold a `"messages"` array; the preview's conversation count should equal the number of thread folders. |
 | Google Voice | One item per `.html` file in `Calls/`. |
-| Voicemail | One item per voicemail in `voicemail.db`, each with its `.amr` file. |
+| Voicemail | One item per voicemail: a row in `voicemail.db`, or an audio file named `(date) time - caller`. Each keeps its audio file. |
 
 Also check the preview's **date range** against what you know ("from 2016 to last week"), and its
 **people** against who you expect.

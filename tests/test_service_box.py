@@ -78,6 +78,28 @@ def test_the_collectors_come_with_what_the_interface_needs(made: Service) -> Non
 # --- Settings -------------------------------------------------------------------------------
 
 
+def _voicemail_defaults(service: Service) -> dict[str, object]:
+    (voicemail,) = [c for c in service.collectors_list() if c["id"] == "voicemail"]
+    properties = voicemail["options_schema"]["properties"]
+    return {name: properties[name]["default"] for name in ("model", "language")}
+
+
+def test_the_wizard_starts_from_the_speech_settings(made: Service) -> None:
+    assert _voicemail_defaults(made) == {"model": "", "language": ""}
+    made.settings_set({"speech.model": "/models/ggml-large-v3-turbo.bin", "speech.language": "en"})
+    assert _voicemail_defaults(made) == {
+        "model": "/models/ggml-large-v3-turbo.bin",
+        "language": "en",
+    }
+    # the answer is a copy: asking again after a change is not stuck on the first values
+    made.settings_set({"speech.model": ""})
+    assert _voicemail_defaults(made)["model"] == ""
+
+
+def test_without_a_box_the_options_have_their_plain_defaults(service: Service) -> None:
+    assert _voicemail_defaults(service) == {"model": "", "language": ""}
+
+
 def test_settings_have_defaults_and_a_schema(made: Service) -> None:
     result = made.settings_get()
     assert result["values"]["privacy.default"] == "private"

@@ -23,9 +23,11 @@ import chattr.commands as commands
 import chattr.preflight as preflight
 from chattr.config import Settings
 from chattr.database_manager import DatabaseManager
+from chattr.parsers.voicemail_parser import audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
 
+from caixa import settings as box_settings
 from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
@@ -97,8 +99,17 @@ class _Chattr:
 
     # --- Shared -----------------------------------------------------------------------------
 
-    def _options(self, options: Mapping[str, Any]) -> dict[str, Any]:
-        return {**defaults(self.info.options_schema), **options}
+    def _options(self, options: Mapping[str, Any], box: Optional[Box] = None) -> dict[str, Any]:
+        """The options with defaults filled in. An option that names a box setting (`x-setting`)
+        and was left empty takes that setting's value, so a saved speech model is used."""
+        merged = {**defaults(self.info.options_schema), **options}
+        if box is not None:
+            saved = box_settings.load(box)
+            for name, spec in self.info.options_schema["properties"].items():
+                key = spec.get("x-setting")
+                if key and merged.get(name) in (None, "") and saved.get(key) not in (None, ""):
+                    merged[name] = saved[key]
+        return merged
 
     def _owner(self, options: Mapping[str, Any], box: Optional[Box]) -> Optional[str]:
         if options.get("owner"):
@@ -147,7 +158,7 @@ class _Chattr:
         self, source: Path, options: Mapping[str, Any], box: Optional[Box] = None
     ) -> Preview:
         """Read everything in a scratch Chattr root and count it; the box and source are untouched."""
-        opts = self._options(options)
+        opts = self._options(options, box)
         with tempfile.TemporaryDirectory(prefix="caixa-preview-") as scratch_name:
             scratch = Path(scratch_name)
             items = self.locate(Path(source), scratch / "inputs")
@@ -207,7 +218,7 @@ class _Chattr:
         options: Mapping[str, Any],
         progress: Callable[[Progress], None],
     ) -> RunResult:
-        opts = self._options(options)
+        opts = self._options(options, box)
         progress(Progress("preparing", message=f"Reading {Path(source).name}"))
         root = box.work_dir("chattr")
         items = self.locate(Path(source), box.work_dir("imports"))
@@ -524,6 +535,14 @@ class GoogleVoice(_Chattr):
         )
 
 
+def _voicemail_folders(folder: Path) -> list[Path]:
+    """Folders holding a `voicemail.db`; failing that, the folder if it holds named audio files."""
+    databases = sorted({p.parent for p in folder.rglob("voicemail.db")})
+    if databases:
+        return databases
+    return [folder] if audio_files(folder) else []
+
+
 class Voicemail(_Chattr):
     info = CollectorInfo(
         id="voicemail",
@@ -531,9 +550,12 @@ class Voicemail(_Chattr):
         platform="iPhone",
         inputs=("folder", "zip"),
         how_to_export=(
-            "Voicemail is not in an iPhone backup you can browse, so copy it from a Finder or "
-            "iTunes backup: the folder holds voicemail.db and the numbered .amr audio files "
-            "(in a backup they are under Library/Voicemail). Point Caixa at that folder."
+            "Point Caixa at a folder or a .zip of voicemail in either form. From a Finder or "
+            "iTunes backup: the folder holds voicemail.db and the numbered .amr audio files (in a "
+            "backup they are under Library/Voicemail). From an export tool: audio files named by "
+            "when they came in and who from, like '(2018-12-21) 15 02 31 - Ana Costa.amr' (the "
+            "caller can be a name or a number; those times have no time zone, so they are kept "
+            "as written)."
         ),
         options_schema=_schema(
             transcribe={
@@ -546,13 +568,22 @@ class Voicemail(_Chattr):
                 "type": "string",
                 "default": "",
                 "title": "Speech model",
-                "description": "Path to a local speech-to-text model (never downloaded).",
+                "description": (
+                    "Path to a local speech-to-text model file (never downloaded). "
+                    "Empty uses the one in Settings."
+                ),
+                "x-setting": "speech.model",
+                "x-picker": "file",
             },
             language={
                 "type": "string",
                 "default": "",
                 "title": "Language",
-                "description": "A language code such as 'en' or 'pt'; empty detects it.",
+                "description": (
+                    "A language code such as 'en' or 'pt'; empty uses the one in Settings, "
+                    "and if that is empty too, detects it."
+                ),
+                "x-setting": "speech.language",
             },
         ),
     )
@@ -561,12 +592,7 @@ class Voicemail(_Chattr):
     def locate(self, source: Path, workdir: Path) -> list[Path]:
         if source.is_file() and source.name == "voicemail.db":
             return [source.parent]
-        return inputs.resolve(
-            source,
-            lambda folder: sorted({p.parent for p in folder.rglob("voicemail.db")}),
-            workdir,
-            accept_files=False,
-        )
+        return inputs.resolve(source, _voicemail_folders, workdir, accept_files=False)
 
     def convert(
         self,
@@ -579,7 +605,7 @@ class Voicemail(_Chattr):
         final: bool,
     ) -> None:
         transcriber = None
-        if final and (options.get("transcribe") or options.get("model")):
+        if final and options.get("transcribe"):
             try:
                 transcriber = make_transcriber(
                     settings,

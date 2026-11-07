@@ -11,6 +11,8 @@ a later project) refuses every one of them and never writes anywhere in the box.
 
 from __future__ import annotations
 
+import copy
+
 import contextlib
 import functools
 import inspect
@@ -217,7 +219,20 @@ class Service:
 
     @method("collectors.list")
     def collectors_list(self) -> list[dict[str, Any]]:
-        return self.registry.describe()
+        """Every collector; with a box open, an option that follows a box setting (`x-setting`)
+        starts from that setting's value, so the wizard shows what the run will use."""
+        described = self.registry.describe()
+        if self.box is None:
+            return described
+        saved = settings.load(self.box)
+        for entry in described:
+            schema = copy.deepcopy(entry["options_schema"])
+            for spec in schema["properties"].values():
+                key = spec.get("x-setting")
+                if key and key in saved:
+                    spec["default"] = saved[key]
+            entry["options_schema"] = schema
+        return described
 
     # --- Settings ---------------------------------------------------------------------------
 

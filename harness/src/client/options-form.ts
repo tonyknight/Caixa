@@ -17,6 +17,8 @@ export interface Field {
   readonly label: string
   readonly help: string
   readonly integer: boolean
+  /** A text option that names a file on this computer, so the form offers to browse for it. */
+  readonly picker: boolean
   readonly min?: number
   readonly max?: number
   readonly choices: readonly string[]
@@ -34,7 +36,7 @@ function field(name: string, spec: OptionSpec): Field {
     : spec.type === 'integer' || spec.type === 'number' ? 'number' : 'text'
   return {
     name, kind, label: spec.title ?? name, help: spec.description ?? '',
-    integer: spec.type === 'integer', min: spec.minimum, max: spec.maximum,
+    integer: spec.type === 'integer', picker: kind === 'text' && spec['x-picker'] === 'file', min: spec.minimum, max: spec.maximum,
     choices: (spec.enum ?? []).map(String), default: spec.default,
   }
 }

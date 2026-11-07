@@ -363,3 +363,101 @@ def test_the_description_the_interface_reads_is_plain_json() -> None:
     assert set(IDS) <= set(by_id)
     for entry in by_id.values():
         assert entry["how_to_export"] and entry["options_schema"]["type"] == "object"
+
+
+# --- Voicemail as audio files named for their time and caller -------------------------------
+
+
+def _voicemail_zip(tmp_path: Path, *extra: tuple[str, bytes]) -> Path:
+    """A zip like the one a phone's voicemail export gives: just audio files, no database."""
+    archive = tmp_path / "iPhone Voicemail.zip"
+    names = [
+        f"(2018-12-21) 15 02 31 - {family.ANA.name}.amr",
+        f"(2019-01-03) 09 05 00 - {family.JOAO.name}.amr",
+        f"(2019-02-10) 18 30 12 - {family.ANA.name}.amr",
+    ]
+    with zipfile.ZipFile(archive, "w") as z:
+        for name in names:
+            z.writestr(f"iPhone Voicemail/{name}", f"audio of {name}")
+        for name, data in extra:
+            z.writestr(name, data)
+    return archive
+
+
+def test_a_zip_of_named_voicemail_files_is_previewed(
+    six: dict[str, Collector], tmp_path: Path
+) -> None:
+    preview = six["voicemail"].preview(_voicemail_zip(tmp_path), {})
+    assert preview.items == 3 and preview.conversations == 2
+    assert (preview.first, preview.last) == ("2018-12-21", "2019-02-10")
+    assert sorted(preview.participants) == sorted([family.ANA.name, family.JOAO.name])
+
+
+def test_a_zip_of_named_voicemail_files_is_imported_with_its_audio(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    junk = (
+        ("__MACOSX/iPhone Voicemail/._(2018-12-21) 15 02 31 - Ana Costa.amr", b"apple double"),
+        ("iPhone Voicemail/.DS_Store", b"x"),
+    )
+    result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path, *junk))
+    assert result.inserted == 3
+    assert len(list((box.root / "Audio" / "Voicemail").rglob("*.amr"))) == 3
+    pages = list((box.root / "Messages").rglob("*.html"))
+    assert pages and any(family.ANA.name in str(page) for page in pages)
+
+
+def test_a_zip_with_no_voicemail_in_it_says_so(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    archive = tmp_path / "other.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("notes.txt", "nothing here")
+    with pytest.raises(InputError, match="Nothing to import"):
+        six["voicemail"].preview(archive, {})
+
+
+# --- The speech model and language come from the box's settings -------------------------------
+
+
+def _speech_settings(box: Box, model: str, language: str = "") -> None:
+    from caixa import settings
+
+    settings.save(box, {"speech.model": model, "speech.language": language})
+
+
+def test_the_speech_options_name_the_setting_they_follow(six: dict[str, Collector]) -> None:
+    properties = six["voicemail"].info.options_schema["properties"]
+    assert properties["model"]["x-setting"] == "speech.model"
+    assert properties["language"]["x-setting"] == "speech.language"
+    assert properties["model"]["x-picker"] == "file"  # the form offers to browse for it
+    validate(six["voicemail"].info.options_schema, {})  # and the extra keywords are accepted
+
+
+def test_a_saved_model_is_not_enough_to_turn_transcription_on(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    _speech_settings(box, "/nowhere/ggml-model.bin")
+    result, _ = _run(six["voicemail"], box, _source(fixture_family, "voicemail"))
+    assert result.inserted == 2  # no transcriber was made, so the missing model never mattered
+
+
+def test_ticking_transcribe_uses_the_saved_model_and_language(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    _speech_settings(box, "/nowhere/ggml-model.bin", "pt")
+    with pytest.raises(Exception, match="/nowhere/ggml-model.bin"):
+        _run(six["voicemail"], box, _source(fixture_family, "voicemail"), {"transcribe": True})
+
+
+def test_a_model_given_in_the_options_beats_the_saved_one(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    _speech_settings(box, "/nowhere/saved.bin")
+    with pytest.raises(Exception, match="/nowhere/chosen.bin"):
+        _run(
+            six["voicemail"],
+            box,
+            _source(fixture_family, "voicemail"),
+            {"transcribe": True, "model": "/nowhere/chosen.bin"},
+        )
