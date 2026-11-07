@@ -4,6 +4,37 @@ import { useCaixa, useStore, useT } from '../hooks.tsx'
 import type { CaixaKey } from '../locales.ts'
 import css from '../caixa.module.css'
 
+/** The boxes opened lately: open one with a click, or take a missing one off the list. */
+function RecentBoxes({ busy, onOpen }: { busy: boolean; onOpen: (path: string) => void }) {
+  const { recent, box } = useCaixa()
+  const store = useStore()
+  const t = useT()
+  const shown = recent.filter(entry => entry.path !== box?.root)
+  if (shown.length === 0) return null
+  return (
+    <div className={css.card}>
+      <h3 id="caixa-recent">{t('box.recent.heading')}</h3>
+      <ul className={css.recent} aria-labelledby="caixa-recent">
+        {shown.map(entry => (
+          <li key={entry.path}>
+            <strong>{entry.name || entry.path}</strong>
+            <span className={css.muted}>{entry.path}</span>
+            {entry.opened && <span className={css.muted}>{t('box.recent.opened', { when: new Date(entry.opened).toLocaleString() })}</span>}
+            {entry.exists
+              ? <button type="button" className={`${css.button} ${css.primary}`} disabled={busy} onClick={() => onOpen(entry.path)}
+                        aria-label={t('box.recent.open', { name: entry.name || entry.path })}>{t('box.open.submit')}</button>
+              : <span className={css.muted}>{t('box.recent.missing')}</span>}
+            {!entry.exists && (
+              <button type="button" className={css.link} onClick={() => void store.forgetBox(entry.path)}
+                      aria-label={t('box.recent.forget', { name: entry.name || entry.path })}>{t('box.recent.forget.short')}</button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 const KNOWN_TYPES = ['text', 'call', 'voicemail', 'email', 'media', 'system']
 
 function Picker({ label, help, value, onChange }: { label: string; help?: string; value: string; onChange: (path: string) => void }) {
@@ -94,6 +125,7 @@ export function BoxPage({ onImport }: { onImport: () => void }) {
       <h2>{t('box.none.title')}</h2>
       <p>{t('box.none.lead')}</p>
       {failure && <p className={css.error} role="alert">{failure}</p>}
+      <RecentBoxes busy={busy} onOpen={path => void run(() => store.openBox(path))} />
       <form className={css.card} onSubmit={create}>
         <h3>{t('box.create.heading')}</h3>
         <Picker label={t('box.create.folder')} help={t('box.create.folder.help')} value={folder} onChange={setFolder} />

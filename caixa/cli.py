@@ -61,6 +61,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--preview", action="store_true", help="count what is in it; import nothing")
     _box_argument(run)
 
+    doctor = commands.add_parser("doctor", help="a report to paste when something does not work")
+    doctor.add_argument(
+        "--collector", help="check a source: which kind it is (see 'caixa collectors')"
+    )
+    doctor.add_argument(
+        "--source", help="check a source: the file, folder or .zip that will not import"
+    )
+    doctor.add_argument("--box", help=f"include this box (or set {ENVIRONMENT}, or run inside it)")
+
     jobs = commands.add_parser("jobs", help="imports done and running")
     jobs.add_argument("--limit", type=int, default=20)
     _box_argument(jobs)
@@ -188,6 +197,26 @@ def _cmd_box(args: argparse.Namespace) -> int:
         service = _open(args, read_only=True)
         status = service.box_status()
     print(json.dumps(status, indent=2) if args.json else _box_status_text(status))
+    return 0
+
+
+def _cmd_doctor(args: argparse.Namespace) -> int:
+    from caixa import diagnostics
+
+    if bool(args.collector) != bool(args.source):
+        raise ServiceError(
+            "invalid_params", "Checking a source needs both --collector and --source."
+        )
+    where = args.box or os.environ.get(ENVIRONMENT)
+    if not where and (Path.cwd() / ".caixa" / "box.yaml").is_file():
+        where = str(Path.cwd())
+    service = Service(read_only=True)  # looking, never changing
+    if where:
+        try:
+            service.box_open(where)
+        except ServiceError as error:
+            print(f"(Could not open the box: {error})", file=sys.stderr)
+    print(diagnostics.report(service, args.collector, args.source))
     return 0
 
 
@@ -364,6 +393,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     handlers = {
         "box": _cmd_box,
         "collectors": _cmd_collectors,
+        "doctor": _cmd_doctor,
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "people": _cmd_people,

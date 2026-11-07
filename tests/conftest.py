@@ -22,6 +22,15 @@ if str(CHATTR_TESTS) not in sys.path:
 from fixtures import FamilyExports, build_all, family  # noqa: E402  (needs the path above)
 
 
+@pytest.fixture(autouse=True)
+def _private_caixa_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No test reads or writes the real per-user Caixa folder (what Caixa remembers lives there),
+    and a worker or `caixa` process a test starts inherits this one."""
+    monkeypatch.setenv("CAIXA_HOME", str(tmp_path_factory.mktemp("caixa-home")))
+
+
 @pytest.fixture(scope="session")
 def fixture_family(tmp_path_factory: pytest.TempPathFactory) -> FamilyExports:
     return build_all(tmp_path_factory.mktemp("family"))

@@ -5,9 +5,10 @@ import { BOX, FakeApi, fail, job, ok, settle } from './fake-api.ts'
 const make = (options = {}) => {
   const api = new FakeApi()
   const timers: (() => void)[] = []
+  const saves: (() => void)[] = []
   const memory = { value: null as string | null, get() { return this.value }, set(path: string | null) { this.value = path } }
-  const store = new Store(api, { toastMs: 5000, memory, setTimer: (callback) => { timers.push(callback); return 0 }, ...options })
-  return { api, store, memory, timers }
+  const store = new Store(api, { toastMs: 5000, memory, setTimer: (callback) => { timers.push(callback); return 0 }, debounce: (callback) => { saves.push(callback); return saves.length }, ...options })
+  return { api, store, memory, timers, saves }
 }
 
 describe('starting', () => {
@@ -216,5 +217,105 @@ describe('a reply that is older than what the event stream already said', () => 
     await store.refreshJobs()
     expect(store.job(1)?.status).toBe('done')
     expect(store.job(2)?.status).toBe('queued')
+  })
+})
+
+const DRAFT = { collector: 'voicemail', step: 'options', source: '/exports/iPhone Voicemail.zip', values: { transcribe: true } }
+
+describe('what is remembered between runs', () => {
+  it('reads the recent boxes and where you were when it starts', async () => {
+    const { api, store } = make()
+    api.sessionReply = ok({ recent: [{ path: '/boxes/Our box', name: 'Our box', opened: '2024-05-01T10:00:00+00:00', exists: true }], last_box: '/boxes/Our box', box: '/boxes/Our box', view: 'jobs', draft: DRAFT })
+    await store.start()
+    const state = store.getState()
+    expect(state.recent.map(box => box.name)).toEqual(['Our box'])
+    expect(state.view).toBe('jobs')
+    expect(state.draft).toEqual(DRAFT)
+  })
+
+  it('works when the worker has nothing remembered, or no box', async () => {
+    const { api, store } = make()
+    api.box = fail('no_box', 'x')
+    api.sessionReply = fail('no_box', 'x')
+    await store.start()
+    expect(store.getState()).toMatchObject({ recent: [], view: null, draft: null, ready: true })
+  })
+
+  it('keeps the section at once and saves it once, a moment later', async () => {
+    const { api, store, saves } = make()
+    await store.start()
+    store.saveView('people')
+    store.saveView('jobs')
+    expect(store.getState().view).toBe('jobs')
+    expect(api.sessionSaved).toEqual([])
+    saves.at(-1)!()
+    await settle()
+    expect(api.sessionSaved).toEqual([{ view: 'jobs' }])
+  })
+
+  it('keeps the draft, saves it with the section in one call, and clears it with null', async () => {
+    const { api, store, saves } = make()
+    await store.start()
+    store.saveView('import')
+    store.saveDraft(DRAFT)
+    expect(store.getState().draft).toEqual(DRAFT)
+    saves.at(-1)!()
+    await settle()
+    expect(api.sessionSaved).toEqual([{ view: 'import', draft: DRAFT }])
+    store.saveDraft(null)
+    expect(store.getState().draft).toBeNull()
+    saves.at(-1)!()
+    await settle()
+    expect(api.sessionSaved.at(-1)).toEqual({ draft: null })
+  })
+
+  it('does not save what has not changed', async () => {
+    const { api, store, saves } = make()
+    await store.start()
+    store.saveDraft(DRAFT)
+    saves.at(-1)!()
+    await settle()
+    store.saveDraft({ ...DRAFT })
+    expect(saves).toHaveLength(1)
+    expect(api.sessionSaved).toHaveLength(1)
+  })
+
+  it('writes what is waiting when the store stops, so closing the page loses nothing', async () => {
+    const { api, store } = make()
+    await store.start()
+    store.saveDraft(DRAFT)
+    store.stop()
+    await settle()
+    expect(api.sessionSaved).toEqual([{ draft: DRAFT }])
+  })
+
+  it('opening another box brings that box\'s own section and draft', async () => {
+    const { api, store } = make()
+    await store.start()
+    api.sessionReply = ok({ recent: [], last_box: null, box: '/boxes/Other', view: 'people', draft: null })
+    expect(await store.openBox('/boxes/Other')).toBeUndefined()
+    expect(store.getState().view).toBe('people')
+    expect(store.getState().draft).toBeNull()
+  })
+
+  it('forgets a box on the list without touching the open one', async () => {
+    const { api, store } = make()
+    api.sessionReply = ok({ recent: [{ path: '/boxes/Old', name: 'Old', opened: null, exists: false }], last_box: null, box: '/boxes/Our box', view: null, draft: null })
+    await store.start()
+    await store.forgetBox('/boxes/Old')
+    expect(api.forgotten).toEqual(['/boxes/Old'])
+    expect(store.getState().recent).toEqual([])
+    expect(store.getState().box).toEqual(BOX)
+  })
+
+  it('reopens the box that was open when the worker comes back without one', async () => {
+    const { api, store } = make()
+    await store.start()
+    api.box = fail('no_box', 'You need to open a box first')
+    api.emit('worker.state', { state: 'restarting' })
+    api.emit('worker.state', { state: 'running' })
+    await settle(); await settle()
+    api.box = ok(BOX)
+    expect(api.calls.filter(call => call[0] === 'boxOpen')).toEqual([['boxOpen', '/boxes/Our box']])
   })
 })

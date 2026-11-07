@@ -346,3 +346,39 @@ def test_a_box_is_checked_and_handed_to_the_plugin(
         [sys.executable, "-m", "caixa", "serve", "--stop"], env=environment, capture_output=True
     )
     process.communicate(timeout=30)
+
+
+def test_without_a_box_the_last_one_is_reopened_and_the_person_is_told(
+    tmp_path: Path, home: Path, environment: dict[str, str]
+) -> None:
+    from caixa.box import Box
+    from caixa.state import State
+
+    Box.create(tmp_path / "Box", name="Our box")
+    State(home).remember_box(str((tmp_path / "Box").resolve()), "Our box")
+    process = launch(environment)
+    seen: list[str] = []
+    read_link(process, seen)
+    patch = (Path(environment["CAIXA_HOME"]) / "caixa.patch.yml").read_text()
+    assert str((tmp_path / "Box").resolve()) in patch
+    assert any("Reopening your last box" in line and "Our box" in line for line in seen)
+    subprocess.run(
+        [sys.executable, "-m", "caixa", "serve", "--stop"], env=environment, capture_output=True
+    )
+    process.communicate(timeout=30)
+
+
+def test_a_last_box_that_has_gone_is_just_not_reopened(
+    tmp_path: Path, home: Path, environment: dict[str, str]
+) -> None:
+    from caixa.state import State
+
+    State(home).remember_box(str(tmp_path / "Vanished"), "Vanished")
+    process = launch(environment)
+    read_link(process)
+    patch = (Path(environment["CAIXA_HOME"]) / "caixa.patch.yml").read_text()
+    assert "box:" not in patch
+    subprocess.run(
+        [sys.executable, "-m", "caixa", "serve", "--stop"], env=environment, capture_output=True
+    )
+    process.communicate(timeout=30)

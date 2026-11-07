@@ -249,3 +249,36 @@ def test_the_worker_command_hands_over_to_the_worker(
 def test_no_command_prints_help(capsys: pytest.CaptureFixture[str]) -> None:
     code, out, _ = _run(capsys)
     assert code == 0 and "import" in out and "worker" in out
+
+
+# --- caixa doctor ---------------------------------------------------------------------------
+
+
+def test_doctor_reports_without_a_box(capsys: pytest.CaptureFixture[str]) -> None:
+    from caixa import cli
+
+    assert cli.main(["doctor"]) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("Caixa diagnostic report") and "no box is open" in out
+
+
+def test_doctor_checks_a_source_and_says_why_it_will_not_import(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    import zipfile
+
+    from caixa import cli
+
+    archive = tmp_path / "iPhone Voicemail.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("iPhone Voicemail/Ana Costa.amr", b"a")
+    assert cli.main(["doctor", "--collector", "voicemail", "--source", str(archive)]) == 0
+    out = capsys.readouterr().out
+    assert "Cannot be imported" in out and "Looking for:" in out and "Ana" not in out
+
+
+def test_doctor_needs_both_a_collector_and_a_source(capsys: pytest.CaptureFixture[str]) -> None:
+    from caixa import cli
+
+    assert cli.main(["doctor", "--source", "/x"]) == 1
+    assert "--collector" in capsys.readouterr().err

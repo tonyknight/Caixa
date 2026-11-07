@@ -23,7 +23,7 @@ import chattr.commands as commands
 import chattr.preflight as preflight
 from chattr.config import Settings
 from chattr.database_manager import DatabaseManager
-from chattr.parsers.voicemail_parser import audio_files
+from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
 
@@ -359,7 +359,15 @@ class WhatsApp(_Chattr):
                 *(p for p in folder.rglob("WhatsApp Chat*.txt") if p.name != "_chat.txt"),
             ]
 
-        return inputs.resolve(source, find, workdir)
+        return inputs.resolve(
+            source,
+            find,
+            workdir,
+            expects=(
+                "a WhatsApp 'Export chat' file (_chat.txt, or a .txt named 'WhatsApp Chat …'), "
+                "on its own or in a folder or zip"
+            ),
+        )
 
     def convert(
         self,
@@ -392,7 +400,15 @@ class _Meta(_Chattr):
         def find(folder: Path) -> list[Path]:
             return [p for p in folder.rglob("message_1.json") if self._service(p) in self.services]
 
-        found = inputs.resolve(source, find, workdir)
+        found = inputs.resolve(
+            source,
+            find,
+            workdir,
+            expects=(
+                "message_1.json files from a Facebook or Instagram 'Download your information' "
+                "export (choose the JSON format, not HTML)"
+            ),
+        )
         return [p for p in found if self._service(p) in self.services or p == source]
 
     @staticmethod
@@ -464,7 +480,12 @@ class Mail(_Chattr):
     attachments = MAIL_ATTACHMENTS
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
-        return inputs.resolve(source, lambda folder: list(folder.rglob("*.mbox")), workdir)
+        return inputs.resolve(
+            source,
+            lambda folder: list(folder.rglob("*.mbox")),
+            workdir,
+            expects="one or more .mbox files (Google Takeout, product 'Mail')",
+        )
 
     def convert(
         self,
@@ -512,6 +533,10 @@ class GoogleVoice(_Chattr):
             lambda folder: _common_folder(list(folder.rglob("*.html"))),
             workdir,
             accept_files=False,
+            expects=(
+                "the .html files of a Google Takeout 'Voice' export (the Calls folder), in a "
+                "folder or zip"
+            ),
         )
 
     def convert(
@@ -535,6 +560,23 @@ class GoogleVoice(_Chattr):
         )
 
 
+VOICEMAIL_EXPECTS = (
+    "a folder with voicemail.db, or audio files named like '(2018-12-21) 15 02 31 - Jane Smith.amr'"
+)
+
+
+def _voicemail_hints(files: list[Path]) -> list[str]:
+    """Audio is there but no name was readable: say so, since that is the likely cause."""
+    audio = [p for p in files if p.suffix.lower() in AUDIO_SUFFIXES]
+    if not audio:
+        return []
+    return [
+        f"{len(audio)} audio file{'s were' if len(audio) != 1 else ' was'} found, but none of "
+        "their names start with a date and time like '(2018-12-21) 15 02 31 - Jane Smith.amr', "
+        "so Caixa cannot tell when each one came in."
+    ]
+
+
 def _voicemail_folders(folder: Path) -> list[Path]:
     """Folders holding a `voicemail.db`; failing that, the folder if it holds named audio files."""
     databases = sorted({p.parent for p in folder.rglob("voicemail.db")})
@@ -553,7 +595,7 @@ class Voicemail(_Chattr):
             "Point Caixa at a folder or a .zip of voicemail in either form. From a Finder or "
             "iTunes backup: the folder holds voicemail.db and the numbered .amr audio files (in a "
             "backup they are under Library/Voicemail). From an export tool: audio files named by "
-            "when they came in and who from, like '(2018-12-21) 15 02 31 - Ana Costa.amr' (the "
+            "when they came in and who from, like '(2018-12-21) 15 02 31 - Jane Smith.amr' (the "
             "caller can be a name or a number; those times have no time zone, so they are kept "
             "as written)."
         ),
@@ -592,7 +634,14 @@ class Voicemail(_Chattr):
     def locate(self, source: Path, workdir: Path) -> list[Path]:
         if source.is_file() and source.name == "voicemail.db":
             return [source.parent]
-        return inputs.resolve(source, _voicemail_folders, workdir, accept_files=False)
+        return inputs.resolve(
+            source,
+            _voicemail_folders,
+            workdir,
+            accept_files=False,
+            expects=VOICEMAIL_EXPECTS,
+            hints=_voicemail_hints,
+        )
 
     def convert(
         self,
@@ -685,7 +734,12 @@ class IMessage(_Chattr):
         )
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
-        return inputs.resolve(source, lambda folder: list(folder.rglob("chat.db")), workdir)
+        return inputs.resolve(
+            source,
+            lambda folder: list(folder.rglob("chat.db")),
+            workdir,
+            expects="a chat.db file (on a Mac: ~/Library/Messages/chat.db), alone or in a folder or zip",
+        )
 
     def convert(
         self,

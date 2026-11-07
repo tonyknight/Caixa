@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CollectorDescription, Job, PreviewResult } from '../api.ts'
+import { DiagnosticsReport, Reasons } from '../components/Diagnostics.tsx'
 import { FilePicker, InboxList } from '../components/FilePicker.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
@@ -9,6 +10,8 @@ import css from '../caixa.module.css'
 
 type Step = 'source' | 'export' | 'input' | 'options' | 'preview' | 'run'
 const STEPS: Step[] = ['source', 'export', 'input', 'options', 'preview', 'run']
+/** The steps an unfinished import can be put back at (the preview is made again from the options). */
+const RESTORABLE: Step[] = ['export', 'input', 'options']
 
 /** The import wizard: source → how to export → choose → options → preview → run → report. */
 export function ImportPage({ onShowJob, onShowPeople }: { onShowJob: (job: number) => void; onShowPeople: () => void }) {
@@ -29,7 +32,33 @@ export function ImportPage({ onShowJob, onShowPeople }: { onShowJob: (job: numbe
   }, [store])
 
   const fields = useMemo(() => collector ? formFields(collector.options_schema) : [], [collector])
-  const reset = () => { setStep('source'); setCollector(undefined); setSource(''); setJobId(undefined) }
+  const reset = () => { setStep('source'); setCollector(undefined); setSource(''); setJobId(undefined); setPicked(false) }
+
+  // An import that was not finished is put back once, when its sources are known; after that, the
+  // wizard keeps the store's copy up to date, so leaving this section and coming back (or stopping
+  // Caixa and starting it again) loses nothing.
+  const restored = useRef(false)
+  const [picked, setPicked] = useState(false) // true when this wizard was put back from what was kept
+  const justRestored = useRef(false)
+  useEffect(() => {
+    if (restored.current || !collectors) return
+    restored.current = true
+    const draft = store.getState().draft
+    const found = draft && collectors.find(c => c.id === draft.collector)
+    if (!draft || !found) return
+    setPicked(true)
+    justRestored.current = true // this render still shows the empty wizard: do not save it over the draft
+    setCollector(found)
+    setSource(draft.source)
+    setValues({ ...initialValues(formFields(found.options_schema)), ...draft.values })
+    setStep(RESTORABLE.includes(draft.step as Step) ? (draft.step as Step) : 'options')
+  }, [collectors, store])
+  useEffect(() => {
+    if (!restored.current) return // the kept draft has not been looked at yet
+    if (justRestored.current) { justRestored.current = false; return }
+    const going = collector && (RESTORABLE.includes(step) || step === 'preview')
+    store.saveDraft(going ? { collector: collector.id, step: step === 'preview' ? 'options' : step, source, values } : null)
+  }, [store, collectors, collector, step, source, values])
 
   if (!box) return <p className={css.banner}>{t('import.needBox')}</p>
   if (readOnly) return <p className={css.banner}>{t('import.readOnly')}</p>
@@ -43,6 +72,12 @@ export function ImportPage({ onShowJob, onShowPeople }: { onShowJob: (job: numbe
   return (
     <div className={css.section}>
       <h2>{t('import.heading')}</h2>
+      {picked && step !== 'run' && (
+        <p className={css.muted} role="status">
+          {t('import.restored')}{' '}
+          <button type="button" className={css.link} onClick={reset}>{t('import.restored.reset')}</button>
+        </p>
+      )}
       <ol className={css.steps} aria-label={t('import.steps')}>
         {STEPS.map((name, index) => (
           <li key={name} className={`${css.step} ${name === step ? css.stepCurrent : STEPS.indexOf(step) > index ? css.stepDone : ''}`}
@@ -189,7 +224,12 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
     <>
       <h3>{t('import.preview.heading')}</h3>
       {!preview && !failure && <p className={css.muted} role="status">{t('import.preview.working')}</p>}
-      {failure && <div className={css.error} role="alert"><strong>{t('import.preview.error')}</strong><br />{failure}</div>}
+      {failure && (
+        <div className={css.error} role="alert">
+          <strong>{t('import.preview.error')}</strong><br /><Reasons message={failure} />
+          <DiagnosticsReport collector={collector.id} source={source} />
+        </div>
+      )}
       {preview && (
         <div className={css.card}>
           <p><strong>{t('import.preview.counts', { items: preview.items, conversations: preview.conversations })}</strong></p>
@@ -255,7 +295,10 @@ function RunStep({ collector, jobId, onAgain, onShowJob, onShowPeople }: { colle
           {result.warnings.length > 0 && <><h3>{t('import.report.warnings')}</h3><ul>{result.warnings.map(w => <li key={w}>{w}</li>)}</ul></>}
         </>
       ) : job.status === 'failed' ? (
-        <div className={css.error} role="alert"><strong>{t('import.report.failed')}</strong><br />{job.error}</div>
+        <div className={css.error} role="alert">
+          <strong>{t('import.report.failed')}</strong><br /><Reasons message={job.error ?? ''} />
+          <DiagnosticsReport collector={job.collector ?? undefined} source={job.source ?? undefined} />
+        </div>
       ) : job.status === 'cancelled' ? <p>{t('import.report.cancelled')}</p> : <p>{t('import.report.interrupted')}</p>}
       <div className={css.actions}>
         <button type="button" className={`${css.button} ${css.primary}`} onClick={onAgain}>{t('import.report.again')}</button>

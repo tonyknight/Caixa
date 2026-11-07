@@ -30,6 +30,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from caixa.state import State, caixa_home
+
 #: The one DeepSeek Harness version Caixa's plugin is built and tested against (the plugin's
 #: `engines.dsh`). Harness plugin interfaces change between versions, so it is never a range.
 DSH_VERSION = "0.2.2-alpha.2"
@@ -89,24 +91,6 @@ def find_node(explicit: Optional[str] = None, run: Runner = subprocess.run) -> N
 
 
 # --- Where things live ------------------------------------------------------------------------
-
-
-def caixa_home(
-    environ: Optional[Mapping[str, str]] = None,
-    platform_name: Optional[str] = None,
-    home: Optional[Path] = None,
-) -> Path:
-    """Caixa's per-user folder for the harness and its state (`$CAIXA_HOME` overrides)."""
-    env = os.environ if environ is None else environ
-    platform = platform_name or sys.platform
-    user = home or Path.home()
-    if env.get("CAIXA_HOME"):
-        return Path(env["CAIXA_HOME"])
-    if platform == "darwin":
-        return user / "Library" / "Application Support" / "Caixa"
-    if platform.startswith("win"):
-        return Path(env.get("LOCALAPPDATA") or user / "AppData" / "Local") / "Caixa"
-    return Path(env.get("XDG_DATA_HOME") or user / ".local" / "share") / "caixa"
 
 
 def dsh_home(home: Path) -> Path:
@@ -556,6 +540,16 @@ class Options:
     node: Optional[str] = None
 
 
+def _last_box(home: Path, say: Callable[[str], None]) -> Optional[str]:
+    """The box that was open last time, when it is still there (and say so); else None."""
+    last = State(home).last_box()
+    if last is None:
+        return None
+    name = next((b["name"] for b in State(home).recent_boxes() if b["path"] == last), "")
+    say(f"Reopening your last box{f' ({name})' if name else ''}: {last}")
+    return last
+
+
 def _never() -> bool:
     return False
 
@@ -582,6 +576,7 @@ def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -
         )
         say(f"Caixa is already running at http://127.0.0.1:{running.port}/")
     else:
+        box = box or _last_box(home, say)
         node = find_node(options.node)
         plugin = plugin_directory()
         require_built(plugin)

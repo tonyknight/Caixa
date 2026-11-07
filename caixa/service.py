@@ -33,6 +33,7 @@ from caixa.collectors.messages import alias_kind
 from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
 from caixa.jobs import FINISHED, JobStore
+from caixa.state import State
 
 PathLike = Union[str, Path]
 TEXT_LIMIT = 2_000_000  # the largest text file `browse.file` includes in full
@@ -119,7 +120,9 @@ class Service:
         read_only: bool = False,
         registry: Optional[Registry] = None,
         roots: Optional[Sequence[PathLike]] = None,
+        state: Optional[State] = None,
     ) -> None:
+        self.state = state  # what to remember between runs; None keeps nothing
         self.read_only = read_only
         self.registry = registry or discover()
         self.roots = [Path(r).resolve() for r in (roots if roots is not None else [Path.home()])]
@@ -206,6 +209,8 @@ class Service:
         """Make `box` the open box and open its jobs table (marking anything a crash left)."""
         self.close()
         self.box = box
+        if self.state is not None:
+            self.state.remember_box(str(box.root), box.name)
         path = box.caixa_dir / "jobs.sqlite"
         if self.read_only:
             self.jobs = JobStore(path, read_only=True) if path.is_file() else None
@@ -216,6 +221,70 @@ class Service:
     @method("box.status")
     def box_status(self) -> dict[str, Any]:
         return self._require_box().status(read_only=self.read_only)
+
+    # --- Finding out what is wrong ----------------------------------------------------------
+
+    @method("diagnostics.report")
+    def diagnostics_report(
+        self, collector: Optional[str] = None, source: Optional[str] = None
+    ) -> dict[str, str]:
+        """A text report to paste when something does not work; with a collector and a source, it
+        also says what Caixa sees in that source. Names and numbers are never in it."""
+        from caixa import diagnostics
+
+        return {"text": diagnostics.report(self, collector, source)}
+
+    # --- What is remembered between runs ----------------------------------------------------
+
+    @method("session.get")
+    def session_get(self) -> dict[str, Any]:
+        """The boxes opened lately, and where you were in the open box (section, unfinished import)."""
+        recent = self.state.recent_boxes() if self.state else []
+        view: Optional[str] = None
+        draft: Optional[dict[str, Any]] = None
+        if self.state is not None and self.box is not None:
+            view, draft = self.state.view(str(self.box.root))
+        return {
+            "recent": recent,
+            "last_box": self.state.last_box() if self.state else None,
+            "box": str(self.box.root) if self.box else None,
+            "view": view,
+            "draft": draft,
+        }
+
+    @method("session.set")
+    def session_set(self, values: dict[str, Any]) -> dict[str, Any]:
+        """Keep the section (`view`) and/or the import `draft` for the open box (`draft: null`
+        clears it). This is saved beside Caixa's own files, not in the box, so it works read-only.
+        """
+        box = self._require_box()
+        unknown = sorted(set(values) - {"view", "draft"})
+        errors = [f"'{name}' is not something Caixa remembers." for name in unknown]
+        view = values.get("view")
+        if (
+            "view" in values
+            and view is not None
+            and not (isinstance(view, str) and len(view) <= 40)
+        ):
+            errors.append("'view' must be a short text.")
+        draft = values.get("draft")
+        if "draft" in values and draft is not None and not isinstance(draft, dict):
+            errors.append("'draft' must be an object, or null to clear it.")
+        if errors:
+            raise ServiceError("invalid_params", " ".join(errors), {"errors": errors})
+        if self.state is not None:
+            try:
+                self.state.set_view(str(box.root), **{k: values[k] for k in values})
+            except ValueError as error:
+                raise ServiceError("invalid_params", str(error)) from None
+        return self.session_get()
+
+    @method("session.forget")
+    def session_forget(self, path: str) -> dict[str, Any]:
+        """Take a box off the recent list (the box itself is left alone)."""
+        if self.state is not None:
+            self.state.forget_box(path)
+        return self.session_get()
 
     @method("collectors.list")
     def collectors_list(self) -> list[dict[str, Any]]:
@@ -372,7 +441,7 @@ class Service:
         try:
             return asdict(found.preview(Path(source).expanduser(), checked, box))
         except InputError as error:
-            raise ServiceError("input", str(error)) from None
+            raise ServiceError("input", str(error), {"details": error.details}) from None
 
     @method("import.start", write=True)
     def import_start(

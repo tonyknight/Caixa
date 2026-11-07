@@ -334,6 +334,14 @@ Settings. There is no sign-in prompt and no welcome notice to dismiss. DeepSeek'
 session, plugins, automation tasks) are still there around Caixa for now; the Caixa page is the one
 to use. Making the whole window Caixa's own is planned work.
 
+**Picking up where you left off.** Caixa remembers the box you had open, the section you were in and
+an import you had set up but not started, in its own folder (never inside a box). Stop it and start it
+again and you land where you were; `caixa serve` reopens your last box (or pass `--box`).
+**When something does not work**, an import that finds nothing now says what it saw and what it
+wanted, and `caixa doctor` (or **Create a report** in the browser) makes a report you can paste, with
+no names, numbers or messages in it. Details are in
+[`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#when-something-does-not-work).
+
 **If an earlier `caixa serve` showed a "Preview Notice" you could not dismiss** ("The
 acknowledgement could not be saved"), update Caixa and run `caixa serve --stop`, then `caixa serve`
 again. The first run after updating replaces the harness with the exact build Caixa is tested with

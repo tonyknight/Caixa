@@ -221,6 +221,32 @@ export interface SettingsReply {
   readonly box: { readonly root: string; readonly name: string }
 }
 
+/** A box opened lately (from Caixa's own memory, not from the box). */
+export interface RecentBox {
+  readonly path: string
+  readonly name: string
+  readonly opened: string | null
+  /** False when the folder is no longer there. */
+  readonly exists: boolean
+}
+
+/** The unfinished import: which source, how far through the steps, what was typed and chosen. */
+export interface ImportDraft {
+  readonly collector: string
+  readonly step: string
+  readonly source: string
+  readonly values: Readonly<Record<string, string | boolean>>
+}
+
+/** What is remembered between runs: boxes, and where you were in the open one. */
+export interface SessionInfo {
+  readonly recent: readonly RecentBox[]
+  readonly last_box: string | null
+  readonly box: string | null
+  readonly view: string | null
+  readonly draft: ImportDraft | null
+}
+
 /** Where the host serves a file of the box (see src/host/box-files.ts). */
 export const boxUrl = (path: string): string => `/api/caixa/box?path=${encodeURIComponent(path)}`
 
@@ -241,6 +267,12 @@ export interface Api {
   settings(): Promise<CaixaResult<SettingsReply>>
   saveSettings(values: Record<string, unknown>): Promise<CaixaResult<SettingsReply>>
   info(): Promise<CaixaResult<WorkerInfo>>
+  session(): Promise<CaixaResult<SessionInfo>>
+  /** Keep the section (`view`) and/or the import `draft` (null clears it) for the open box. */
+  setSession(values: { view?: string | null; draft?: ImportDraft | null }): Promise<CaixaResult<SessionInfo>>
+  forgetBox(path: string): Promise<CaixaResult<SessionInfo>>
+  /** A text report to paste when something does not work; with a source, it checks that source. */
+  diagnostics(collector?: string, source?: string): Promise<CaixaResult<{ text: string }>>
   people(): Promise<CaixaResult<{ people: Person[] }>>
   unresolved(): Promise<CaixaResult<{ handles: Handle[] }>>
   link(service: string, identifier: string, person: number | string, move?: boolean): Promise<CaixaResult<PersonChange>>
@@ -270,6 +302,10 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     settings: () => run('settings.get'),
     saveSettings: values => run('settings.set', { values }),
     info: () => run('worker.info'),
+    session: () => run('session.get'),
+    setSession: values => run('session.set', { values }),
+    forgetBox: path => run('session.forget', { path }),
+    diagnostics: (collector, source) => run('diagnostics.report', collector && source ? { collector, source } : {}),
     people: () => run('people.list'),
     unresolved: () => run('people.unresolved'),
     link: (service, identifier, person, move = false) => run('people.link', { service, identifier, person, move }),

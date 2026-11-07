@@ -3,6 +3,7 @@ import { cleanup, fireEvent, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { CaixaPage } from '../src/client/CaixaPage.tsx'
 import { dictionaries, en, zh } from '../src/client/locales.ts'
+import { ok } from './fake-api.ts'
 import { renderWith } from './render.tsx'
 
 afterEach(cleanup)
@@ -26,6 +27,23 @@ describe('the Caixa page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }))
     await view.flush()
     expect(screen.getByText('Where do your messages come from?')).toBeTruthy()
+  })
+
+  it('opens on the section that was open last time', async () => {
+    await renderWith(<CaixaPage />, (api) => { api.sessionReply = ok({ recent: [], last_box: null, box: '/boxes/Our box', view: 'jobs', draft: null }) })
+    expect(screen.getByRole('button', { name: 'Jobs' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('heading', { name: 'Jobs' })).toBeTruthy()
+  })
+
+  it('ignores a remembered section it does not have', async () => {
+    await renderWith(<CaixaPage />, (api) => { api.sessionReply = ok({ recent: [], last_box: null, box: '/boxes/Our box', view: 'nonsense', draft: null }) })
+    expect(screen.getByRole('button', { name: 'Box' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('remembers the section you move to', async () => {
+    const view = await renderWith(<CaixaPage />)
+    fireEvent.click(screen.getByRole('button', { name: 'People' }))
+    expect(view.store.getState().view).toBe('people')
   })
 
   it('says so, in words, when the worker is not there, and not when it is', async () => {

@@ -29,10 +29,11 @@ export interface Running {
 }
 
 /** Install the plugin into a fresh DSH home, start `dsh web`, sign in. */
-export async function startHarness(options: { caixaPatch?: boolean } = {}): Promise<Running> {
+export async function startHarness(options: { caixaPatch?: boolean; caixaHome?: string } = {}): Promise<Running> {
   const home = mkdtempSync(join(tmpdir(), 'caixa-dsh-home-'))
   const work = mkdtempSync(join(tmpdir(), 'caixa-dsh-work-'))
-  const env = { ...process.env, DSH_HOME: home, DSH_TELEMETRY_DISABLED: '1' }
+  // CAIXA_HOME: what Caixa remembers between runs (the last box) must not leak between tests, or into a real home
+  const env = { ...process.env, DSH_HOME: home, CAIXA_HOME: options.caixaHome ?? join(home, 'caixa-home'), DSH_TELEMETRY_DISABLED: '1' }
   // (lib/ is built once by tests/global-setup.ts: rebuilding here would hot-reload other files' DSH)
   execFileSync(dsh, ['plugin', '--profile', 'web', 'add', harness], { env, stdio: 'ignore', timeout: 180_000 })
   // `caixaPatch`: the configuration layer `caixa serve` really writes, so a test sees what a user sees.

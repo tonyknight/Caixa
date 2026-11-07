@@ -6,7 +6,7 @@
  * the pages and the toast host read it through `useSyncExternalStore` (see `hooks.ts`).
  */
 
-import type { Api, BoxStatus, CaixaError, Job } from './api.ts'
+import type { Api, BoxStatus, CaixaError, ImportDraft, Job, RecentBox, SessionInfo } from './api.ts'
 
 export type WorkerStatus = 'unknown' | 'running' | 'restarting' | 'failed' | 'stopped'
 
@@ -39,6 +39,12 @@ export interface State {
   readonly inboxVersion: number
   /** Bumped when pages or people may have changed, so lists re-read themselves. */
   readonly boxVersion: number
+  /** Boxes opened lately, newest first (Caixa's own memory, kept between runs). */
+  readonly recent: readonly RecentBox[]
+  /** The section that was open when the page last closed, for the open box; null if none. */
+  readonly view: string | null
+  /** The import that was being set up and not yet started; null if none. */
+  readonly draft: ImportDraft | null
 }
 
 export interface StoreOptions {
@@ -47,18 +53,25 @@ export interface StoreOptions {
   /** Remember the last box across page loads (localStorage); injected so tests can use a fake. */
   readonly memory?: { get(): string | null; set(path: string | null): void }
   readonly setTimer?: (callback: () => void, ms: number) => unknown
+  /** Waits a moment before saving where you are, so typing is saved once, not on every key. */
+  readonly debounce?: (callback: () => void, ms: number) => unknown
 }
 
 const FINISHED = new Set(['done', 'failed', 'cancelled', 'interrupted'])
 
 export class Store {
   private state: State = {
-    worker: 'unknown', readOnly: false, box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0,
+    worker: 'unknown', readOnly: false, box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0, recent: [], view: null, draft: null,
   }
   private listeners = new Set<() => void>()
   private stopFollowing: (() => void) | undefined
   private nextToast = 1
   private loadingNames: Promise<void> | undefined
+  /** What is waiting to be saved (the section and/or the draft), and the timer that will save it. */
+  private pending: { view?: string | null; draft?: ImportDraft | null } = {}
+  private pendingTimer: unknown
+  /** The box that was open last, so a worker that comes back without one can be told it again. */
+  private lastRoot: string | undefined
 
   constructor(readonly api: Api, private readonly options: StoreOptions = {}) {}
 
@@ -86,12 +99,59 @@ export class Store {
     await this.refreshBox()
     if (this.state.box === null) await this.reopenLastBox()
     await this.refreshJobs()
+    await this.loadSession()
     this.set({ ready: true })
   }
 
   stop(): void {
+    this.flushSession()
     this.stopFollowing?.()
     this.stopFollowing = undefined
+  }
+
+  // --- What is remembered between runs -----------------------------------------------------
+
+  /** Read the recent boxes and where you were in the open box. */
+  async loadSession(): Promise<void> {
+    const reply = await this.api.session()
+    this.applySession(reply.ok ? reply.result : undefined)
+  }
+
+  private applySession(info: SessionInfo | undefined): void {
+    this.set({ recent: info?.recent ?? [], view: info?.view ?? null, draft: info?.draft ?? null })
+  }
+
+  /** The section is kept now and saved a moment later. */
+  saveView(view: string | null): void {
+    if (view === this.state.view) return
+    this.set({ view })
+    this.remember({ view })
+  }
+
+  /** The draft is kept now and saved a moment later; null clears it. */
+  saveDraft(draft: ImportDraft | null): void {
+    if (JSON.stringify(draft) === JSON.stringify(this.state.draft)) return
+    this.set({ draft })
+    this.remember({ draft })
+  }
+
+  private remember(change: { view?: string | null; draft?: ImportDraft | null }): void {
+    this.pending = { ...this.pending, ...change }
+    if (this.pendingTimer !== undefined) return
+    this.pendingTimer = (this.options.debounce ?? setTimeout)(() => this.flushSession(), 400)
+  }
+
+  /** Send what is waiting to be saved (also when the page is closing). */
+  flushSession(): void {
+    this.pendingTimer = undefined
+    const values = this.pending
+    this.pending = {}
+    if (Object.keys(values).length > 0 && this.state.box) void this.api.setSession(values)
+  }
+
+  async forgetBox(path: string): Promise<void> {
+    const reply = await this.api.forgetBox(path)
+    if (reply.ok) this.set({ recent: reply.result.recent })
   }
 
   private async reopenLastBox(): Promise<void> {
@@ -106,7 +166,7 @@ export class Store {
 
   async refreshBox(): Promise<void> {
     const reply = await this.api.boxStatus()
-    if (reply.ok) this.set({ box: reply.result, boxVersion: this.state.boxVersion + 1 })
+    if (reply.ok) { this.lastRoot = reply.result.root; this.set({ box: reply.result, boxVersion: this.state.boxVersion + 1 }) }
     else if (reply.error.kind === 'no_box') this.set({ box: null })
   }
 
@@ -134,8 +194,11 @@ export class Store {
     const reply = await this.api.boxCreate(path, name, owner)
     if (!reply.ok) return reply.error
     this.options.memory?.set(reply.result.root)
+    this.flushSession()
     this.set({ box: reply.result, jobs: [], boxVersion: this.state.boxVersion + 1 })
+    this.lastRoot = reply.result.root
     await this.refreshJobs()
+    await this.loadSession()
     return undefined
   }
 
@@ -143,8 +206,11 @@ export class Store {
     const reply = await this.api.boxOpen(path)
     if (!reply.ok) return reply.error
     this.options.memory?.set(reply.result.root)
+    this.flushSession()
     this.set({ box: reply.result, boxVersion: this.state.boxVersion + 1 })
+    this.lastRoot = reply.result.root
     await this.refreshJobs()
+    await this.loadSession()
     return undefined
   }
 
@@ -156,7 +222,7 @@ export class Store {
       const next = String(data.state) as WorkerStatus
       const was = this.state.worker
       this.set({ worker: next })
-      if (next === 'running' && was !== 'running' && this.state.ready) void this.refreshBox().then(() => this.refreshJobs())
+      if (next === 'running' && was !== 'running' && this.state.ready) void this.comeBack()
     } else if (name === 'job.progress') {
       this.progress(data)
     } else if (name === 'job.finished') {
@@ -164,6 +230,17 @@ export class Store {
     } else if (name === 'inbox.changed') {
       this.set({ inboxVersion: this.state.inboxVersion + 1 })
     }
+  }
+
+  /** The worker is running again: if it came back without a box, open the one that was open. */
+  private async comeBack(): Promise<void> {
+    const before = this.lastRoot
+    await this.refreshBox()
+    if (this.state.box === null && before) {
+      const reply = await this.api.boxOpen(before)
+      if (reply.ok) this.set({ box: reply.result, boxVersion: this.state.boxVersion + 1 })
+    }
+    await this.refreshJobs()
   }
 
   private progress(data: Record<string, unknown>): void {

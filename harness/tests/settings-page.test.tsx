@@ -74,6 +74,15 @@ describe('the settings form', () => {
     expect(view.api.savedSettings).toEqual([{ 'speech.model': '/home/me/chat.zip' }])
   })
 
+  it('has a place to create a report for when something does not work', async () => {
+    const view = await page()
+    expect(screen.getByRole('heading', { name: 'Something not working?' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Create a report' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['diagnostics', undefined, undefined])
+    expect((screen.getByLabelText('Report') as HTMLTextAreaElement).value).toContain('== Caixa ==')
+  })
+
   it('undoes unsaved changes', async () => {
     await page()
     change('Speech language', 'pt')

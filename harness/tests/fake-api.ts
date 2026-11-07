@@ -1,6 +1,6 @@
 import type {
   Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
-  PreviewResult,
+  PreviewResult, SessionInfo, ImportDraft,
 } from '../src/client/api.ts'
 
 export const ok = <T,>(result: T): CaixaResult<T> => ({ ok: true, result })
@@ -85,6 +85,10 @@ export class FakeApi implements Api {
   handleList: Handle[] = HANDLES
   /** Reply to the next people change (link, rename or merge); replace to script failures. */
   changeReply: (kind: string, args: unknown[]) => CaixaResult<PersonChange> = (_kind, _args) => ok({ person: PEOPLE[2]!, job: job({ id: 9, kind: 'refresh', collector: null, source: null, status: 'queued', stage: null, result: null }) })
+  sessionReply: CaixaResult<SessionInfo> = ok({ recent: [], last_box: null, box: '/boxes/Our box', view: null, draft: null })
+  sessionSaved: { view?: string | null; draft?: ImportDraft | null }[] = []
+  forgotten: string[] = []
+  diagnosticsReply: CaixaResult<{ text: string }> = ok({ text: 'Caixa diagnostic report (2024-05-01 10:00 UTC)\n\n== Caixa ==\ncaixa 0.1.0\n' })
   generic: Record<string, (params: Record<string, unknown>) => CaixaResult<unknown>> = {}
 
   private record(name: string, ...args: unknown[]) { this.calls.push([name, ...args]) }
@@ -106,6 +110,17 @@ export class FakeApi implements Api {
     return ok({ ...SETTINGS, values: { ...SETTINGS.values, ...values } } as SettingsReply)
   }
   async info() { this.record('info'); return ok<WorkerInfo>({ version: '0.1.0', protocol: 1, read_only: this.readOnly, methods: [] }) }
+  async session() { this.record('session'); return this.sessionReply }
+  async setSession(values: { view?: string | null; draft?: ImportDraft | null }) {
+    this.record('setSession', values); this.sessionSaved.push(values)
+    return this.sessionReply
+  }
+  async forgetBox(path: string) {
+    this.record('forgetBox', path); this.forgotten.push(path)
+    if (!this.sessionReply.ok) return this.sessionReply
+    return ok({ ...this.sessionReply.result, recent: this.sessionReply.result.recent.filter(box => box.path !== path) })
+  }
+  async diagnostics(collector?: string, source?: string) { this.record('diagnostics', collector, source); return this.diagnosticsReply }
   async people() { this.record('people'); return ok({ people: this.peopleList }) }
   async unresolved() { this.record('unresolved'); return ok({ handles: this.handleList }) }
   async link(service: string, identifier: string, person: number | string, move?: boolean) { this.record('link', service, identifier, person, move); return this.changeReply('link', [service, identifier, person, move]) }

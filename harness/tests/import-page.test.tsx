@@ -67,6 +67,115 @@ describe('the speech model on the options step', () => {
   })
 })
 
+describe('an import that was not finished', () => {
+  const DRAFT = { collector: 'voicemail', step: 'options', source: '/exports/iPhone Voicemail.zip', values: { transcribe: true, model: '/models/chosen.bin', language: 'en' } }
+  const remembered = (draft: unknown) => (api: any) => {
+    api.collectorList = [VOICEMAIL as never]
+    api.sessionReply = ok({ recent: [], last_box: null, box: '/boxes/Our box', view: 'import', draft })
+  }
+
+  it('is put back where it was, with what was typed and chosen', async () => {
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, remembered(DRAFT))
+    expect(currentStep()).toBe('Options')
+    expect((screen.getByLabelText('Speech model') as HTMLInputElement).value).toBe('/models/chosen.bin')
+    expect((screen.getByLabelText('Transcribe on this computer') as HTMLInputElement).checked).toBe(true)
+    click('Back')
+    expect((screen.getByLabelText(/Path to the export/) as HTMLInputElement).value).toBe('/exports/iPhone Voicemail.zip')
+  })
+
+  it('says it was put back, and can be thrown away with Start over', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, remembered(DRAFT))
+    expect(screen.getByRole('status').textContent).toContain('Picked up where you left off')
+    click('Start over')
+    expect(currentStep()).toBe('Source')
+    expect(screen.queryByText(/Picked up where you left off/)).toBeNull()
+    expect(view.store.getState().draft).toBeNull()
+  })
+
+  it('says nothing about it when there was nothing to put back', async () => {
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [VOICEMAIL as never] })
+    expect(screen.queryByText(/Picked up where you left off/)).toBeNull()
+  })
+
+  it('is ignored when its source is no longer there to choose', async () => {
+    await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, remembered({ ...DRAFT, collector: 'gone' }))
+    expect(currentStep()).toBe('Source')
+  })
+
+  it('is kept as each step is taken', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [VOICEMAIL as never] })
+    expect(view.store.getState().draft).toBeNull()
+    click(/iPhone voicemail/)
+    click('I have the export')
+    type(/Path to the export/, '/exports/iPhone Voicemail.zip')
+    click('Continue')
+    expect(view.store.getState().draft).toMatchObject({ collector: 'voicemail', step: 'options', source: '/exports/iPhone Voicemail.zip' })
+    fireEvent.click(screen.getByLabelText('Transcribe on this computer'))
+    expect(view.store.getState().draft?.values).toMatchObject({ transcribe: true })
+  })
+
+  it('is let go of when the import starts', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, remembered(DRAFT))
+    expect(view.store.getState().draft).not.toBeNull()
+    click('Preview')
+    await view.flush()
+    click('Import')
+    await view.flush()
+    expect(view.store.getState().draft).toBeNull()
+  })
+
+  it('is let go of when you go back to the start', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, remembered(DRAFT))
+    click('Back'); click('Back'); click('Back')
+    expect(currentStep()).toBe('Source')
+    expect(view.store.getState().draft).toBeNull()
+  })
+
+  it('survives a trip to another section and back', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [VOICEMAIL as never] })
+    click(/iPhone voicemail/)
+    click('I have the export')
+    type(/Path to the export/, '/exports/iPhone Voicemail.zip')
+    view.unmount()
+    const back = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [VOICEMAIL as never]; api.sessionReply = ok({ recent: [], last_box: null, box: '/boxes/Our box', view: 'import', draft: view.store.getState().draft }) })
+    expect(currentStep()).toBe('Choose') // the step it was left at, with the path already typed
+    expect((screen.getByLabelText(/Path to the export/) as HTMLInputElement).value).toBe('/exports/iPhone Voicemail.zip')
+    expect(back.store.getState().draft?.collector).toBe('voicemail')
+  })
+})
+
+describe('when an export cannot be imported', () => {
+  const refusal = (api: any) => {
+    api.previewReply = { ok: false, error: { code: -32000, kind: 'input', message: 'Nothing to import was found in /exports/chat.zip.\nWhat Caixa saw: a zip with 4 files.\nLooking for: a WhatsApp export.', data: { details: ['What Caixa saw: a zip with 4 files.', 'Looking for: a WhatsApp export.'] } } }
+  }
+
+  it('says what was found and what was wanted, one line each', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, refusal)
+    await toPreview(view)
+    const alert = screen.getByRole('alert')
+    expect(within(alert).getByText('This export cannot be imported')).toBeTruthy()
+    expect(within(alert).getByText('Nothing to import was found in /exports/chat.zip.')).toBeTruthy()
+    expect(within(alert).getAllByRole('listitem').map(item => item.textContent)).toEqual(['What Caixa saw: a zip with 4 files.', 'Looking for: a WhatsApp export.'])
+  })
+
+  it('offers a report about this source, to copy', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, refusal)
+    await toPreview(view)
+    fireEvent.click(screen.getByRole('button', { name: 'Create a report' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['diagnostics', 'whatsapp', '/exports/chat.txt'])
+    expect((screen.getByLabelText('Report') as HTMLTextAreaElement).value).toContain('Caixa diagnostic report')
+    expect(screen.getByRole('button', { name: 'Copy the report' })).toBeTruthy()
+  })
+
+  it('still shows a plain message when there are no details', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.previewReply = fail('input', 'Not found: /exports/chat.txt') })
+    await toPreview(view)
+    expect(within(screen.getByRole('alert')).getByText('Not found: /exports/chat.txt')).toBeTruthy()
+    expect(within(screen.getByRole('alert')).queryAllByRole('listitem')).toEqual([])
+  })
+})
+
 describe('before a box is open', () => {
   it('says to open one first', async () => {
     await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.box = fail('no_box', 'x') })

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { SettingsReply } from '../api.ts'
+import { DiagnosticsReport } from '../components/Diagnostics.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import type { CaixaKey } from '../locales.ts'
@@ -92,6 +93,11 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
           {dirty && !saved && <p className={css.muted}>{t('settings.unsaved')}</p>}
         </form>
       )}
+      <div className={css.card}>
+        <h3>{t('diagnostics.heading')}</h3>
+        <p>{t('diagnostics.lead')}</p>
+        <DiagnosticsReport />
+      </div>
     </div>
   )
 }

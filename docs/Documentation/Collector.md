@@ -262,6 +262,65 @@ transcription on, its text beside the player on the page.
 runs with the network blocked for the process, so a speech engine that tried to fetch something would
 fail rather than quietly phone home.
 
+## When something does not work
+
+**Read the message first.** When Caixa cannot find anything to import, it says what it opened and
+what it was looking for, for example:
+
+```
+Nothing to import was found in /Users/you/Desktop/iPhone Voicemail.zip.
+What Caixa saw: a zip with 40 files in 1 folder.
+File types: 40 .amr.
+Examples (letters shown as x, digits as 9): 'Xxxxx Xxxxxxxx 9999-99-99.amr'.
+40 audio files were found, but none of their names start with a date and time like
+'(2018-12-21) 15 02 31 - Jane Smith.amr', so Caixa cannot tell when each one came in.
+Looking for: a folder with voicemail.db, or audio files named like '(2018-12-21) 15 02 31 - Jane Smith.amr'.
+```
+
+File names inside your export are shown as *shapes* (letters become `x`, digits become `9`), so the
+message and any report show how your files are named without repeating anyone's name or number.
+It also tells you when it opened a zip that holds another zip, when a file is not really a zip (and
+how big it is), when your path does not exist (and whether its folder does), and how many hidden or
+Mac system files (`__MACOSX`, `.DS_Store`) it ignored.
+
+**Make a report.** In the browser, **Create a report** appears under a refused import and on the
+**Settings** page. From the command line:
+
+```bash
+caixa doctor                                              # what is installed and set up
+caixa doctor --box ~/Our\ Box                             # and the box, its recent imports
+caixa doctor --collector voicemail --source ~/Desktop/"iPhone Voicemail.zip"   # and why a source will not import
+```
+
+The report lists Caixa's version, Python and your system, whether `node`, `ffmpeg`, `whisper-cli` and
+`exiftool` are found, which harness is installed and whether it came from Caixa's lockfile, the open
+box's size, whether a speech model is set and its file is there, the last few imports with their
+errors, and, for a source, what Caixa sees in it. It never contains a name, a number or message text,
+and your home folder is shown as `~`. It changes nothing, and works with a box open read-only. Paste
+it into your message when asking for help.
+
+## Picking up where you left off
+
+Caixa remembers, in its own folder (`~/.local/share/caixa` on Linux, `~/Library/Application
+Support/Caixa` on a Mac, or `$CAIXA_HOME`), in a file called `state.json` only you can read:
+
+- **The boxes you opened lately** (the last ten). `caixa serve` with no `--box` reopens the newest one
+  that is still there and says so. The **Box** section lists the others, with **Open**; one whose
+  folder has gone is marked, and **Remove from list** takes it off.
+- **Which section you were in** for each box (Box, Import, Jobs, …), so the page opens there.
+- **An import you set up but have not started**: the source, the step you reached, the path you typed
+  and the options you chose. It is put back, even after you leave the Import section for a moment, close
+  the tab or stop Caixa. It is cleared when the import starts or you go back to the beginning. The preview is made
+  again from your options rather than remembered.
+
+Imports that were running when Caixa stopped are listed in **Jobs** as *interrupted*; running the same
+import again is safe, since nothing is imported twice. If the worker restarts by itself while the page
+is open, the page opens the box again.
+
+None of this is kept inside a box, so a box on a read-only drive or opened read-only still remembers
+where you were. Delete `state.json` to forget it all. It holds folder paths and your import choices,
+not messages.
+
 ## Naming the people
 
 Exports identify people by whatever the service uses: a phone number, an email address, a username, or a

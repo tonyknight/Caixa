@@ -31,6 +31,7 @@ from typing import Any, Optional, TextIO
 
 from caixa import __version__
 from caixa.service import Service, ServiceError
+from caixa.state import State
 
 PROTOCOL = 1
 PARSE_ERROR, INVALID_REQUEST, UNKNOWN_METHOD, INVALID_PARAMS, INTERNAL = (
@@ -144,7 +145,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="caixa worker", description="Serve Caixa's service layer as JSON-RPC over stdio."
     )
-    parser.add_argument("--box", help="open this box at start")
+    parser.add_argument(
+        "--box",
+        help="open this box at start (default: the one open last time, if it is still there)",
+    )
     parser.add_argument(
         "--read-only", action="store_true", help="refuse every method that would change the box"
     )
@@ -158,7 +162,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
     protocol, sys.stdout = sys.stdout, sys.stderr  # stdout belongs to the protocol alone
-    service = Service(read_only=args.read_only, roots=args.root)
+    service = Service(read_only=args.read_only, roots=args.root, state=State.default())
     worker = Worker(service, protocol, inbox_poll=args.inbox_poll)
     if args.box:
         try:
@@ -166,6 +170,13 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         except ServiceError as error:
             print(f"caixa worker: {error}", file=sys.stderr)
             return 1
+    else:  # nothing asked for: pick up the box that was open last time, if it is still there
+        last = service.state.last_box() if service.state else None
+        if last:
+            try:
+                service.box_open(last)
+            except ServiceError as error:
+                print(f"caixa worker: could not reopen {last}: {error}", file=sys.stderr)
     worker.serve(sys.stdin)
     return 0
 

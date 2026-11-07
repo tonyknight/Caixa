@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useCaixa, useT } from './hooks.tsx'
+import { useEffect, useRef, useState } from 'react'
+import { useCaixa, useStore, useT } from './hooks.tsx'
 import type { CaixaKey } from './locales.ts'
 import { BoxPage } from './pages/BoxPage.tsx'
 import { ImportPage } from './pages/ImportPage.tsx'
@@ -15,9 +15,16 @@ const SECTIONS: Section[] = ['box', 'import', 'jobs', 'people', 'browse', 'setti
 /** The Caixa page: a small navigation and one section at a time. */
 export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
   const t = useT()
-  const { worker } = useCaixa()
-  const [section, setSection] = useState<Section>(initial)
+  const { worker, view, ready } = useCaixa()
+  const store = useStore()
+  const [section, setSectionNow] = useState<Section>(initial)
   const [job, setJob] = useState<number | undefined>()
+  // Where you were last time, once it is known (unless you have already moved somewhere).
+  const moved = useRef(false)
+  useEffect(() => {
+    if (ready && !moved.current && (SECTIONS as string[]).includes(view ?? '')) setSectionNow(view as Section)
+  }, [ready, view])
+  const setSection = (next: Section) => { moved.current = true; setSectionNow(next); store.saveView(next) }
 
   return (
     <main className={css.page} data-testid="caixa-page">

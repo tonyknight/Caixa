@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { WorkerClient, WorkerError, UNAVAILABLE, type WorkerClientOptions } from '../src/host/worker-client.ts'
-import { launchProcess, until } from './helpers.ts'
+import { launchProcess, until, withOwnHome } from './helpers.ts'
 
 const clients: WorkerClient[] = []
 const make = (options: WorkerClientOptions = {}, launch = launchProcess()) => {
@@ -133,7 +133,7 @@ describe('the real worker', () => {
   const real = (process.env.CAIXA_COMMAND ?? 'caixa').split(' ')
 
   it('answers worker.info over the real protocol', async () => {
-    const client = make({}, launchProcess([...real, 'worker']))
+    const client = make({}, launchProcess(withOwnHome([...real, 'worker'])))
     client.start()
     const info = await client.request('worker.info') as { protocol: number; methods: string[] }
     expect(info.protocol).toBe(1)
@@ -141,7 +141,7 @@ describe('the real worker', () => {
   })
 
   it('reports its errors with the kind a page can act on', async () => {
-    const client = make({}, launchProcess([...real, 'worker']))
+    const client = make({}, launchProcess(withOwnHome([...real, 'worker'])))
     client.start()
     expect(await client.request('box.status').catch(e => e)).toMatchObject({ kind: 'no_box' })
   })

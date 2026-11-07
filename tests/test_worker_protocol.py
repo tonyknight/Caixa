@@ -6,6 +6,7 @@ import io
 import json
 import os
 import queue
+import shutil
 import subprocess
 import sys
 import threading
@@ -41,6 +42,10 @@ ALL_METHODS = {
     "settings.set",
     "files.list",
     "inbox.list",
+    "session.get",
+    "session.set",
+    "session.forget",
+    "diagnostics.report",
 }
 
 
@@ -181,6 +186,48 @@ def test_a_worker_can_start_with_a_box_already_open(tmp_path: Path) -> None:
     finally:
         second.close()
     assert second.stray == []
+
+
+def test_a_worker_started_with_no_box_reopens_the_last_one(tmp_path: Path) -> None:
+    first = Client("--root", str(tmp_path), cwd=tmp_path)
+    first.result("box.create", path=str(tmp_path / "Box"), name="Our box")
+    first.result("session.set", values={"view": "jobs", "draft": {"step": "options"}})
+    first.close()
+    second = Client("--root", str(tmp_path), cwd=tmp_path)  # no --box: what stopping lost before
+    try:
+        assert second.result("box.status")["name"] == "Our box"
+        session = second.result("session.get")
+        assert session["view"] == "jobs" and session["draft"] == {"step": "options"}
+        assert [b["name"] for b in session["recent"]] == ["Our box"]
+    finally:
+        second.close()
+    assert second.stray == []
+
+
+def test_a_box_that_has_gone_is_not_reopened_and_is_not_an_error(tmp_path: Path) -> None:
+    first = Client("--root", str(tmp_path), cwd=tmp_path)
+    first.result("box.create", path=str(tmp_path / "Box"), name="Our box")
+    first.close()
+    shutil.rmtree(tmp_path / "Box")
+    second = Client("--root", str(tmp_path), cwd=tmp_path)
+    try:
+        assert second.call("box.status")["error"]["data"]["kind"] == "no_box"
+        recent = second.result("session.get")["recent"]
+        assert [(b["name"], b["exists"]) for b in recent] == [("Our box", False)]
+    finally:
+        second.close()
+
+
+def test_a_box_named_on_the_command_line_wins_over_the_last_one(tmp_path: Path) -> None:
+    first = Client("--root", str(tmp_path), cwd=tmp_path)
+    first.result("box.create", path=str(tmp_path / "Old"), name="Old box")
+    first.result("box.create", path=str(tmp_path / "New"), name="New box")
+    first.close()
+    second = Client("--box", str(tmp_path / "Old"), cwd=tmp_path)
+    try:
+        assert second.result("box.status")["name"] == "Old box"
+    finally:
+        second.close()
 
 
 def test_a_worker_told_to_open_a_missing_box_says_so_and_stops(tmp_path: Path) -> None:

@@ -2,10 +2,59 @@
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { BoxPage } from '../src/client/pages/BoxPage.tsx'
-import { fail, BOX } from './fake-api.ts'
+import { fail, ok, BOX } from './fake-api.ts'
 import { renderWith } from './render.tsx'
 
 afterEach(cleanup)
+
+const RECENT = [
+  { path: '/boxes/Our box', name: 'Our box', opened: '2024-05-01T10:00:00+00:00', exists: true },
+  { path: '/boxes/Gone', name: 'Old box', opened: '2024-04-01T10:00:00+00:00', exists: false },
+]
+
+describe('the boxes opened lately', () => {
+  const withRecent = (api: any) => { api.box = fail('no_box', 'You need to open a box first'); api.sessionReply = ok({ recent: RECENT, last_box: '/boxes/Our box', box: null, view: null, draft: null }) }
+
+  it('are listed, so the last one is one click away', async () => {
+    await renderWith(<BoxPage onImport={() => undefined} />, withRecent)
+    const list = screen.getByRole('list', { name: 'Boxes you opened lately' })
+    expect(within(list).getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      expect.stringContaining('Our box'),
+      expect.stringContaining('Old box'),
+    ])
+  })
+
+  it('open from the list', async () => {
+    const view = await renderWith(<BoxPage onImport={() => undefined} />, withRecent)
+    view.api.box = ok(BOX)
+    fireEvent.click(screen.getByRole('button', { name: 'Open Our box' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['boxOpen', '/boxes/Our box'])
+    expect(screen.getByRole('heading', { name: 'Our box' })).toBeTruthy()
+  })
+
+  it('say when a folder has gone, and can be taken off the list', async () => {
+    const view = await renderWith(<BoxPage onImport={() => undefined} />, withRecent)
+    expect(screen.queryByRole('button', { name: 'Open Old box' })).toBeNull()
+    expect(screen.getByText('Not found: the folder has moved or been deleted.')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Old box from this list' }))
+    await view.flush()
+    expect(view.api.forgotten).toEqual(['/boxes/Gone'])
+    expect(screen.queryByText('Old box')).toBeNull()
+  })
+
+  it('are not shown when there are none', async () => {
+    await renderWith(<BoxPage onImport={() => undefined} />, ((api: any) => { api.box = fail('no_box', 'x') }) as never)
+    expect(screen.queryByRole('list', { name: 'Boxes you opened lately' })).toBeNull()
+  })
+
+  it('are offered again when choosing another box', async () => {
+    await renderWith(<BoxPage onImport={() => undefined} />, (api) => { api.sessionReply = ok({ recent: RECENT, last_box: null, box: '/boxes/Our box', view: null, draft: null }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Open another box' }))
+    expect(screen.getByRole('list', { name: 'Boxes you opened lately' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Open Our box' })).toBeNull() // that one is open already
+  })
+})
 
 describe('with no box open', () => {
   const noBox = (api: { box: unknown }) => { api.box = fail('no_box', 'You need to open a box first') }

@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { boxUrl, CSP, parseRange, rewriteLinks, serveBoxFile } from '../src/host/box-files.ts'
 import { caixaRoutes } from '../src/host/routes.ts'
 import { WorkerClient } from '../src/host/worker-client.ts'
-import { launchProcess } from './helpers.ts'
+import { launchProcess, withOwnHome } from './helpers.ts'
 
 const caixaOk = (() => { try { execFileSync('caixa', ['--version'], { stdio: 'ignore' }); return true } catch { return false } })()
 
@@ -79,7 +79,7 @@ run('serving a real box through the real worker', () => {
     writeFileSync(join(box, 'index.html'), '<html>index</html>')
     writeFileSync(join(folder, 'outside.txt'), 'secret')
     symlinkSync(join(folder, 'outside.txt'), join(box, 'Messages', 'link.txt'))
-    client = new WorkerClient(launchProcess(['caixa', 'worker']))
+    client = new WorkerClient(launchProcess(withOwnHome(['caixa', 'worker'])))
     client.start()
     await client.request('box.open', { path: box })
   }, 60_000)
@@ -155,7 +155,7 @@ run('serving a real box through the real worker', () => {
   })
 
   it('says 503 when the worker is not running', async () => {
-    const stopped = new WorkerClient(launchProcess(['caixa', 'worker']))
+    const stopped = new WorkerClient(launchProcess(withOwnHome(['caixa', 'worker'])))
     expect((await serveBoxFile(stopped, new Request('http://x/api/caixa/box?path=index.html'))).status).toBe(503)
   })
 
