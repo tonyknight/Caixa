@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { Config, workerArguments } from '../src/host/index.ts'
 
 describe('the worker command line', () => {
-  const base = { command: ['caixa'], readOnly: false, roots: [], cwd: '' }
+  const base = { command: ['caixa'], readOnly: false, roots: [], cwd: '', shell: false }
 
   it('starts with the program, then "worker"', () => {
     expect(workerArguments(base)).toEqual(['caixa', 'worker'])
@@ -16,7 +16,7 @@ describe('the worker command line', () => {
 
   it('has a schema DSH can validate, with the defaults a plain install needs', () => {
     const validate = Config as unknown as (value: unknown) => unknown
-    expect(validate({})).toEqual({ command: ['caixa'], readOnly: false, roots: [], cwd: '' })
+    expect(validate({})).toEqual({ command: ['caixa'], readOnly: false, roots: [], cwd: '', shell: false })
     expect(() => validate({ readOnly: 'yes' })).toThrow()
   })
 })

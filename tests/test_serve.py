@@ -173,8 +173,13 @@ def test_the_patch_turns_off_session_logs_and_telemetry() -> None:
 
 def test_the_patch_removes_deepseeks_notice_sign_in_prompt_and_brand() -> None:
     text = _patch()
-    for row in ("ui-settings-models", "ui-brand-official"):
+    for row in ("ui-settings-models", "ui-brand-official", "ui-plugin-manager", "ui-schedule"):
         assert f"- id: {row}\n  disabled: true" in text
+    assert "ui-workspace" not in text.replace("# ", "")  # the harness will not load without it
+
+
+def test_the_patch_says_the_window_is_caixas_own() -> None:
+    assert "    shell: true" in _patch()
 
 
 def test_the_patch_configures_the_plugin_with_this_python_the_box_and_read_only() -> None:

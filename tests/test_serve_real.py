@@ -97,7 +97,7 @@ def test_the_harness_comes_up_with_the_plugin_and_serves_only_this_computer(
         .open(f"http://127.0.0.1:{running['port']}/api/caixa/status", timeout=30)
         .read()
     )
-    assert status == {"worker": "running"}
+    assert status == {"worker": "running", "shell": True}
     request = urllib.request.Request(f"http://127.0.0.1:{running['port']}/api/caixa/status")
     with pytest.raises(urllib.error.HTTPError) as stop:  # no sign-in cookie
         urllib.request.urlopen(request, timeout=30)

@@ -46,6 +46,16 @@ export async function workerState(fetcher: typeof fetch = fetch): Promise<Worker
   }
 }
 
+/** True when the harness was started by `caixa serve`: the window is Caixa's own. */
+export async function isShell(fetcher: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const response = await fetcher('/api/caixa/status', { credentials: 'same-origin' })
+    return ((await response.json()) as { shell?: boolean }).shell === true
+  } catch {
+    return false
+  }
+}
+
 /** Follow the worker's notifications; returns the function that stops following. */
 export function follow(
   onEvent: (name: string, payload: unknown) => void,

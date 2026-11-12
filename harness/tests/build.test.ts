@@ -40,7 +40,7 @@ describe('the browser bundle', () => {
       throw new Error(`unexpected require(${id})`)
     })
     expect(typeof exports.apply).toBe('function')
-    expect(exports.inject).toEqual(['slots', 'locale'])
+    expect(exports.inject).toEqual(['slots', 'locale', 'layout'])
   })
 
   it('refuses to bundle a DSH package it was not told to share', async () => {

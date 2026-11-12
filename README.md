@@ -327,11 +327,12 @@ its session logs and telemetry, and listens on `127.0.0.1` only. The link it ope
 token; it is never printed (unless you pass `--no-browser`) or logged. If you close the terminal
 abruptly, the next `caixa serve` finds the running instance again instead of starting another.
 
-**What you should see.** The browser opens straight onto the harness with **Caixa** in the left-hand
-list. Click it for the Caixa page: create or open a box, then Import, Jobs, People, Browse and
-Settings. There is no sign-in prompt and no welcome notice to dismiss. DeepSeek's own pages (new
-session, plugins, automation tasks) are still there around Caixa for now; the Caixa page is the one
-to use. Making the whole window Caixa's own is planned work.
+**What you should see.** The browser opens straight onto the Caixa page, in a window called Caixa:
+create or open a box, then Import, Jobs, People, Browse and Settings. There is no sign-in prompt and no
+welcome notice. Caixa runs inside DeepSeek Harness, and two of the harness's own controls are still in
+the left-hand column, **New Session** and the **Workspaces** list (its chat); they cannot be switched off
+yet without breaking it. They are not needed for anything Caixa does today. The harness's plugin browser
+and automation list are switched off.
 
 **Picking up where you left off.** Caixa remembers the box you had open, the section you were in and
 an import you had set up but not started, in its own folder (never inside a box). Stop it and start it

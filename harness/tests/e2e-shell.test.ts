@@ -2,7 +2,7 @@
 // first-run messages in the way and none of its name. Runs the real harness with the same patch
 // `caixa serve` writes. Skipped when this computer cannot run it (Node older than 24.9, no browser).
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, playwright, startHarness, type Running } from './e2e-support.ts'
+import { canRun, playwright, shot, startHarness, type Running } from './e2e-support.ts'
 
 const pw = playwright()
 const run = canRun && pw ? describe : describe.skip
@@ -35,6 +35,19 @@ run('the first run, as `caixa serve` starts it', () => {
   it('leaves Caixa one click away, with nothing covering it', async () => {
     await page.locator('[aria-label="Caixa"]').first().click({ timeout: 10_000 })
     await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 15_000 })
+  })
+
+  it('opens on the Caixa page, with nothing to click first', async () => {
+    await page.goto(running.base, { waitUntil: 'networkidle' }) // a fresh load: no panel has been chosen
+    await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 20_000 })
+    await shot(page, 'shell-first')
+  })
+
+  it('is called Caixa: in the sidebar and in the window title', async () => {
+    await expect.poll(() => page.title(), { timeout: 10_000 }).toContain('Caixa')
+    expect(await page.title()).not.toMatch(/DeepSeek/i)
+    const text = await page.locator('body').innerText()
+    expect(text).not.toMatch(/DSH Local Build|DeepSeek/i)
   })
 
   it('does not carry the DeepSeek name in the sidebar', async () => {

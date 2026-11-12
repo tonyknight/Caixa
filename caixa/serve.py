@@ -173,6 +173,12 @@ def privacy_patch(
         "  disabled: true",
         "- id: ui-brand-official",
         "  disabled: true",
+        "# Caixa's window is for the archive: the harness's plugin browser and automation list",
+        "# are not part of it. (Its workspace list cannot be switched off: the harness needs it.)",
+        "- id: ui-plugin-manager",
+        "  disabled: true",
+        "- id: ui-schedule",
+        "  disabled: true",
         "- id: llm-pi-ai",
         "  config:",
         "    providers:",
@@ -189,6 +195,7 @@ def privacy_patch(
     if box:
         lines.append(f"    box: {_quote(box)}")
     lines.append(f"    readOnly: {'true' if read_only else 'false'}")
+    lines.append("    shell: true  # this harness is Caixa's own window: its name, its page first")
     return "\n".join(lines) + "\n"
 
 

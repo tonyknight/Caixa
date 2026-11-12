@@ -38,7 +38,7 @@ function failure(error: WorkerError, status = 200): Response {
 }
 
 /** The routes for one worker client. */
-export function caixaRoutes(client: WorkerClient): FetchRoute[] {
+export function caixaRoutes(client: WorkerClient, options: { shell?: boolean } = {}): FetchRoute[] {
   return [
     {
       path: '/api/caixa/rpc',
@@ -71,7 +71,8 @@ export function caixaRoutes(client: WorkerClient): FetchRoute[] {
       path: '/api/caixa/status',
       methods: ['GET'],
       requestBody: 'buffered',
-      fetch: async () => json({ worker: client.status }),
+      // `shell` (only when set): the window is Caixa's own, so the page takes the name and the first view
+      fetch: async () => json(options.shell ? { worker: client.status, shell: true } : { worker: client.status }),
     },
     {
       path: BOX_ROUTE,

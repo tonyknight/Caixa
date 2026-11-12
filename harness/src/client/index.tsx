@@ -13,7 +13,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
 import type {} from '@deepseek-ai/dsh-client-ui-layout/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar/client'
-import { makeApi } from './api.ts'
+import { isShell, makeApi } from './api.ts'
 import { CaixaIcon } from './CaixaIcon.tsx'
 import { CaixaPage } from './CaixaPage.tsx'
 import { Providers, type Translate } from './hooks.tsx'
@@ -28,7 +28,29 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
   }
 }
 
-export const inject = ['slots', 'locale']
+export const inject = ['slots', 'locale', 'layout']
+
+/** The harness's own name, wherever it puts it in the window's title. */
+const HARNESS_NAME = 'DeepSeek Harness'
+const OUR_NAME = 'Caixa'
+
+/** Keep the window's title saying Caixa: the harness writes its own name there on every change. */
+export function ownTitle(document: Document): () => void {
+  const fix = () => { if (document.title.includes(HARNESS_NAME)) document.title = document.title.split(HARNESS_NAME).join(OUR_NAME) }
+  fix()
+  const title = document.querySelector('title')
+  if (!title || typeof MutationObserver === 'undefined') return () => undefined
+  const observer = new MutationObserver(fix)
+  observer.observe(title, { childList: true, characterData: true, subtree: true })
+  return () => observer.disconnect()
+}
+
+function BrandName() {
+  return <span style={{ fontWeight: 600, fontSize: '1.05rem' }}>{OUR_NAME}</span>
+}
+function BrandMark() {
+  return <CaixaIcon size={22} />
+}
 
 const PANEL_ID = 'caixa'
 
@@ -73,4 +95,20 @@ export function apply(ctx: Context): void {
     locale: NS,
     inject: () => ({}),
   }, Toasts as never))
+
+  // Started by `caixa serve`, the window is Caixa's own: its name and mark where the harness shows
+  // its brand, its name in the title, and its page first. Inside someone's own harness Caixa stays a
+  // guest: one more panel, nothing renamed.
+  let stopTitle: (() => void) | undefined
+  let left = false
+  ctx.effect(() => () => { left = true; stopTitle?.() }, 'caixa: shell')
+  void isShell().then((shell) => {
+    if (!shell || left) return
+    stopTitle = ownTitle(document)
+    ctx.slots.inject('sidebar.brand.mark', () => ctx.slots.inject('sidebar.brand.name', function* () {
+      yield ctx.slots.register({ name: 'sidebar.brand.mark' } as never, BrandMark as never)
+      yield ctx.slots.register({ name: 'sidebar.brand.name' } as never, BrandName as never)
+    } as never))
+    try { (ctx as unknown as { layout: { selectPanel(id: string): void } }).layout.selectPanel(PANEL_ID) } catch { /* the page is not mounted yet: it is one click away */ }
+  })
 }

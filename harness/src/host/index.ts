@@ -29,6 +29,8 @@ export interface Config {
   roots: string[]
   /** Where the worker runs; empty means the folder DSH was started in. */
   cwd: string
+  /** True when the harness was started by `caixa serve`: the window is Caixa's own (its name, its page first). */
+  shell: boolean
 }
 
 export const Config: Schema<Config> = Schema.object({
@@ -37,6 +39,7 @@ export const Config: Schema<Config> = Schema.object({
   readOnly: Schema.boolean().default(false).description('Refuse every method that would change the box.'),
   roots: Schema.array(Schema.string()).default([]).description('Extra folders the file picker may show.'),
   cwd: Schema.string().default('').description('Where the worker runs; empty means the folder DSH was started in.'),
+  shell: Schema.boolean().default(false).description('The harness was started by `caixa serve`: show Caixa\'s name and open on its page.'),
 })
 
 /** The worker's command line for a configuration. */
@@ -79,13 +82,13 @@ export function apply(ctx: Context, config: Config): void {
 
   void ctx.subprocess.resolveExecutable(argv[0]!).then((executable) => {
     client = new WorkerClient(launch(executable), { log })
-    for (const route of caixaRoutes(client)) routes.push(ctx.connection.fetch.register(route))
+    for (const route of caixaRoutes(client, { shell: config.shell })) routes.push(ctx.connection.fetch.register(route))
     client.start()
   }, (error: unknown) => {
     // No `caixa` program: the routes still answer, with a plain "not running" the page can show.
     log(`cannot start the Caixa worker: ${String(error)}`)
     client = new WorkerClient(() => { throw error instanceof Error ? error : new Error(String(error)) }, { log })
-    for (const route of caixaRoutes(client)) routes.push(ctx.connection.fetch.register(route))
+    for (const route of caixaRoutes(client, { shell: config.shell })) routes.push(ctx.connection.fetch.register(route))
     client.start()
   })
 }
