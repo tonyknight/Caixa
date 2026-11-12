@@ -19,6 +19,7 @@ import inspect
 import mimetypes
 import queue
 import threading
+import time
 import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -108,6 +109,36 @@ class JobCancelled(Exception):
     """Raised inside a running import, from its progress callback, when a person cancelled it."""
 
 
+class _Pace:
+    """Pass progress on at a pace a person can read: every change of stage, the first and last
+    step of each stage, and otherwise at most one step every `interval` seconds. (An export can
+    hold thousands of conversations; saving and announcing every one would slow the import.)"""
+
+    def __init__(self, emit: Callable[[Progress], None], interval: float = 0.2) -> None:
+        self.emit, self.interval = emit, interval
+        self.stage: Optional[str] = None
+        self.sent = 0.0
+        self.held: Optional[Progress] = None
+
+    def __call__(self, step: Progress) -> None:
+        now = time.monotonic()
+        changed = step.stage != self.stage
+        finished = step.total is not None and step.current >= step.total
+        if changed:
+            self.flush()
+        if changed or finished or now - self.sent >= self.interval:
+            self.stage, self.sent, self.held = step.stage, now, None
+            self.emit(step)
+        else:
+            self.held = step
+
+    def flush(self) -> None:
+        """Send the last step that was held back, if any."""
+        held, self.held = self.held, None
+        if held is not None:
+            self.emit(held)
+
+
 Listener = Callable[[str, dict[str, Any]], None]
 
 
@@ -134,6 +165,7 @@ class Service:
         self._cancelled: set[int] = set()
         self._finished: dict[int, threading.Event] = {}
         self._lock = threading.Lock()
+        self._previews: dict[str, threading.Event] = {}  # previews being watched, by token
         if box is not None:
             self.box_open(str(box))
 
@@ -432,16 +464,68 @@ class Service:
 
     @method("import.preview")
     def import_preview(
-        self, collector: str, source: str, options: Optional[dict[str, Any]] = None
+        self,
+        collector: str,
+        source: str,
+        options: Optional[dict[str, Any]] = None,
+        token: Optional[str] = None,
     ) -> dict[str, Any]:
-        """A dry run: what an import would bring in. Writes nothing to the box or the source."""
+        """A dry run: what an import would bring in. Writes nothing to the box or the source.
+
+        With a `token` (any text the caller chooses) the preview's progress is announced as
+        `preview.progress` carrying that token, and `import.preview.cancel` can stop it.
+        """
         box = self._require_box()
         found = self._collector(collector)
         checked = self._options(found, options)
+        extra: dict[str, Any] = {}
+        pace: Optional[_Pace] = None
+        if token and "progress" in inspect.signature(found.preview).parameters:
+            stop = threading.Event()
+            with self._lock:
+                self._previews[token] = stop
+            pace = _Pace(
+                lambda step: self._announce(
+                    "preview.progress",
+                    {
+                        "token": token,
+                        "stage": step.stage,
+                        "current": step.current,
+                        "total": step.total,
+                        "message": step.message,
+                    },
+                )
+            )
+            watched = pace
+
+            def report(step: Progress) -> None:
+                if stop.is_set():
+                    raise JobCancelled()
+                watched(step)
+
+            extra["progress"] = report
         try:
-            return asdict(found.preview(Path(source).expanduser(), checked, box))
+            return asdict(found.preview(Path(source).expanduser(), checked, box, **extra))
+        except JobCancelled:
+            raise ServiceError("cancelled", "The preview was cancelled.") from None
         except InputError as error:
             raise ServiceError("input", str(error), {"details": error.details}) from None
+        finally:
+            if pace is not None:
+                pace.flush()
+            if token:
+                with self._lock:
+                    self._previews.pop(token, None)
+
+    @method("import.preview.cancel")
+    def import_preview_cancel(self, token: str) -> dict[str, bool]:
+        """Stop the preview that was started with this token (it ends with a 'cancelled' error)."""
+        with self._lock:
+            stop = self._previews.get(token)
+        if stop is None:
+            return {"cancelled": False}
+        stop.set()
+        return {"cancelled": True}
 
     @method("import.start", write=True)
     def import_start(
@@ -576,9 +660,7 @@ class Service:
         store.update(number, status="running", stage="starting")
         box.logs_dir.mkdir(parents=True, exist_ok=True)
 
-        def progress(step: Progress) -> None:
-            if number in self._cancelled:
-                raise JobCancelled()
+        def save(step: Progress) -> None:
             store.update(
                 number,
                 stage=step.stage,
@@ -597,6 +679,13 @@ class Service:
                 },
             )
 
+        pace = _Pace(save)
+
+        def progress(step: Progress) -> None:
+            if number in self._cancelled:
+                raise JobCancelled()
+            pace(step)
+
         outcome: dict[str, Any]
         with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
             with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
@@ -610,6 +699,8 @@ class Service:
                 except Exception as error:
                     traceback.print_exc()
                     outcome = {"status": "failed", "error": f"{type(error).__name__}: {error}"}
+        if outcome["status"] == "done":
+            pace.flush()  # the last step that was held back, before the job is marked done
         store.update(number, **outcome)
         self._announce("job.finished", self._job(number) | {"job": number})
         self._signal(number)

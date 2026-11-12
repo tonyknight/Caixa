@@ -176,6 +176,79 @@ describe('when an export cannot be imported', () => {
   })
 })
 
+describe('while a preview is being counted', () => {
+  const counting = async () => {
+    const view = await wizard()
+    view.api.holdPreview = true
+    click(/WhatsApp/)
+    click('I have the export')
+    type(/Path to the export/, '/exports/messages')
+    click('Continue')
+    click('Preview')
+    await view.flush()
+    return view
+  }
+
+  it('shows the stages, how many of how many, and what is being read', async () => {
+    const view = await counting()
+    const token = view.api.previewTokens.at(-1)!
+    expect(token).toBeTruthy()
+    await view.emit('preview.progress', { token, stage: 'importing', current: 320, total: 4812, message: 'friend_1042' })
+    const status = screen.getByRole('status')
+    expect(within(status).getByText('320 of 4,812', { exact: false })).toBeTruthy()
+    expect(within(status).getByText('friend_1042')).toBeTruthy()
+    const stages = within(status).getByRole('list', { name: 'Steps of the import' })
+    expect(Array.from(stages.querySelectorAll('li')).map(li => li.textContent)).toEqual(['Reading the export', 'Importing', 'Matching people'])
+    expect(stages.querySelector('[aria-current="step"]')!.textContent).toBe('Importing')
+    expect((status.querySelector('progress') as HTMLProgressElement).value).toBe(320)
+    expect(within(status).getByText(/So far: \d+ s/)).toBeTruthy()
+    expect((screen.getByRole('button', { name: 'Import' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('ignores the progress of some other preview', async () => {
+    const view = await counting()
+    await view.emit('preview.progress', { token: 'someone-else', stage: 'importing', current: 9, total: 10, message: 'x' })
+    expect(screen.queryByText('9 of 10', { exact: false })).toBeNull()
+  })
+
+  it('can be stopped: going back tells the worker to stop counting', async () => {
+    const view = await counting()
+    const token = view.api.previewTokens.at(-1)!
+    click('Stop and go back')
+    await view.flush()
+    expect(view.api.cancelledPreviews).toEqual([token])
+    expect(currentStep()).toBe('Options')
+  })
+
+  it('shows the result when it arrives, and stops nothing', async () => {
+    const view = await counting()
+    view.api.releasePreview()
+    await view.flush()
+    expect(screen.getByText('7 items in 1 conversations')).toBeTruthy()
+    expect(view.api.cancelledPreviews).toEqual([])
+    expect(screen.getByRole('button', { name: 'Back' })).toBeTruthy()
+  })
+})
+
+describe('while an import runs', () => {
+  it('shows every stage, the count and the time so far', async () => {
+    const view = await wizard()
+    await toPreview(view)
+    click('Import')
+    await view.flush()
+    view.api.jobList = [job({ id: 5, status: 'running', stage: 'preparing', result: null, finished_at: null })]
+    await view.store.refreshJobs()
+    await view.emit('job.progress', { job: 5, stage: 'filing', current: 40, total: 200, message: 'photos' })
+    const status = screen.getByRole('status')
+    const stages = within(status).getByRole('list', { name: 'Steps of the import' })
+    expect(Array.from(stages.querySelectorAll('li')).map(li => li.textContent)).toEqual(
+      ['Reading the export', 'Importing', 'Matching people', 'Filing photos, audio and other files', 'Writing the pages', 'Updating the box'])
+    expect(stages.querySelector('[aria-current="step"]')!.textContent).toBe('Filing photos, audio and other files')
+    expect(within(status).getByText('40 of 200', { exact: false })).toBeTruthy()
+    expect(within(status).getByText(/So far:/)).toBeTruthy()
+  })
+})
+
 describe('before a box is open', () => {
   it('says to open one first', async () => {
     await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.box = fail('no_box', 'x') })
@@ -327,7 +400,7 @@ describe('step 5: the preview', () => {
     click('Continue')
     type('Your name', 'Maria Costa')
     click('Preview')
-    expect(screen.getByText('Looking at the export…')).toBeTruthy()
+    expect(screen.getByText(/Looking at the export…/)).toBeTruthy()
     await view.flush()
     expect(view.api.calls).toContainEqual(['preview', 'whatsapp', '/exports/chat.txt', { owner: 'Maria Costa' }])
     expect(screen.getByText('7 items in 1 conversations')).toBeTruthy()
@@ -371,7 +444,8 @@ describe('step 6: running and the report', () => {
     await view.store.refreshJobs()
     await view.emit('job.progress', { job: 5, stage: 'importing', current: 1, total: 4, message: 'chat.txt' })
     expect(screen.getByText('Importing from WhatsApp…')).toBeTruthy()
-    expect(screen.getByText('Importing — chat.txt')).toBeTruthy()
+    expect(screen.getByText('1 of 4', { exact: false })).toBeTruthy()
+    expect(screen.getByText('chat.txt')).toBeTruthy()
     const bar = screen.getByRole('status').querySelector('progress')!
     expect(bar).toMatchObject({ max: 4, value: 1 })
 

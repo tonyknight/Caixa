@@ -6,7 +6,7 @@
  * the pages and the toast host read it through `useSyncExternalStore` (see `hooks.ts`).
  */
 
-import type { Api, BoxStatus, CaixaError, ImportDraft, Job, RecentBox, SessionInfo } from './api.ts'
+import type { Api, BoxStatus, CaixaError, ImportDraft, Job, RecentBox, SessionInfo, Step } from './api.ts'
 
 export type WorkerStatus = 'unknown' | 'running' | 'restarting' | 'failed' | 'stopped'
 
@@ -45,6 +45,8 @@ export interface State {
   readonly view: string | null
   /** The import that was being set up and not yet started; null if none. */
   readonly draft: ImportDraft | null
+  /** How far the previews being watched are, by the token each was started with. */
+  readonly previews: Readonly<Record<string, Step>>
 }
 
 export interface StoreOptions {
@@ -61,7 +63,7 @@ const FINISHED = new Set(['done', 'failed', 'cancelled', 'interrupted'])
 
 export class Store {
   private state: State = {
-    worker: 'unknown', readOnly: false, box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0, recent: [], view: null, draft: null,
+    worker: 'unknown', readOnly: false, box: null, ready: false, jobs: [], names: {}, toasts: [], inboxVersion: 0, boxVersion: 0, recent: [], view: null, draft: null, previews: {},
   }
   private listeners = new Set<() => void>()
   private stopFollowing: (() => void) | undefined
@@ -223,6 +225,14 @@ export class Store {
       const was = this.state.worker
       this.set({ worker: next })
       if (next === 'running' && was !== 'running' && this.state.ready) void this.comeBack()
+    } else if (name === 'preview.progress') {
+      const token = String(data.token ?? '')
+      if (token) {
+        this.set({ previews: { ...this.state.previews, [token]: {
+          stage: String(data.stage ?? ''), current: Number(data.current ?? 0),
+          total: data.total === null || data.total === undefined ? null : Number(data.total), message: String(data.message ?? ''),
+        } } })
+      }
     } else if (name === 'job.progress') {
       this.progress(data)
     } else if (name === 'job.finished') {
@@ -287,6 +297,13 @@ export class Store {
 
   dismissToast = (id: number): void => {
     if (this.state.toasts.some(toast => toast.id === id)) this.set({ toasts: this.state.toasts.filter(toast => toast.id !== id) })
+  }
+
+  /** A preview has ended: its progress is no longer needed. */
+  forgetPreview(token: string): void {
+    if (!(token in this.state.previews)) return
+    const { [token]: _gone, ...rest } = this.state.previews
+    this.set({ previews: rest })
   }
 
   /** Tell lists to re-read (after people or pages changed). */

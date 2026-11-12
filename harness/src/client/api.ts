@@ -52,7 +52,7 @@ export function follow(
   make: (url: string) => EventSource = url => new EventSource(url),
 ): () => void {
   const source = make('/api/caixa/events')
-  const names = ['job.progress', 'job.finished', 'inbox.changed', 'worker.state']
+  const names = ['job.progress', 'job.finished', 'preview.progress', 'inbox.changed', 'worker.state']
   for (const name of names) {
     source.addEventListener(name, (event) => {
       let payload: unknown
@@ -121,6 +121,14 @@ export interface PreviewResult {
   readonly participants: readonly string[]
   readonly unresolved: readonly string[]
   readonly warnings: readonly string[]
+}
+
+/** How far a preview or an import is. */
+export interface Step {
+  readonly stage: string
+  readonly current: number
+  readonly total: number | null
+  readonly message: string
 }
 
 export interface ImportResult {
@@ -256,7 +264,9 @@ export interface Api {
   boxCreate(path: string, name: string, owner: string): Promise<CaixaResult<BoxStatus>>
   boxOpen(path: string): Promise<CaixaResult<BoxStatus>>
   collectors(): Promise<CaixaResult<CollectorDescription[]>>
-  preview(collector: string, source: string, options: Record<string, unknown>): Promise<CaixaResult<PreviewResult>>
+  /** With a `token`, the preview's progress is announced (`preview.progress`) and it can be cancelled. */
+  preview(collector: string, source: string, options: Record<string, unknown>, token?: string): Promise<CaixaResult<PreviewResult>>
+  cancelPreview(token: string): Promise<CaixaResult<{ cancelled: boolean }>>
   startImport(collector: string, source: string, options: Record<string, unknown>): Promise<CaixaResult<Job>>
   cancel(job: number): Promise<CaixaResult<Job>>
   jobs(limit?: number): Promise<CaixaResult<Job[]>>
@@ -291,7 +301,8 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     boxCreate: (path, name, owner) => run('box.create', { path, name, owner }),
     boxOpen: path => run('box.open', { path }),
     collectors: () => run('collectors.list'),
-    preview: (collector, source, options) => run('import.preview', { collector, source, options }),
+    preview: (collector, source, options, token) => run('import.preview', token ? { collector, source, options, token } : { collector, source, options }),
+    cancelPreview: token => run('import.preview.cancel', { token }),
     startImport: (collector, source, options) => run('import.start', { collector, source, options }),
     cancel: job => run('import.cancel', { job }),
     jobs: (limit = 100) => run('jobs.list', { limit }),

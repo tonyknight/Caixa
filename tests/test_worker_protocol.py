@@ -26,6 +26,7 @@ ALL_METHODS = {
     "box.status",
     "collectors.list",
     "import.preview",
+    "import.preview.cancel",
     "import.start",
     "import.cancel",
     "jobs.list",

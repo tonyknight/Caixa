@@ -54,6 +54,14 @@ export async function startHarness(options: { caixaPatch?: boolean; caixaHome?: 
   const entry = await fetch(link, { redirect: 'manual' })
   const cookie = entry.headers.getSetCookie().map(c => c.split(';')[0]).join('; ')
   if (!cookie) throw new Error('no sign-in cookie')
+  // The harness answers before every plugin's routes are mounted: wait for Caixa's own, so a test's
+  // first call is never answered "not found".
+  for (let attempt = 0; ; attempt++) {
+    const ready = await fetch(`${base}/api/caixa/status`, { headers: { cookie } }).then(r => r.status === 200, () => false)
+    if (ready) break
+    if (attempt > 150) throw new Error('the Caixa routes never came up')
+    await new Promise(resolve => setTimeout(resolve, 200))
+  }
   return {
     base, cookie, work,
     rpc: async (method, params = {}) => await (await fetch(`${base}/api/caixa/rpc`, {

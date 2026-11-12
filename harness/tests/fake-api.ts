@@ -96,7 +96,18 @@ export class FakeApi implements Api {
   async boxCreate(path: string, name: string, owner: string) { this.record('boxCreate', path, name, owner); return this.box }
   async boxOpen(path: string) { this.record('boxOpen', path); return this.box }
   async collectors() { this.record('collectors'); return ok(this.collectorList) }
-  async preview(collector: string, source: string, options: Record<string, unknown>) { this.record('preview', collector, source, options); return this.previewReply }
+  /** Set to hold previews open until `releasePreview()` (to look at the wizard while one counts). */
+  holdPreview = false
+  previewTokens: (string | undefined)[] = []
+  cancelledPreviews: string[] = []
+  private waiting: (() => void)[] = []
+  releasePreview() { for (const go of this.waiting.splice(0)) go() }
+  async preview(collector: string, source: string, options: Record<string, unknown>, token?: string) {
+    this.record('preview', collector, source, options); this.previewTokens.push(token)
+    if (this.holdPreview) await new Promise<void>(resolve => this.waiting.push(resolve))
+    return this.previewReply
+  }
+  async cancelPreview(token: string) { this.record('cancelPreview', token); this.cancelledPreviews.push(token); return ok({ cancelled: true }) }
   async startImport(collector: string, source: string, options: Record<string, unknown>) { this.record('startImport', collector, source, options); return this.startReply }
   async cancel(id: number) { this.record('cancel', id); return ok(job({ id, status: 'cancelled' })) }
   async jobs() { this.record('jobs'); return ok(this.jobList) }

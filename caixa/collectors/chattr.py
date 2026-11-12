@@ -188,9 +188,19 @@ class _Chattr:
     # --- Preview ----------------------------------------------------------------------------
 
     def preview(
-        self, source: Path, options: Mapping[str, Any], box: Optional[Box] = None
+        self,
+        source: Path,
+        options: Mapping[str, Any],
+        box: Optional[Box] = None,
+        progress: Optional[Callable[[Progress], None]] = None,
     ) -> Preview:
-        """Read everything in a scratch Chattr root and count it; the box and source are untouched."""
+        """Read everything in a scratch Chattr root and count it; the box and source are untouched.
+
+        `progress`, when given, is told about each input as it is read (a large export takes a
+        while to count), and may raise to stop the preview.
+        """
+        report = progress or (lambda _progress: None)
+        report(Progress("preparing", message=f"Reading {Path(source).name}"))
         opts = self._options(options, box)
         with tempfile.TemporaryDirectory(prefix="caixa-preview-") as scratch_name:
             scratch = Path(scratch_name)
@@ -198,9 +208,8 @@ class _Chattr:
             settings = self._settings(scratch / "chattr")
             aliases = self._aliases(box, scratch / "aliases.json")
             owner = self._owner(opts, box)
-            notes = self._import_all(
-                settings, items, opts, owner, aliases, None, False, lambda _progress: None
-            )
+            notes = self._import_all(settings, items, opts, owner, aliases, None, False, report)
+            report(Progress("linking", message="Matching people"))
             described = self._describe(settings, opts, owner, aliases)
             described.warnings[:0] = notes
             return described

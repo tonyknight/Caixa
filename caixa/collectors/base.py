@@ -76,6 +76,9 @@ class RunResult:
 class Collector(Protocol):
     info: CollectorInfo
 
+    # A collector's `preview` may also take `progress: Optional[Callable[[Progress], None]]`
+    # (keyword). When it does, Caixa passes one, so a long preview can show how far it is and
+    # can be cancelled (the callback raises). Collectors without it preview silently.
     def preview(
         self, source: Path, options: Mapping[str, Any], box: Optional["Box"] = None
     ) -> Preview: ...

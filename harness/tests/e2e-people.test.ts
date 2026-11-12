@@ -54,7 +54,7 @@ run('the People section, in a browser', () => {
       }
 
       // The queue shows what the imports could not name.
-      expect(await page.getByText('Ana Costa', { exact: true }).count()).toBeGreaterThan(0)
+      await page.getByText('Ana Costa', { exact: true }).first().waitFor({ timeout: 30_000 }) // (wait: the list re-reads itself when a job ends)
       expect(pages(box, 'Ana Costa')).toEqual(['(2024) Ana Costa.html'])
 
       // Name the WhatsApp handle: the page moves to the new person's folder and the old one goes.

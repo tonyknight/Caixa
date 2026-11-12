@@ -3,6 +3,7 @@ import type { CollectorDescription, Job, PreviewResult } from '../api.ts'
 import { DiagnosticsReport, Reasons } from '../components/Diagnostics.tsx'
 import { FilePicker, InboxList } from '../components/FilePicker.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
+import { IMPORT_STAGES, PREVIEW_STAGES, ProgressView } from '../components/Progress.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import type { CaixaKey } from '../locales.ts'
 import { fields as formFields, initialValues, toOptions, type FormValues } from '../options-form.ts'
@@ -219,16 +220,28 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
   const [failure, setFailure] = useState<string | undefined>()
   const [starting, setStarting] = useState(false)
   const { options } = useMemo(() => toOptions(fields, values), [fields, values])
+  const { previews } = useCaixa()
+  // Each preview has a token, so its progress can be followed and it can be stopped.
+  const [watch, setWatch] = useState<{ token: string; startedAt: number } | undefined>()
 
   useEffect(() => {
     let current = true
-    void store.api.preview(collector.id, source, options).then((reply) => {
+    const token = `preview-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    setWatch({ token, startedAt: Date.now() })
+    setPreview(undefined)
+    setFailure(undefined)
+    void store.api.preview(collector.id, source, options, token).then((reply) => {
+      store.forgetPreview(token)
       if (!current) return
       if (reply.ok) setPreview(reply.result)
       else setFailure(reply.error.message)
     })
-    return () => { current = false }
+    return () => {
+      // leaving while it is still counting: tell the worker to stop, it has nothing to show anyone
+      if (current) { current = false; void store.api.cancelPreview(token) }
+    }
   }, [store, collector.id, source, options])
+  const counting = !preview && !failure
 
   const start = async () => {
     setStarting(true)
@@ -240,7 +253,12 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
   return (
     <>
       <h3>{t('import.preview.heading')}</h3>
-      {!preview && !failure && <p className={css.muted} role="status">{t('import.preview.working')}</p>}
+      {counting && (
+        <div role="status">
+          <p className={css.muted}>{t('import.preview.working')} {t('import.preview.long')}</p>
+          {watch && <ProgressView step={previews[watch.token]} stages={PREVIEW_STAGES} startedAt={watch.startedAt} />}
+        </div>
+      )}
       {failure && (
         <div className={css.error} role="alert">
           <strong>{t('import.preview.error')}</strong><br /><Reasons message={failure} />
@@ -264,7 +282,7 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
         </div>
       )}
       <div className={`${css.actions} ${css.pinned}`}>
-        <button type="button" className={css.button} onClick={onBack}>{t('common.back')}</button>
+        <button type="button" className={css.button} onClick={onBack}>{counting ? t('import.preview.cancel') : t('common.back')}</button>
         <button type="button" className={`${css.button} ${css.primary}`} disabled={!preview || preview.items === 0 || starting} onClick={() => void start()}>
           {t('import.preview.start')}
         </button>
@@ -285,10 +303,8 @@ function RunStep({ collector, jobId, onAgain, onShowJob, onShowPeople }: { colle
       <div className={css.card} role="status">
         <h3>{queued ? t('import.run.queued') : t('import.run.working', { name: collector.name })}</h3>
         {job && !queued && (
-          <>
-            <p>{t(`stage.${job.stage ?? 'starting'}` as CaixaKey)}{job.message ? ` — ${job.message}` : ''}</p>
-            {job.total ? <progress className={css.progress} max={job.total} value={job.current} /> : <progress className={css.progress} />}
-          </>
+          <ProgressView stages={IMPORT_STAGES} startedAt={job.started_at ? Date.parse(job.started_at) : Date.now()}
+                        step={{ stage: job.stage ?? 'starting', current: job.current, total: job.total, message: job.message ?? '' }} />
         )}
         <div className={css.actions}>
           <button type="button" className={css.button} onClick={() => void store.api.cancel(jobId)}>{t('import.run.cancel')}</button>
