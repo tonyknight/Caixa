@@ -1,5 +1,8 @@
 /* Neutral on purpose: only system colors and currentColor, so DSH's light and dark themes both work. */
-.page { padding: 1.5rem 2rem 3rem; max-width: 62rem; font-size: 0.95rem; line-height: 1.5; }
+/* The harness's centre column is as tall as the window and hides what does not fit, so the page is
+   its own scroll area: without this, anything below the fold cannot be reached. */
+.page { flex: 1 1 auto; min-height: 0; height: 100%; overflow-y: auto; box-sizing: border-box; font-size: 0.95rem; line-height: 1.5; }
+.content { padding: 1.5rem 2rem 3rem; max-width: 62rem; }
 .title { margin: 0 0 0.25rem; font-size: 1.6rem; }
 .lead { margin: 0 0 1rem; opacity: 0.75; }
 .nav { display: flex; gap: 0.25rem; margin: 1rem 0 1.5rem; border-bottom: 1px solid color-mix(in srgb, currentColor 20%, transparent); }
@@ -27,6 +30,8 @@
 .check input { margin-top: 0.3rem; }
 .problem { color: #b3261e; font-size: 0.85rem; margin: 0.2rem 0 0; }
 .actions { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-top: 1.1rem; }
+/* The buttons that move a step forward stay at the bottom of the window however long the step is. */
+.pinned { position: sticky; bottom: 0; z-index: 1; margin: 1.1rem -2rem -3rem; padding: 0.8rem 2rem; background: var(--dsw-alias-bg-base, Canvas); border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
 .button { appearance: none; border: 1px solid currentColor; background: none; color: inherit; font: inherit; padding: 0.4rem 1rem; border-radius: 0.4rem; cursor: pointer; }
 .button:disabled { opacity: 0.45; cursor: not-allowed; }
 .primary { background: CanvasText; color: Canvas; border-color: CanvasText; font-weight: 600; }

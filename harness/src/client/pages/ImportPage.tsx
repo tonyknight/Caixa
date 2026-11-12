@@ -13,6 +13,23 @@ const STEPS: Step[] = ['source', 'export', 'input', 'options', 'preview', 'run']
 /** The steps an unfinished import can be put back at (the preview is made again from the options). */
 const RESTORABLE: Step[] = ['export', 'input', 'options']
 
+/** A list of names that may be very long: the first few, and a button for the rest. */
+function LongList({ items, first = 12 }: { items: readonly string[]; first?: number }) {
+  const t = useT()
+  const [all, setAll] = useState(false)
+  const shown = all ? items : items.slice(0, first)
+  return (
+    <p>
+      {shown.join(', ')}{items.length > shown.length ? ' … ' : ' '}
+      {items.length > first && (
+        <button type="button" className={css.link} onClick={() => setAll(!all)}>
+          {all ? t('common.showFewer') : t('common.showAll', { count: items.length })}
+        </button>
+      )}
+    </p>
+  )
+}
+
 /** The import wizard: source → how to export → choose → options → preview → run → report. */
 export function ImportPage({ onShowJob, onShowPeople }: { onShowJob: (job: number) => void; onShowPeople: () => void }) {
   const { box, readOnly } = useCaixa()
@@ -135,7 +152,7 @@ function ExportStep({ collector, onBack, onNext }: { collector: CollectorDescrip
         <h3>{t('import.export.heading', { name: collector.name })}</h3>
         <p className={css.howto}>{collector.how_to_export}</p>
       </div>
-      <div className={css.actions}>
+      <div className={`${css.actions} ${css.pinned}`}>
         <button type="button" className={css.button} onClick={onBack}>{t('common.back')}</button>
         <button type="button" className={`${css.button} ${css.primary}`} onClick={onNext}>{t('import.export.next')}</button>
       </div>
@@ -163,7 +180,7 @@ function InputStep({ collector, value, onChange, onBack, onNext }: {
       <h3>{t('import.input.inbox')}</h3>
       <p className={css.muted}>{t('import.input.inbox.lead')}</p>
       <InboxList onPick={onChange} />
-      <div className={css.actions}>
+      <div className={`${css.actions} ${css.pinned}`}>
         <button type="button" className={css.button} onClick={onBack}>{t('common.back')}</button>
         <button type="button" className={`${css.button} ${css.primary}`} disabled={value.trim() === ''} onClick={onNext}>{t('import.input.next')}</button>
       </div>
@@ -184,7 +201,7 @@ function OptionsStep({ fields, values, onChange, onBack, onNext }: {
       <h3>{t('import.options.heading')}</h3>
       {fields.length === 0 ? <p className={css.muted}>{t('import.options.none')}</p>
         : <OptionsForm fields={fields} values={values} problems={shown ? problems : {}} onChange={onChange} />}
-      <div className={css.actions}>
+      <div className={`${css.actions} ${css.pinned}`}>
         <button type="button" className={css.button} onClick={onBack}>{t('common.back')}</button>
         <button type="button" className={`${css.button} ${css.primary}`} onClick={() => { setShown(true); if (!blocked) onNext() }}>{t('import.options.next')}</button>
       </div>
@@ -235,18 +252,18 @@ function PreviewStep({ collector, source, values, fields, onBack, onStarted }: {
           <p><strong>{t('import.preview.counts', { items: preview.items, conversations: preview.conversations })}</strong></p>
           {preview.first && preview.last && <p>{t('import.preview.range', { first: preview.first, last: preview.last })}</p>}
           {preview.items === 0 && <p>{t('import.preview.nothing')}</p>}
-          {preview.participants.length > 0 && <><h3>{t('import.preview.people')}</h3><p>{preview.participants.join(', ')}</p></>}
+          {preview.participants.length > 0 && <><h3>{t('import.preview.people')} ({preview.participants.length})</h3><LongList items={preview.participants} /></>}
           {preview.unresolved.length > 0 && (
             <>
               <h3>{t('import.preview.unresolved', { count: preview.unresolved.length })}</h3>
-              <p>{preview.unresolved.slice(0, 20).join(', ')}{preview.unresolved.length > 20 ? ' …' : ''}</p>
+              <LongList items={preview.unresolved} />
               <p className={css.muted}>{t('import.preview.unresolved.help')}</p>
             </>
           )}
           {preview.warnings.length > 0 && <><h3>{t('import.preview.warnings')}</h3><ul>{preview.warnings.map(w => <li key={w}>{w}</li>)}</ul></>}
         </div>
       )}
-      <div className={css.actions}>
+      <div className={`${css.actions} ${css.pinned}`}>
         <button type="button" className={css.button} onClick={onBack}>{t('common.back')}</button>
         <button type="button" className={`${css.button} ${css.primary}`} disabled={!preview || preview.items === 0 || starting} onClick={() => void start()}>
           {t('import.preview.start')}

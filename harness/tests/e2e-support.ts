@@ -119,3 +119,9 @@ export function buildFixtures(into: string): Record<string, string> {
   ].join('\n')
   return JSON.parse(execFileSync('python', ['-c', code, into], { cwd: repository, encoding: 'utf8' }).trim().split('\n').pop()!)
 }
+
+/** Save a picture of the page when `CAIXA_SHOTS` names a folder (for looking at a change by eye). */
+export async function shot(page: any, name: string): Promise<void> {
+  const folder = process.env.CAIXA_SHOTS
+  if (folder) await page.screenshot({ path: join(folder, `${name}.png`) })
+}

@@ -28,6 +28,7 @@ export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
 
   return (
     <main className={css.page} data-testid="caixa-page">
+      <div className={css.content}>
       <h1 className={css.title}>{t('page.title')}</h1>
       <p className={css.lead}>{t('page.lead')}</p>
       {(worker === 'restarting' || worker === 'failed' || worker === 'stopped') && (
@@ -47,6 +48,7 @@ export function CaixaPage({ initial = 'box' }: { initial?: Section }) {
       {section === 'people' && <PeoplePage />}
       {section === 'browse' && <BrowsePage />}
       {section === 'settings' && <SettingsPage onChangeBox={() => setSection('box')} />}
+      </div>
     </main>
   )
 }

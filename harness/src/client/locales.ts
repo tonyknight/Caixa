@@ -25,6 +25,8 @@ export const en = {
 
   'common.loading': 'Loading…',
   'common.back': 'Back',
+  'common.showAll': 'Show all {count}',
+  'common.showFewer': 'Show fewer',
   'common.error': 'Something went wrong: {message}',
 
   'box.none.title': 'Create or open a box',
@@ -264,6 +266,8 @@ export const zh: Dictionary = {
 
   'common.loading': '正在加载…',
   'common.back': '返回',
+  'common.showAll': '显示全部 {count} 项',
+  'common.showFewer': '收起',
   'common.error': '出错了：{message}',
 
   'box.none.title': '创建或打开档案盒',
