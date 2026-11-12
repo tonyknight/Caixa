@@ -777,6 +777,15 @@ class IMessage(_Chattr):
                 "Point Caixa at chat.db (or a copy of it)."
             ),
             options_schema=_schema(
+                mac_contacts={
+                    "type": "boolean",
+                    "default": True,
+                    "title": "Use this Mac's Contacts",
+                    "description": (
+                        "Name people from the Contacts app on this Mac (read-only; needs Full "
+                        "Disk Access, like Messages). A contacts file, if given, is used as well."
+                    ),
+                },
                 region={
                     "type": "string",
                     "default": "US",
@@ -840,6 +849,7 @@ class IMessage(_Chattr):
             settings,
             db_path=item,
             contacts=options.get("contacts") or None,
+            mac_contacts=bool(options.get("mac_contacts", True)),
             region=options.get("region") or None,
             attachment_root=attachment_root,
             workers=options.get("workers"),

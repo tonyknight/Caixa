@@ -122,6 +122,13 @@ lets a program read it only after you give that program **Full Disk Access** (Sy
 Security). Caixa opens the database read-only and never changes it. You can also copy `chat.db` (and the
 `Attachments` folder next to it) somewhere and import the copy.
 
+**One person, one conversation.** Messages keeps a separate entry for each address a person uses (their
+phone number for iMessage, the same number for SMS, their email), and can split one conversation into
+several. Caixa joins addresses that are the same person (the same address on two services, addresses
+Messages itself ties together, addresses on one Contacts card) and imports a split conversation as one.
+Naming one of a person's addresses names the others. The schema is read as it is: Caixa looks at which
+columns your macOS version has and uses those (`chattr-cli doctor chat.db` lists what it found).
+
 **Import.**
 
 ```bash
@@ -138,6 +145,7 @@ caixa import imessage ~/Library/Messages/chat.db --box ~/Our\ Box \
 | `spam_mode` | `aggressive` | `aggressive`, `conservative` or `disabled`: how much machine-sent noise (RCS, unknown senders, system notices) to **tag**. Nothing is ever thrown away. |
 | `workers` | `4` | How many parts of the database are read at once. |
 | `limit` | `0` | Read only this many messages (0 reads everything). Useful for a first try on a huge library. |
+| `mac_contacts` | `true` | Name people from the Contacts app on this Mac (read-only). Needs Full Disk Access for the app you start Caixa from, the same as Messages. A `contacts` file is used as well and wins on a clash. |
 | `attachment_root` | *(empty)* | Where macOS keeps attachments. Empty uses the `Attachments` folder next to `chat.db` when there is one. |
 
 **What you get.** Messages with their tapback reactions, one page per year per person (or group). iMessage has no names of its own, only phone numbers and email addresses, so give `contacts` or
