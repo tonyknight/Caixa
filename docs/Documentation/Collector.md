@@ -130,6 +130,12 @@ sentences: someone added or removed, the conversation named, the group photo cha
 location sharing started or stopped, an audio message kept, Emergency SOS events. An event Caixa does not
 recognise is still shown, with Messages' own code for it.
 
+Messages that are not text are read too: a **link preview** keeps its address, title, site and summary; an
+**Apple Pay** transfer, a **Check In**, a poll or a message from an app (a game move, a reservation) shows
+the app's name and its caption; a message **sent with an effect** says which. Messages recently **deleted**
+in the Messages app (kept there for 30 days) are imported in their conversation and marked, and the
+**category** Messages itself gave a message (junk, promotion, transaction) is shown.
+
 **One person, one conversation.** Messages keeps a separate entry for each address a person uses (their
 phone number for iMessage, the same number for SMS, their email), and can split one conversation into
 several. Caixa joins addresses that are the same person (the same address on two services, addresses
