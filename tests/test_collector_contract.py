@@ -200,7 +200,7 @@ def test_the_real_entry_point_group_is_read_by_default() -> None:
 
 def test_a_box_has_the_folders_a_person_expects(tmp_path: Path) -> None:
     box = Box.create(tmp_path / "Our Family", name="Our Family")
-    for folder in ("Messages", "Mail", "People", ".caixa/work", ".caixa/logs"):
+    for folder in ("People", "Groups", "Mail", "Inbox", ".caixa/work", ".caixa/logs"):
         assert (box.root / folder).is_dir(), folder
     readme = (box.root / "README.md").read_text(encoding="utf-8")
     assert "Our Family" in readme and "Caixa" in readme

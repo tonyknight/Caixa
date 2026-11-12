@@ -171,8 +171,8 @@ def test_running_imports_into_the_box(six: dict[str, Collector], fixture_family,
     assert status["items"] == 7
     assert status["people"] == 1  # the owner: Ana is only a name until someone links her
     assert result.unresolved == ["WhatsApp: Ana Costa"]
-    assert (box.root / "Messages" / family.ANA.name).is_dir()  # pages for Ana's chat
-    pages = sorted((box.root / "Messages" / family.ANA.name).glob("(*) *.html"))
+    assert (box.root / "People" / family.ANA.name).is_dir()  # pages for Ana's chat
+    pages = sorted((box.root / "People" / family.ANA.name).glob("(*) *.html"))
     assert pages and "Que lindo! Buy two." in pages[0].read_text(encoding="utf-8")
     assert (box.root / "index.html").is_file()
     assert (box.work_dir("chattr") / "Database" / "chattr.sqlite").is_file()
@@ -184,7 +184,7 @@ def test_the_pages_are_recorded_on_the_items(
     _run(six["whatsapp"], box, _source(fixture_family, "whatsapp"))
     with box.master() as master:
         rows = master.connection.execute("SELECT file_path, anchor, id FROM items").fetchall()
-    assert all(r["file_path"] and r["file_path"].startswith("Messages/") for r in rows)
+    assert all(r["file_path"] and r["file_path"].startswith("People/") for r in rows)
     assert all(r["anchor"] == f"#m-{r['id']}" for r in rows)
     assert all((box.root / r["file_path"]).is_file() for r in rows)
 
@@ -195,7 +195,7 @@ def test_progress_arrives_in_order_and_ends_done(
     _, events = _run(six["mail"], box, _source(fixture_family, "mail"))
     stages = [e.stage for e in events]
     assert stages[0] == "preparing" and stages[-1] == "done"
-    order = ["preparing", "importing", "linking", "rendering", "syncing", "done"]
+    order = ["preparing", "importing", "linking", "filing", "rendering", "syncing", "done"]
     assert [s for s in order if s in stages] == order
     assert stages == sorted(stages, key=order.index)
 
@@ -217,7 +217,7 @@ def test_all_six_sources_make_one_box(six: dict[str, Collector], fixture_family,
     status = box.status()
     assert status["items"] == sum(EXPECTED_ITEMS.values())
     assert {"text", "call", "voicemail", "email", "media", "system"} <= set(status["by_type"])
-    ana = box.root / "Messages" / family.ANA.name
+    ana = box.root / "People" / family.ANA.name
     years = {p.name for p in ana.glob("(*) *.html")}
     assert {f"(2018) {family.ANA.name}.html", f"(2024) {family.ANA.name}.html"} <= years
     assert list((box.root / "Mail").rglob("*.html"))
@@ -228,10 +228,39 @@ def test_mail_attachments_and_voicemail_audio_live_in_the_box(
 ) -> None:
     _run(six["mail"], box, _source(fixture_family, "mail"))
     _run(six["voicemail"], box, _source(fixture_family, "voicemail"))
-    assert list((box.root / "Mail" / "Attachments").rglob("*.png"))
-    assert list((box.root / "Audio" / "Voicemail").rglob("*.amr"))
+    # each file is beside what shows it, named for its date and sender: nothing is filed by hash
+    assert [p.name for p in (box.root / "Mail" / "2019" / "Attachments").glob("*.png")] == [
+        f"(2019-11-02) 16-00-00 {family.JOAO.name} — familia.png"
+    ]
+    audio = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.amr"))
+    ana, joao = family.ANA.phones[0], family.JOAO.phones[0]  # nobody has named the callers yet
+    assert audio == [
+        f"People/{ana}/Voicemail/(2022-06-14) 14-05-00 {ana}.amr",
+        f"People/{joao}/Voicemail/(2021-12-24) 19-30-00 {joao}.amr",
+    ]
+    assert not (box.root / "Audio").exists() and not (box.root / "Messages").exists()
+    assert not (box.caixa_dir / "work" / "incoming").exists()  # the working copies are gone
     page = next((box.root / "Mail").rglob("(2019-11-02)*.html")).read_text(encoding="utf-8")
     assert "familia.png" in page and "file not in this archive" not in page
+    home = (box.root / "People" / ana / "index.html").read_text(encoding="utf-8")
+    assert "Voicemail" in home and "(2022)" in home
+
+
+def test_nothing_in_the_box_is_named_by_a_hash(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    import re
+
+    for collector_id in IDS:
+        _run(six[collector_id], box, _source(fixture_family, collector_id))
+    visible = [
+        p.relative_to(box.root).as_posix()
+        for p in box.root.rglob("*")
+        if p.is_file() and ".caixa" not in p.relative_to(box.root).parts
+    ]
+    assert visible and not [p for p in visible if re.search(r"[0-9a-f]{32,}", p)]
+    top = {p.split("/")[0] for p in visible}
+    assert top <= {"People", "Groups", "Mail", "Inbox", "README.md", "index.html"}
 
 
 def test_whatsapp_media_is_filed_under_the_person(
@@ -239,7 +268,7 @@ def test_whatsapp_media_is_filed_under_the_person(
 ) -> None:
     _run(six["whatsapp"], box, _source(fixture_family, "whatsapp"))
     photos = list(
-        (box.root / "Messages" / family.ANA.name / "Attachments").glob("(2024-03-01) 14-05-09 *")
+        (box.root / "People" / family.ANA.name / "WhatsApp").glob("(2024-03-01) 14-05-09 *")
     )
     assert len(photos) == 1
 
@@ -251,7 +280,7 @@ def test_the_boxs_aliases_and_owner_are_given_to_chattr(
         ana = master.add_person("Ana (daughter)")
         master.add_alias(ana, family.ANA.name, "name", service="WhatsApp")
     _run(six["whatsapp"], box, _source(fixture_family, "whatsapp"))
-    assert (box.root / "Messages" / "Ana (daughter)").is_dir()
+    assert (box.root / "People" / "Ana (daughter)").is_dir()
     aliases = json.loads((box.work_dir("chattr") / "aliases.json").read_text())
     assert aliases[family.ANA.name] == "Ana (daughter)"
 
@@ -297,7 +326,7 @@ def test_a_whatsapp_zip_is_unpacked_and_imported(
     result, _ = _run(six["whatsapp"], box, archive)
     assert result.inserted == 7
     assert list(
-        (box.root / "Messages" / family.ANA.name / "Attachments").glob("*.png")
+        (box.root / "People" / family.ANA.name / "WhatsApp").glob("*.png")
     )  # the media came too
 
 
@@ -402,8 +431,12 @@ def test_a_zip_of_named_voicemail_files_is_imported_with_its_audio(
     )
     result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path, *junk))
     assert result.inserted == 3
-    assert len(list((box.root / "Audio" / "Voicemail").rglob("*.amr"))) == 3
-    pages = list((box.root / "Messages").rglob("*.html"))
+    assert sorted(p.name for p in (box.root / "People").rglob("*.amr")) == [
+        f"(2018-12-21) 15-02-31 {family.ANA.name}.amr",
+        f"(2019-01-03) 09-05-00 {family.JOAO.name}.amr",
+        f"(2019-02-10) 18-30-12 {family.ANA.name}.amr",
+    ]
+    pages = list((box.root / "People").rglob("*.html"))
     assert pages and any(family.ANA.name in str(page) for page in pages)
 
 
@@ -461,3 +494,57 @@ def test_a_model_given_in_the_options_beats_the_saved_one(
             _source(fixture_family, "voicemail"),
             {"transcribe": True, "model": "/nowhere/chosen.bin"},
         )
+
+
+# --- Voicemail a browser can play -----------------------------------------------------------
+
+
+def _amr(seconds: float) -> bytes:
+    """A real (silent) AMR-NB recording, as an iPhone stores voicemail."""
+    return b"#!AMR\n" + (b"\x3c" + bytes(31)) * int(50 * seconds)
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not installed")
+def test_imported_voicemail_plays_in_a_browser_and_keeps_its_original(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    archive = tmp_path / "iPhone Voicemail.zip"
+    name = f"(2018-12-21) 15 02 31 - {family.ANA.name}.amr"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr(f"iPhone Voicemail/{name}", _amr(4))
+    result, events = _run(six["voicemail"], box, archive)
+    assert result.inserted == 1 and result.warnings == []
+    folder = box.root / "People" / family.ANA.name / "Voicemail"
+    stem = f"(2018-12-21) 15-02-31 {family.ANA.name}"
+    assert sorted(p.name for p in folder.iterdir()) == [f"{stem}.amr", f"{stem}.m4a"]
+    assert (folder / f"{stem}.amr").read_bytes() == _amr(4)  # the original, untouched
+    copy = (folder / f"{stem}.m4a").stat().st_size
+    assert 0 < copy < 2 * len(_amr(4))  # about the size of the original
+    page = (box.root / "People" / family.ANA.name / f"(2018) {family.ANA.name}.html").read_text(
+        encoding="utf-8"
+    )
+    assert 'type="audio/mp4"' in page and "Original recording (.amr)" in page
+    assert "filing" in [e.stage for e in events]
+
+
+def test_voicemail_that_cannot_be_converted_is_kept_and_said_so(
+    six: dict[str, Collector], box: Box, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from chattr import filing
+
+    monkeypatch.setattr(filing.shutil, "which", lambda name: None)  # no ffmpeg on this computer
+    result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path))
+    assert len(list((box.root / "People").rglob("*.amr"))) == 3
+    assert not list((box.root / "People").rglob("*.m4a"))
+    assert any(
+        "3 recordings are in a format most browsers cannot play" in w for w in result.warnings
+    )
+
+
+@pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not installed")
+def test_a_recording_that_will_not_convert_is_not_blamed_on_a_missing_program(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path))  # not real audio inside
+    (note,) = [w for w in result.warnings if "recordings" in w]
+    assert "could not convert" in note and "Install ffmpeg" not in note

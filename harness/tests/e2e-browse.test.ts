@@ -42,7 +42,7 @@ run('Browse and Settings, in a browser', () => {
       await page.getByRole('navigation').getByRole('button', { name: 'Browse' }).click()
 
       // From the root to the page.
-      await page.getByRole('button', { name: 'Messages/' }).click()
+      await page.getByRole('button', { name: 'People/' }).click()
       await page.getByRole('button', { name: 'Ana Costa/' }).click()
       await page.getByRole('button', { name: 'Open (2024) Ana Costa.html' }).click()
       const frame = page.frameLocator('iframe[title^="The page"]')
@@ -52,17 +52,24 @@ run('Browse and Settings, in a browser', () => {
       const photo = frame.locator('img').first()
       await photo.waitFor()
       await expect.poll(() => photo.evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 30_000 }).toBeGreaterThan(0)
-      expect(await photo.getAttribute('src')).toMatch(/^\/api\/caixa\/box\?path=Messages%2FAna%20Costa%2FAttachments/)
+      expect(await photo.getAttribute('src')).toMatch(/^\/api\/caixa\/box\?path=People%2FAna%20Costa%2FWhatsApp/)
 
       // The box's index page links on to the person's pages, inside the frame.
       await page.getByRole('navigation', { name: 'Where you are' }).getByRole('button', { name: 'Box' }).click()
       await page.getByRole('button', { name: "Open the box's index page" }).click()
       const index = page.frameLocator('iframe[title="The page index.html"]')
+      // … by way of the person's own index: everything from her, by year and source.
+      await index.getByRole('link', { name: 'Ana Costa' }).first().click()
+      await index.getByRole('heading', { name: 'By year' }).waitFor({ timeout: 30_000 })
+      await index.getByText('WhatsApp').first().waitFor()
       await index.getByRole('link', { name: '2024' }).first().click()
       await index.getByText('Que lindo! Buy two.').waitFor({ timeout: 30_000 })
+      // a date goes back to the top, and the page can return to her index
+      await index.getByRole('link', { name: 'All years' }).click()
+      await index.getByRole('heading', { name: 'By year' }).waitFor({ timeout: 30_000 })
 
       // Served under a policy that forbids scripts, and nothing outside the box can be asked for.
-      const served = await page.context().request.get(`${running.base}/api/caixa/box?path=${encodeURIComponent('Messages/Ana Costa/(2024) Ana Costa.html')}`)
+      const served = await page.context().request.get(`${running.base}/api/caixa/box?path=${encodeURIComponent('People/Ana Costa/(2024) Ana Costa.html')}`)
       expect(served.status()).toBe(200)
       expect(served.headers()['content-security-policy']).toContain("default-src 'none'")
       expect(served.headers()['x-content-type-options']).toBe('nosniff')

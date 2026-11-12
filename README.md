@@ -91,7 +91,7 @@ carried into Caixa as the converter for every conversation-like source:
 | iMessage | the macOS `chat.db` | read-only, tapbacks, spam tagged (never dropped) |
 | WhatsApp | an exported chat (`.zip` or folder) | media filed with the person, ambiguous dates resolved |
 | Facebook Messenger / Instagram | "Download your information" JSON | doubled text encoding repaired |
-| Mail | `.mbox` (a Gmail Takeout) | threaded, attachments filed by content |
+| Mail | `.mbox` (a Gmail Takeout) | threaded, attachments filed by date and sender |
 | Google Voice | a Takeout folder | calls, texts and voicemail audio |
 | iPhone voicemail | a backup's voicemail folder | optional transcription on your own computer |
 
@@ -115,11 +115,10 @@ attachment of their own database, never by writing into each other.
 <Box name>/
   README.md        plain language: what this folder is
   index.html       start here: every person and year
-  Messages/        <Person>/(YYYY) <Person>.html + Attachments/ ;  Groups/<Group>/ ...
+  People/          <Person>/index.html, (YYYY) <Person>.html, <Source>/(date) time sender.ext
+  Groups/          <Group>/  the same, for group conversations
   Mail/            <YYYY>/(YYYY-MM-DD) Sender — Subject.html  +  Attachments/
-  Audio/           voicemail and call recordings
   Inbox/           drop exports here
-  People/          notes about people
   .caixa/          Caixa's own working files: the databases, logs, working copies
 ```
 

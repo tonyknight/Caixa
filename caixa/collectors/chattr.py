@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -35,11 +36,15 @@ from caixa.collectors.inputs import InputError
 from caixa.collectors.messages import sync_chattr
 from caixa.collectors.options import defaults
 
-#: Where, inside a box, each kind of file Chattr extracts is kept (the pages link to these).
-MESSAGES = "Messages"
-MAIL_ATTACHMENTS = Path("Mail") / "Attachments"
-VOICEMAIL_AUDIO = Path("Audio") / "Voicemail"
-GOOGLE_VOICE_AUDIO = Path("Audio") / "GoogleVoice"
+#: Importers put the files they extract in a working folder inside `.caixa/` (one per kind).
+#: Publishing then files each one where a person would look for it, under the person it came from
+#: (`People/<Person>/<Service>/(date) time sender.ext`, see `chattr.filing`), and empties these.
+INCOMING = Path("work") / "incoming"
+MESSAGES = "messages"
+MAIL_ATTACHMENTS = "mail"
+VOICEMAIL_AUDIO = "voicemail"
+GOOGLE_VOICE_AUDIO = "googlevoice"
+STAGES = (MESSAGES, MAIL_ATTACHMENTS, VOICEMAIL_AUDIO, GOOGLE_VOICE_AUDIO)
 
 _COMMON_OPTIONS: dict[str, Any] = {
     "contacts": {
@@ -78,7 +83,7 @@ class _Chattr:
 
     info: CollectorInfo
     #: the folder, inside a box, for files this source extracts (None: it extracts none)
-    attachments: Optional[Path] = None
+    attachments: Optional[str] = None  # which working folder this source's files wait in
 
     # --- What each source says --------------------------------------------------------------
 
@@ -255,7 +260,7 @@ class _Chattr:
         settings = self._settings(root)
         aliases = self._aliases(box, root / "aliases.json")
         owner = self._owner(opts, box)
-        attachments = box.root / self.attachments if self.attachments else None
+        attachments = box.caixa_dir / INCOMING / self.attachments if self.attachments else None
 
         notes = self._import_all(settings, items, opts, owner, aliases, attachments, True, progress)
 
@@ -286,10 +291,21 @@ class _Chattr:
     ) -> RunResult:
         """Draw every page into the box, bring the master up to date, drop pages nobody needs."""
         before = self._page_files(box)
-        progress(Progress("rendering", message="Writing the pages"))
-        roots = [box.root / MESSAGES, box.root / MAIL_ATTACHMENTS, box.root / VOICEMAIL_AUDIO]
-        roots.append(box.root / GOOGLE_VOICE_AUDIO)
-        commands.generate_html(settings, out=box.root, attachments_dirs=roots)
+        incoming = box.caixa_dir / INCOMING
+
+        def filing(done: int, total: int) -> None:
+            progress(Progress("filing", done, total, "Filing photos, audio and other files"))
+
+        progress(Progress("filing", message="Filing photos, audio and other files"))
+        published = commands.publish(
+            settings,
+            out=box.root,
+            attachments_dirs=[incoming / stage for stage in STAGES],
+            pages_list=box.caixa_dir / "pages.json",
+            progress=filing,
+            before_pages=lambda: progress(Progress("rendering", message="Writing the pages")),
+        )
+        shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         with DatabaseManager(commands.central_database(settings)) as db:
             renderer = Renderer(db)
             pages = {mid: spec.path for spec in renderer.pages for mid in spec.message_ids}
@@ -307,8 +323,27 @@ class _Chattr:
             unchanged=synced.unchanged,
             pages=page_count,
             unresolved=unresolved,
-            warnings=list(synced.conflicts),
+            warnings=[*list(synced.conflicts), *self._audio_notes(published)],
         )
+
+    @staticmethod
+    def _audio_notes(published: Optional[commands.Published]) -> list[str]:
+        """Say so when recordings could not be given a copy a browser can play."""
+        count = len(published.filed.unplayable) if published else 0
+        if not count:
+            return []
+        these = f"{count} recording{'s are' if count != 1 else ' is'}"
+        if published and published.filed.ffmpeg_missing:
+            return [
+                f"{these} in a format most browsers cannot play, and no playable copy could "
+                "be made because ffmpeg is not installed. Install ffmpeg, then import again "
+                "to make the copies. The originals are in the box."
+            ]
+        return [
+            f"{these} in a format most browsers cannot play, and ffmpeg could not convert "
+            "them (the files may be damaged). The originals are in the box and linked from "
+            "the page."
+        ]
 
     @staticmethod
     def _remove_stale(box: Box, stale: set[str]) -> None:
@@ -382,7 +417,7 @@ class WhatsApp(_Chattr):
         ),
         options_schema=_schema(),
     )
-    attachments = Path(MESSAGES)
+    attachments = MESSAGES
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
         def find(folder: Path) -> list[Path]:
@@ -427,7 +462,7 @@ class _Meta(_Chattr):
     """Messenger and Instagram: one Meta export can hold threads of both."""
 
     services: tuple[str, ...] = ()
-    attachments = Path(MESSAGES)
+    attachments = MESSAGES
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
         def find(folder: Path) -> list[Path]:

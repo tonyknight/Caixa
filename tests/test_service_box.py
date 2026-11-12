@@ -141,32 +141,32 @@ def _page(tmp_path: Path, relative: str, text: str = "<p>hello</p>") -> None:
 def test_browse_lists_the_generated_files_and_hides_caixas_own(
     made: Service, tmp_path: Path
 ) -> None:
-    _page(tmp_path, "Messages/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html")
     top = {e["name"]: e for e in made.browse_list("")["entries"]}
-    assert "Messages" in top and ".caixa" not in top
-    assert top["Messages"]["kind"] == "directory"
-    inner = made.browse_list("Messages/Ana Costa")["entries"]
+    assert "People" in top and ".caixa" not in top
+    assert top["People"]["kind"] == "directory"
+    inner = made.browse_list("People/Ana Costa")["entries"]
     assert [e["name"] for e in inner] == ["(2024) Ana Costa.html"]
-    assert inner[0]["path"] == "Messages/Ana Costa/(2024) Ana Costa.html"
+    assert inner[0]["path"] == "People/Ana Costa/(2024) Ana Costa.html"
     assert inner[0]["kind"] == "file" and inner[0]["size"] > 0
 
 
 def test_browse_file_gives_a_page_and_where_it_is(made: Service, tmp_path: Path) -> None:
-    _page(tmp_path, "Messages/Ana Costa/(2024) Ana Costa.html", "<p>olá</p>")
-    info = made.browse_file("Messages/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html", "<p>olá</p>")
+    info = made.browse_file("People/Ana Costa/(2024) Ana Costa.html")
     assert info["mime"] == "text/html" and info["content"] == "<p>olá</p>"
     assert info["absolute"].endswith("(2024) Ana Costa.html")
 
 
 def test_binary_files_are_described_not_embedded(made: Service, tmp_path: Path) -> None:
-    path = tmp_path / "Box" / "Messages" / "photo.png"
+    path = tmp_path / "Box" / "People" / "photo.png"
     path.write_bytes(b"\x89PNG\r\n\x1a\n" + b"0" * 50)
-    info = made.browse_file("Messages/photo.png")
+    info = made.browse_file("People/photo.png")
     assert info["mime"] == "image/png" and "content" not in info and info["size"] == 58
 
 
 @pytest.mark.parametrize(
-    "bad", ["../outside.txt", "Messages/../../outside.txt", "/etc/passwd", ".caixa/caixa.sqlite"]
+    "bad", ["../outside.txt", "People/../../outside.txt", "/etc/passwd", ".caixa/caixa.sqlite"]
 )
 def test_browse_refuses_anything_outside_the_visible_box(
     made: Service, tmp_path: Path, bad: str
@@ -181,15 +181,15 @@ def test_browse_refuses_anything_outside_the_visible_box(
 
 def test_a_link_that_leaves_the_box_is_refused(made: Service, tmp_path: Path) -> None:
     (tmp_path / "outside.txt").write_text("secret")
-    os.symlink(tmp_path / "outside.txt", tmp_path / "Box" / "Messages" / "link.txt")
+    os.symlink(tmp_path / "outside.txt", tmp_path / "Box" / "People" / "link.txt")
     with pytest.raises(ServiceError) as stop:
-        made.browse_file("Messages/link.txt")
+        made.browse_file("People/link.txt")
     assert stop.value.kind == "outside_roots"
 
 
 def test_a_missing_file_is_not_found(made: Service) -> None:
     with pytest.raises(ServiceError) as stop:
-        made.browse_file("Messages/nothing.html")
+        made.browse_file("People/nothing.html")
     assert stop.value.kind == "not_found"
 
 
@@ -238,7 +238,7 @@ def test_an_older_box_gets_its_inbox_when_asked(made: Service, tmp_path: Path) -
 
 
 def test_read_only_reads_everything_and_changes_nothing(made: Service, tmp_path: Path) -> None:
-    _page(tmp_path, "Messages/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html")
     before = _snapshot(tmp_path / "Box")
     viewer = Service(read_only=True, roots=[tmp_path])
     assert viewer.box_open(str(tmp_path / "Box"))["owner"] == "Maria Costa"

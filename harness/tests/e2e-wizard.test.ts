@@ -125,7 +125,7 @@ run('the import wizard, in a browser', () => {
     expect(fromBrowser.people).toEqual(fromCommandLine.people)
     expect(fromBrowser.links).toBe(fromCommandLine.links)
     expect(fromBrowser.files).toEqual(fromCommandLine.files)
-    expect(fromBrowser.files.some(file => file.startsWith('Messages/'))).toBe(true)
+    expect(fromBrowser.files.some(file => file.startsWith('People/'))).toBe(true)
     // (the pages themselves are compared by content: same text, same links)
     for (const file of fromBrowser.files.filter(f => f.endsWith('.html'))) {
       expect(readFileSync(join(browserBox, file), 'utf8'), file).toBe(readFileSync(join(cliBox, file), 'utf8'))

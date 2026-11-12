@@ -41,7 +41,7 @@ def _imessage(service: Service, fixture_family) -> None:
 
 
 def _pages(tmp_path: Path, person: str) -> list[str]:
-    folder = tmp_path / "Box" / "Messages" / person
+    folder = tmp_path / "Box" / "People" / person
     return sorted(p.name for p in folder.glob("(*) *.html")) if folder.is_dir() else []
 
 
@@ -104,7 +104,7 @@ def test_linking_a_handle_names_it_and_moves_its_pages(
     assert _change_count(service, "link") > before
     assert service.people_unresolved()["handles"] == []
     page = (
-        tmp_path / "Box" / "Messages" / "Ana (daughter)" / "(2024) Ana (daughter).html"
+        tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
     ).read_text(encoding="utf-8")
     assert "Que lindo! Buy two." in page
 
@@ -115,7 +115,7 @@ def test_the_pages_still_link_their_photos_after_a_move(
     _whatsapp(service, fixture_family)
     service.wait(service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)")["job"]["id"], 60)
     page = (
-        tmp_path / "Box" / "Messages" / "Ana (daughter)" / "(2024) Ana (daughter).html"
+        tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
     ).read_text(encoding="utf-8")
     assert "file not in this archive" not in page
 

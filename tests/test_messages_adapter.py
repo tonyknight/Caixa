@@ -268,7 +268,7 @@ def test_pages_are_recorded_without_touching_the_change_log(chattr_archive, tmp_
         message_id = db.execute("SELECT id FROM messages WHERE body LIKE 'Que lindo%'").fetchone()[
             0
         ]
-    page = "Messages/Ana Costa/(2024) Ana Costa.html"
+    page = "People/Ana Costa/(2024) Ana Costa.html"
     with Master(tmp_path / "caixa.sqlite") as master:
         sync_chattr(master, chattr_archive.database)
         before = len(master.changes())

@@ -9,7 +9,7 @@ import { buildFixtures, canRun, openCaixa, playwright, startHarness, type Runnin
 const run = canRun && playwright() ? describe : describe.skip
 
 const pages = (box: string, person: string) => {
-  const folder = join(box, 'Messages', person)
+  const folder = join(box, 'People', person)
   return existsSync(folder) ? readdirSync(folder).filter(name => /^\(\d{4}\) .*\.html$/.test(name)).sort() : []
 }
 

@@ -255,13 +255,13 @@ def test_an_import_is_followed_by_notifications(
         for n in worker.notifications
         if n["method"] == "job.progress" and n["params"]["job"] == job["id"]
     ]
-    order = ["preparing", "importing", "linking", "rendering", "syncing", "done"]
+    order = ["preparing", "importing", "linking", "filing", "rendering", "syncing", "done"]
     assert stages[0] == "preparing" and stages[-1] == "done"
     assert stages == sorted(stages, key=order.index)
     assert worker.result("jobs.get", job=job["id"])["status"] == "done"
     assert [j["id"] for j in worker.result("jobs.list")] == [job["id"]]
     assert worker.result("box.status")["items"] == 7
-    page = worker.result("browse.file", path="Messages/Ana Costa/(2024) Ana Costa.html")
+    page = worker.result("browse.file", path="People/Ana Costa/(2024) Ana Costa.html")
     assert "Que lindo! Buy two." in page["content"]
 
 
@@ -276,7 +276,7 @@ def test_people_changes_go_over_the_wire(worker: Client, tmp_path: Path, fixture
     )
     worker.wait_notification("job.finished", job=linked["job"]["id"])
     assert worker.result("people.unresolved")["handles"] == []
-    assert worker.result("browse.list", path="Messages/Ana (daughter)")["entries"]
+    assert worker.result("browse.list", path="People/Ana (daughter)")["entries"]
 
 
 def test_a_collectors_printing_never_reaches_the_protocol(
@@ -330,7 +330,7 @@ def test_errors_use_json_rpc_codes_and_say_why(worker: Client, tmp_path: Path) -
         "import.preview", collector="imessage", source=str(tmp_path), options={"workers": 0}
     )
     assert options["error"]["code"] == -32602 and options["error"]["data"]["errors"]
-    missing = worker.call("browse.file", path="Messages/nothing.html")
+    missing = worker.call("browse.file", path="People/nothing.html")
     assert missing["error"]["data"]["kind"] == "not_found"
 
 

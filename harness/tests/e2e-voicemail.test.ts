@@ -101,7 +101,7 @@ run('voicemail as named audio files, in a browser', () => {
     } finally {
       await browser.close()
     }
-    const listing = await running.rpc('browse.list', { path: 'Audio/Voicemail' })
+    const listing = await running.rpc('browse.list', { path: 'People/Ana Costa/Voicemail' })
     expect(listing.ok, JSON.stringify(listing)).toBe(true)
   }, 240_000)
 })

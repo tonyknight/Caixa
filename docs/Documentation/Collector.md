@@ -104,9 +104,9 @@ caixa import whatsapp ~/Downloads/all-my-chats/ --box ~/Our\ Box    # a folder h
 A folder is searched for every `_chat.txt` (and every `WhatsApp Chat….txt`), so you can unzip many chats
 into one folder and import them together.
 
-**What you get.** One page per year for each person (`Messages/Ana Costa/(2024) Ana Costa.html`), a
-group's pages under `Messages/Groups/<group name>/`, and the chat's photos, videos and voice notes in
-that person's `Attachments` folder ([details](#attachments-in-detail)).
+**What you get.** One page per year for each person (`People/Ana Costa/(2024) Ana Costa.html`) and
+their `index.html`, a group's pages under `Groups/<group name>/`, and the chat's photos, videos and voice
+notes in the person's `WhatsApp` folder ([details](#attachments-in-detail)).
 
 **Good to know.** A WhatsApp export carries no time zone and sometimes an ambiguous date format (is
 `03/04` the third of April or the fourth of March?). Caixa decides from the whole file and notes it when it
@@ -173,7 +173,7 @@ following files of a long thread.
 **Options.** `service` (`auto`, `messenger` or `instagram`) overrides the guess; leave it on `auto`.
 
 **What you get.** Pages per person and year, reactions, shared links, and the photos of the thread in the
-person's `Attachments` folder.
+person's `Messenger` or `Instagram` folder.
 
 **Good to know.** Meta writes every text twice-encoded (an accented letter arrives as two odd
 characters) and lists messages newest first. Caixa repairs the encoding and reads the thread oldest
@@ -195,7 +195,7 @@ caixa import mail "~/Takeout/Mail/All mail Including Spam and Trash.mbox" --box 
 
 **What you get.** One page per mail conversation under `Mail/<year>/`, named by date, sender and subject
 (`Mail/2019/(2019-11-02) João Costa — Fotos de São Martinho.html`). Attachments are taken out of the mail
-and kept in `Mail/Attachments/`, linked from the page.
+and kept in `Mail/<year>/Attachments/`, named by date, sender and their own name, and linked from the page.
 
 ### Google Voice
 
@@ -212,7 +212,7 @@ caixa import googlevoice ~/Takeout/Voice/Calls --box ~/Our\ Box
 ```
 
 **What you get.** Calls (placed, received, missed), texts and voicemail as items on the person's pages;
-voicemail audio is copied into `Audio/GoogleVoice/`.
+voicemail audio goes into the person's `Google Voice` folder.
 
 ### iPhone voicemail
 
@@ -255,8 +255,10 @@ In the browser, the wizard's options step starts the model and language from Set
 this computer** button for the model file. Transcription only happens when **Transcribe on this computer**
 is ticked (or `transcribe=true`); a model saved in Settings never turns it on by itself.
 
-**What you get.** Each voicemail as an item (who, when, how long), its audio in `Audio/Voicemail/`, and with
-transcription on, its text beside the player on the page.
+**What you get.** Each voicemail as an item (who, when, how long), its audio in the caller's `Voicemail`
+folder, and with transcription on, its text beside the player on the page. iPhone voicemail is recorded in
+AMR, which most browsers cannot play, so Caixa keeps the original `.amr` and makes an `.m4a` copy beside it
+that any browser plays (this needs `ffmpeg`; without it the import says so and the page links the original).
 
 **Good to know.** Transcription needs `ffmpeg` and a model (see [Installation](../../README.md#installation)). It
 runs with the network blocked for the process, so a speech engine that tried to fetch something would
@@ -325,7 +327,7 @@ not messages.
 
 Exports identify people by whatever the service uses: a phone number, an email address, a username, or a
 display name. Until a handle is **named**, its pages go in a folder called after the handle
-(`Messages/+15550101/…`). Naming a handle links it to a person, so **all of a person's messages, across
+(`People/+15550101/…`). Naming a handle links it to a person, so **all of a person's messages, across
 every app, live together** under that person's name.
 
 There are three ways to name people, and they combine:
@@ -357,25 +359,33 @@ Everything is inside the box folder.
 ```
 Our Box/
   README.md                       plain-language note: what this folder is
-  index.html                      start here: every person and year, with counts
-  Messages/
+  index.html                      start here: every person, with their years and counts
+  People/
     Ana Costa/
-      (2024) Ana Costa.html       one page per year, all services together
-      Attachments/
-        (2024-03-01) 14-05-09 Ana Costa 1.png
-    Groups/Costa Family/(2024) Costa Family.html
-    +15550101/(2023) +15550101.html     a handle nobody has named yet
-    .attachments.json             remembers which file went where (see below)
+      index.html                  everything from Ana: by year, by source, her groups, her mail
+      (2024) Ana Costa.html       one page per year, all sources together
+      WhatsApp/
+        (2024-03-01) 14-05-09 Ana Costa.png
+      Voicemail/
+        (2018-12-21) 15-02-31 Ana Costa.amr      the recording as it arrived
+        (2018-12-21) 15-02-31 Ana Costa.m4a      a copy any browser can play
+      Google Voice/
+        (2018-09-08) 10-22-45 Ana Costa.mp3
+    +15550101/                    a number nobody has named yet (it moves when you name it)
+  Groups/
+    Costa Family/
+      index.html, (2024) Costa Family.html, WhatsApp/…
   Mail/
     2019/(2019-11-02) João Costa — Fotos de São Martinho.html
-    Attachments/f5/f5293be8….png        mail attachments, filed by content
-  Audio/
-    Voicemail/00/00e9f1b5….amr          voicemail recordings, filed by content
-    GoogleVoice/2f/2f5b4d12….mp3        Google Voice recordings, filed by content
+    2019/Attachments/(2019-11-02) 16-00-00 João Costa — familia.png
   Inbox/                          drop exports here to find them in the browser
-  People/                         for notes about people
   .caixa/                         Caixa's own working files (below)
 ```
+
+The top level is **people**. Each person's folder has their `index.html`, a page per year that brings
+every source together in time order, and one folder per source holding the files that source brought.
+Every file is named for its date, time and sender; nothing you can see is named by a code. You can also
+keep your own notes or files in a person's folder: Caixa only ever removes pages it wrote itself.
 
 **Everything above `.caixa/` is ordinary files** (HTML, images, audio). Open `index.html` in any web
 browser, with or without Caixa, now or in fifty years. Each page also carries its own data, so it can be
@@ -385,7 +395,7 @@ read by a program as well as a person.
 
 | Path | What it is |
 | --- | --- |
-| `caixa.sqlite` | The **master database**: one row per item (a message, a mail, a call, a voicemail), the people, their names (aliases), a record of every import, and an append-only **change log**. Each item says which page and anchor show it (`Messages/Ana Costa/(2024) Ana Costa.html#m-…`) and has a privacy level (`private` by default). |
+| `caixa.sqlite` | The **master database**: one row per item (a message, a mail, a call, a voicemail), the people, their names (aliases), a record of every import, and an append-only **change log**. Each item says which page and anchor show it (`People/Ana Costa/(2024) Ana Costa.html#m-…`) and has a privacy level (`private` by default). |
 | `work/chattr/Database/chattr.sqlite` | Chattr's **message archive**: every conversation, handle, message, attachment (original name, content hash, mime type, where it was filed) and reaction. This is what the pages are drawn from. |
 | `work/chattr/aliases.json` | The box's names, exported for Chattr each time (rewritten on every import). |
 | `work/imports/` | Zips, unpacked once. |
@@ -411,7 +421,8 @@ Every collector follows the same steps:
    the text, so the same message always gets the same ID.
 4. **Match people**: handles are matched against the box's names and the contacts file; your own messages
    are marked as yours.
-5. **Draw the pages**: `Messages/<Person>/(YYYY) <Person>.html` and `Mail/<year>/…`, plus `index.html`.
+5. **Draw the pages**: `People/<Person>/index.html` and `(YYYY) <Person>.html`, `Groups/…`, `Mail/<year>/…`,
+   plus the box's `index.html`.
 6. **Update the master database**, recording which page shows each item.
 
 What follows from that:
@@ -438,66 +449,50 @@ means nothing outside the app (`00000012-PHOTO-2024-03-01-14-05-09.png`, `IMG_00
 mail's MIME structure). Caixa gives every file a **durable, dated name**, puts it next to the person it
 belongs to, and makes the page link to it.
 
-### Chat attachments (WhatsApp, Messenger, Instagram)
+### One rule for every source
 
-Each file is **copied** (the original stays where it is) into the person's `Attachments` folder, or the
-group's, and renamed:
+While an export is being read, its files wait in a working folder inside `.caixa/`. When the pages are
+drawn, every file is **filed** beside the person it came from:
 
 ```
-Messages/<Person>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> <n>.<extension>
-Messages/Groups/<Group name>/Attachments/…
+People/<Person>/<Source>/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
+Groups/<Group>/<Source>/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
+Mail/<YYYY>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> — <its own name>.<extension>
 ```
 
-For example `Messages/Ana Costa/Attachments/(2024-03-01) 14-05-09 Ana Costa 1.png`. The pieces:
+For example `People/Ana Costa/WhatsApp/(2024-03-01) 14-05-09 Ana Costa.png`. The pieces:
 
-- **Date and time.** The date the photo or video was *taken*, when the file records one and ExifTool is
-  installed. Otherwise the time of the message that carried it. (A photo sent a week after it was taken
-  is filed under the day it was taken.)
+- **Person or group.** Whose conversation it is. A number nobody has named yet has a folder under its
+  number; when you name it, its pages *and its files* move to the person's folder.
+- **Source.** `iMessage`, `WhatsApp`, `Messenger`, `Instagram`, `Google Voice`, `Voicemail`.
+- **Date and time.** The time of the message that carried the file, as shown on the page (local time when
+  the export gives a time zone).
 - **Sender.** Who sent it, made safe for a file name (characters such as `/ : * ? "` become `-`).
-- **`<n>`.** A number starting at 1, so two files with the same second and sender never collide. Numbers
-  are assigned in time order, so they come out the same every run.
+- **A number**, only when it is needed: ` 1`, ` 2`… when one message carried several files, and ` (2)` if
+  two different files would otherwise get the same name. Names come out the same on every run.
 - **Extension.** Kept as it was, in lower case.
 
-Files are processed in a fixed order, so repeating an import gives the same names. A small file
-`Messages/.attachments.json` remembers each filed name and the content hash of the original; on a repeat
-import a file that is already there under its name is reused, never copied again, and a file the box does
-not recognise is never overwritten.
+The original export is never touched: files are copied out of it. Importing the same export again leaves
+one copy of each file, and a file Caixa did not put there is never overwritten. The same picture sent in
+two messages is kept twice, once beside each.
 
-**Dates inside the file.** If ExifTool is installed and a photo, picture or similar has no capture date,
-Caixa writes the message's date into the *copy* (the standard `DateTimeOriginal` field) so the date
-travels with the file wherever it goes. The original is never touched. Without ExifTool the copy is made
-unchanged.
+**Dates inside the file.** If ExifTool is installed and a picture has no capture date, Caixa writes the
+message's date into the *copy* (the standard `DateTimeOriginal` field) so the date travels with the file.
+Without ExifTool the copy is made unchanged.
 
-**What is not changed.** Caixa's collectors copy files as they are. Chattr can convert HEIC, PNG and WebP
-pictures to JPEG and Apple's CAF audio to AAC while archiving, but that conversion is **off** in Caixa: a
-photo arrives in the format it was sent in. (A file that cannot be copied is reported in the job's log and
-skipped; it never stops the import.) Apple's proprietary "plugin payload" attachments are skipped as not
-suitable for archiving.
+**What is not changed.** Files are kept as they arrived: a photo stays in the format it was sent in. (A
+file that cannot be copied is reported in the job's log and skipped; it never stops the import.) Apple's
+proprietary "plugin payload" attachments are skipped as not suitable for archiving.
 
-### Mail attachments
+### Audio a browser cannot play
 
-Attachments are pulled out of the mail itself (they exist only inside the mailbox) and stored **by
-content**:
-
-```
-Mail/Attachments/<first two hex digits of the SHA-256>/<full SHA-256>.<extension>
-```
-
-The same file attached to ten mails is stored once. The mail's page shows the attachment's original
-name and links to the stored file. Because the name is the file's own fingerprint, nothing can collide
-and a repeat import writes nothing new.
-
-### Voicemail and Google Voice recordings
-
-Recordings are stored by content in the same way:
-
-```
-Audio/Voicemail/<xx>/<sha256>.amr        iPhone voicemail
-Audio/GoogleVoice/<xx>/<sha256>.mp3      Google Voice voicemail
-```
-
-The item records the recording's duration and, if you turned transcription on, its transcript. Audio is
-not converted.
+iPhone voicemail is AMR, and iMessage voice notes are CAF; most browsers play neither. For these Caixa
+keeps the original and makes a **playable copy** beside it with the same name and `.m4a` (AAC, the
+original's own sample rate and channels: 8 kHz mono for voicemail, at about the same size). The page's
+player uses the copy and links the original as "Original recording". The copy is made with `ffmpeg`; if
+it is not installed the import finishes, says how many recordings have no playable copy, and the page
+links the original. Install `ffmpeg` and import again to make the copies. The original is the record;
+the copy can always be made again.
 
 ### iMessage attachments
 
@@ -507,20 +502,19 @@ See [Known limitations](#known-limitations).
 
 ### How pages link to files
 
-Pages use ordinary relative links (`Attachments/(2024-03-01) 14-05-09 Ana Costa 1.png`), so the box keeps
+Pages use ordinary relative links (`WhatsApp/(2024-03-01) 14-05-09 Ana Costa.png`), so the box keeps
 working if you move or copy the folder. A photo is shown inline, audio and video get a player, and any
 other file is a link. If the file is not in the box the page says so rather than showing a broken link.
 
 ### Summary
 
-| Source | Where the files go | How they are named | Converted? |
-| --- | --- | --- | --- |
-| WhatsApp | `Messages/<Person>/Attachments/` | `(date) time sender n.ext` | no |
-| Messenger / Instagram | `Messages/<Person>/Attachments/` | `(date) time sender n.ext` | no |
-| Mail | `Mail/Attachments/<xx>/` | content fingerprint | no |
-| Google Voice | `Audio/GoogleVoice/<xx>/` | content fingerprint | no |
-| iPhone voicemail | `Audio/Voicemail/<xx>/` | content fingerprint | no |
-| iMessage | *(recorded; not copied yet)* | — | — |
+| Source | Where the files go | Playable copy? |
+| --- | --- | --- |
+| WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/` (or `Groups/<Group>/<Source>/`) | not needed |
+| Google Voice | `People/<Person>/Google Voice/` | not needed (MP3) |
+| iPhone voicemail | `People/<Person>/Voicemail/` | yes: `.m4a` beside the `.amr` |
+| Mail | `Mail/<year>/Attachments/` | — |
+| iMessage | *(recorded; not copied yet)* | — |
 
 ## How to measure success
 
@@ -603,10 +597,6 @@ import sqlite3, sys
 from pathlib import Path
 
 box = Path(sys.argv[1]).expanduser()
-roots = {   # where each source's files live; the stored path is relative to this folder
-    "WhatsApp": "Messages", "Messenger": "Messages", "Instagram": "Messages",
-    "Mail": "Mail/Attachments", "Voicemail": "Audio/Voicemail", "Google Voice": "Audio/GoogleVoice",
-}
 db = sqlite3.connect(f"file:{box}/.caixa/work/chattr/Database/chattr.sqlite?mode=ro", uri=True)
 rows = db.execute(
     "SELECT c.service, a.original_filename, a.storage_path FROM attachments a "
@@ -617,7 +607,7 @@ for service, name, stored in rows:
     if not stored:
         unsaved += 1
         print(f"  not copied into the box: {service}: {name}")
-    elif (box / roots.get(service, "Messages") / stored).is_file():
+    elif (box / stored).is_file():   # the stored path is relative to the box
         good += 1
     else:
         missing += 1

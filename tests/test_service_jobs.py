@@ -155,7 +155,7 @@ def test_an_import_runs_as_a_job_and_ends_done(
     assert done["started_at"] and done["finished_at"]
     assert service.box_status()["items"] == 7
     assert [j["id"] for j in service.jobs_list()] == [job["id"]]
-    assert (tmp_path / "Box" / "Messages" / "Ana Costa").is_dir()
+    assert (tmp_path / "Box" / "People" / "Ana Costa").is_dir()
 
 
 def test_progress_is_stored_and_announced_in_order(service: Service, fixture_family) -> None:
@@ -166,7 +166,7 @@ def test_progress_is_stored_and_announced_in_order(service: Service, fixture_fam
     names = [n for n, _ in events]
     assert names[-1] == "job.finished" and set(names) == {"job.progress", "job.finished"}
     stages = [p["stage"] for n, p in events if n == "job.progress"]
-    order = ["preparing", "importing", "linking", "rendering", "syncing", "done"]
+    order = ["preparing", "importing", "linking", "filing", "rendering", "syncing", "done"]
     assert stages[0] == "preparing" and stages[-1] == "done"
     assert stages == sorted(stages, key=order.index)
     assert all(p["job"] == job["id"] for _, p in events)
