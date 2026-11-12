@@ -44,7 +44,8 @@ MESSAGES = "messages"
 MAIL_ATTACHMENTS = "mail"
 VOICEMAIL_AUDIO = "voicemail"
 GOOGLE_VOICE_AUDIO = "googlevoice"
-STAGES = (MESSAGES, MAIL_ATTACHMENTS, VOICEMAIL_AUDIO, GOOGLE_VOICE_AUDIO)
+IMESSAGE_FILES = "imessage"
+STAGES = (MESSAGES, MAIL_ATTACHMENTS, VOICEMAIL_AUDIO, GOOGLE_VOICE_AUDIO, IMESSAGE_FILES)
 
 _COMMON_OPTIONS: dict[str, Any] = {
     "contacts": {
@@ -99,7 +100,8 @@ class _Chattr:
         aliases: Optional[Path],
         attachments_dir: Optional[Path],
         final: bool,
-    ) -> None:
+    ) -> Optional[list[str]]:
+        """Convert one input. May return notes for the person (shown with the result)."""
         raise NotImplementedError
 
     # --- Shared -----------------------------------------------------------------------------
@@ -155,10 +157,12 @@ class _Chattr:
         thousands of conversations.
         """
         empty: list[Path] = []
+        notes: list[str] = []
         for number, item in enumerate(items, 1):
             progress(Progress("importing", number - 1, len(items), self._label(item)))
             try:
-                self.convert(settings, item, options, owner, aliases, attachments_dir, final)
+                said = self.convert(settings, item, options, owner, aliases, attachments_dir, final)
+                notes.extend(said or [])
             except commands.NothingFound as error:
                 if len(items) == 1:
                     raise InputError(str(error)) from error
@@ -173,11 +177,12 @@ class _Chattr:
             )
         if empty:
             count = len(empty)
-            return [
+            notes.insert(
+                0,
                 f"{count} conversation{'s' if count != 1 else ''} had no messages and "
-                f"{'were' if count != 1 else 'was'} skipped."
-            ]
-        return []
+                f"{'were' if count != 1 else 'was'} skipped.",
+            )
+        return notes
 
     @staticmethod
     def _label(item: Path) -> str:
@@ -832,6 +837,8 @@ class IMessage(_Chattr):
             expects="a chat.db file (on a Mac: ~/Library/Messages/chat.db), alone or in a folder or zip",
         )
 
+    attachments = IMESSAGE_FILES
+
     def convert(
         self,
         settings: Settings,
@@ -841,23 +848,43 @@ class IMessage(_Chattr):
         aliases: Optional[Path],
         attachments_dir: Optional[Path],
         final: bool,
-    ) -> None:
+    ) -> Optional[list[str]]:
         attachment_root: Optional[str] = options.get("attachment_root") or None
         if attachment_root is None and (item.parent / "Attachments").is_dir():
             attachment_root = str(item.parent / "Attachments")
-        commands.convert_imessage(
+        result = commands.convert_imessage(
             settings,
             db_path=item,
             contacts=options.get("contacts") or None,
             mac_contacts=bool(options.get("mac_contacts", True)),
             region=options.get("region") or None,
             attachment_root=attachment_root,
+            attachments_dir=attachments_dir if final else None,
             workers=options.get("workers"),
             spam_mode=options.get("spam_mode"),
             limit=options.get("limit") or None,
             owner=owner,
             aliases=aliases,
         )
+        if not result.missing_attachments:
+            return None
+        if final:
+            return [
+                f"{result.missing_attachments:,} attachments are not on this Mac, so they were "
+                "not copied (their messages say so). Messages fetches a file from iCloud when "
+                "its part of the conversation is shown: load them there and run this import "
+                "again to add them."
+            ]
+        report = commands.missing_attachments(item, attachment_root)
+        most = ", ".join(entry.name for entry in report.conversations[:5])
+        return [
+            f"{report.missing:,} of {report.total:,} attachments "
+            f"({report.missing_bytes / 1e9:.2f} GB) are not on this Mac yet, in "
+            f"{len(report.conversations):,} conversations. Messages fetches a file from iCloud "
+            "when its part of the conversation is shown, so scroll back in those conversations "
+            f"before importing to bring them in. The most are in: {most}. "
+            "For the full list run: chattr-cli missing"
+        ]
 
 
 def collectors() -> list[_Chattr]:

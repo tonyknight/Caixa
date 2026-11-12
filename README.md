@@ -217,8 +217,8 @@ Caixa is in early development. This is what exists today, and what does not.
 | **More sources** (Slack, Telegram, Google Chat, photos, documents) | Planned |
 | **Windows** | Untested; `caixa serve` refuses to start there |
 
-The known gaps of the collectors (for example, that iMessage attachments are recorded but not yet
-copied into the box) are listed in [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#known-limitations).
+The known gaps of the collectors (for example, that iMessage attachments still in iCloud cannot be
+fetched) are listed in [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#known-limitations).
 The project's briefing, requirements and ticket history are in
 [`docs/ai/Istanbul/Phase1-Collector/`](docs/ai/Istanbul/Phase1-Collector/).
 

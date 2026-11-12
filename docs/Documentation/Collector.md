@@ -532,9 +532,27 @@ the copy can always be made again.
 
 ### iMessage attachments
 
-The database records each attachment (original name, type, size, a fingerprint), and the page lists it,
-but **the files are not copied into the box yet**; the page says "file not in this archive" beside it.
-See [Known limitations](#known-limitations).
+Attachments are **copied** from the Mac's store (`~/Library/Messages/Attachments`, never changed) and
+filed like every other source's: `People/<Person>/iMessage/(date) time sender.ext`.
+
+**Files that are still in iCloud.** Messages fetches an attachment from iCloud only when its part of the
+conversation has been shown on this Mac, so a database usually names files that are not on disk (often a
+third or more). Caixa cannot fetch them. It tells you:
+
+- The **preview** says how many attachments are missing, how much data, and which conversations hold the
+  most.
+- This lists every conversation with missing files, the most data first, with the first and last dates
+  to scroll back to:
+
+  ```bash
+  chattr-cli missing ~/Library/Messages/chat.db
+  chattr-cli missing ~/Library/Messages/chat.db --list "Ana"     # the files, for conversations matching
+  ```
+
+- Open those conversations in Messages, scroll back to those dates so the files load, and run it again
+  until the number stops falling. Then import. Importing again later is safe and adds files that have
+  arrived since; a message whose file is still missing says "file not in this archive".
+- Attachments with "no file was ever recorded" have no file to fetch.
 
 ### How pages link to files
 
@@ -550,7 +568,7 @@ other file is a link. If the file is not in the box the page says so rather than
 | Google Voice | `People/<Person>/Google Voice/` | not needed (MP3) |
 | iPhone voicemail | `People/<Person>/Voicemail/` | yes: `.m4a` beside the `.amr` |
 | Mail | `Mail/<year>/Attachments/` | — |
-| iMessage | *(recorded; not copied yet)* | — |
+| iMessage | `People/<Person>/iMessage/` | yes, for `.caf` voice notes |
 
 ## How to measure success
 
@@ -652,9 +670,9 @@ print(f"{good} attachments in the box, {unsaved} recorded but not copied, {missi
 sys.exit(1 if missing else 0)
 ```
 
-Success is **no `MISSING` lines**. Lines saying "not copied into the box" are the iMessage limitation
-described below. With the synthetic data the result is `6 attachments in the box, 3 recorded but not
-copied, 0 missing`.
+Success is **no `MISSING` lines**. Lines saying "not copied into the box" are iMessage attachments that
+were not on the Mac when you imported (see [iMessage attachments](#imessage-attachments)). With the
+synthetic data the result is `9 attachments in the box, 0 recorded but not copied, 0 missing`.
 
 **Failures are in the log.** Open `.caixa/logs/job-N.log` (or the job's log in the **Jobs** section). A file
 that could not be copied is named there with the reason. For the chat sources (WhatsApp, Messenger,
@@ -762,10 +780,9 @@ one with `caixa people link`, and watch its pages move. Run any import a second 
 
 These are known, and honest, as of this writing:
 
-- **iMessage attachments are recorded but not copied.** The photos and files attached to iMessages
-  appear in the database and on the page as "file not in this archive". The other five collectors copy
-  or extract their files. (Chattr's older JSON export for iMessage can copy them with
-  `chattr-cli convert imessage … --json --attachments-dir DIR`, outside the box.)
+- **iMessage attachments that are still in iCloud cannot be fetched.** Caixa copies the files that are
+  on the Mac and tells you which conversations hold the rest (`chattr-cli missing`); loading them is
+  done in Messages, by hand.
 - **Real exports are not yet verified.** Every collector was built and tested against the synthetic
   fixtures, which follow each platform's documented format. A real export that does not read correctly
   is a bug worth reporting, with the first few lines of the file (and no private content).

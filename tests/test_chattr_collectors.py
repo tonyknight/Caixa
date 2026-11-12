@@ -548,3 +548,34 @@ def test_a_recording_that_will_not_convert_is_not_blamed_on_a_missing_program(
     result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path))  # not real audio inside
     (note,) = [w for w in result.warnings if "recordings" in w]
     assert "could not convert" in note and "Install ffmpeg" not in note
+
+
+# --- iMessage attachments -------------------------------------------------------------------
+
+
+def test_imessage_attachments_are_filed_under_the_person(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    result, _ = _run(six["imessage"], box, _source(fixture_family, "imessage"))
+    photos = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.png"))
+    assert len(photos) == 2 and all("/iMessage/(2023-06-04)" in photo for photo in photos)
+    assert not [w for w in result.warnings if "not on this Mac" in w]
+    # the Mac's own attachment store still has its files
+    assert len(list(fixture_family.paths["imessage"].parent.rglob("IMG_000*.PNG"))) == 2
+
+
+def test_attachments_still_in_icloud_are_said_before_and_after(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    folder = tmp_path / "Messages"
+    shutil.copytree(fixture_family.paths["imessage"].parent, folder)
+    for photo in folder.rglob("IMG_000*.PNG"):
+        photo.unlink()
+    preview = six["imessage"].preview(folder / "chat.db", {}, box)
+    (before,) = [w for w in preview.warnings if "not on this Mac" in w]
+    assert "2 of 3 attachments" in before and "in 1 conversations" in before
+    assert family.ANA.phones[0] in before and "chattr-cli missing" in before
+    result, _ = _run(six["imessage"], box, folder / "chat.db")
+    (after,) = [w for w in result.warnings if "not on this Mac" in w]
+    assert after.startswith("2 attachments are not on this Mac")
+    assert not list(box.root.rglob("*.png"))
