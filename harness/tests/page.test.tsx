@@ -85,7 +85,7 @@ describe('the text', () => {
     })
     walk(join(import.meta.dirname, '../src/client'))
     const source = files.map(file => readFileSync(file, 'utf8')).join('\n')
-    const dynamic = ['type.', 'input.', 'import.step.', 'stage.', 'status.', 'nav.', 'worker.', 'form.', 'toast.', 'people.', 'browse.', 'settings.']
+    const dynamic = ['type.', 'jobs.kind.', 'input.', 'import.step.', 'stage.', 'status.', 'nav.', 'worker.', 'form.', 'toast.', 'people.', 'browse.', 'settings.']
     const unused = (Object.keys(en) as string[]).filter(key =>
       !source.includes(`'${key}'`) && !source.includes(`"${key}"`) && !dynamic.some(prefix => key.startsWith(prefix) && source.includes(`\`${prefix}`)))
     expect(unused).toEqual([])

@@ -1,6 +1,6 @@
 import type {
   Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
-  PreviewResult, SessionInfo, ImportDraft,
+  PreviewResult, SessionInfo, ImportDraft, UndoInfo,
 } from '../src/client/api.ts'
 
 export const ok = <T,>(result: T): CaixaResult<T> => ({ ok: true, result })
@@ -107,6 +107,12 @@ export class FakeApi implements Api {
     if (this.holdPreview) await new Promise<void>(resolve => this.waiting.push(resolve))
     return this.previewReply
   }
+  undoReply: CaixaResult<UndoInfo> = ok({ job: null, reason: 'There is no import to undo.' })
+  undoResult: CaixaResult<Job> = ok(job({ id: 8, kind: 'undo', status: 'queued', stage: null, result: null }))
+  againResult: CaixaResult<Job> = ok(job({ id: 9, status: 'queued', stage: null, result: null }))
+  async undoInfo() { this.record('undoInfo'); return this.undoReply }
+  async undo() { this.record('undo'); return this.undoResult }
+  async again(id: number) { this.record('again', id); return this.againResult }
   async cancelPreview(token: string) { this.record('cancelPreview', token); this.cancelledPreviews.push(token); return ok({ cancelled: true }) }
   async startImport(collector: string, source: string, options: Record<string, unknown>) { this.record('startImport', collector, source, options); return this.startReply }
   async cancel(id: number) { this.record('cancel', id); return ok(job({ id, status: 'cancelled' })) }

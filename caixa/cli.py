@@ -70,6 +70,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     doctor.add_argument("--box", help=f"include this box (or set {ENVIRONMENT}, or run inside it)")
 
+    undo = commands.add_parser(
+        "undo", help="undo the newest import (the box goes back to how it was before it)"
+    )
+    undo.add_argument("--yes", action="store_true", help="do it without asking")
+    _box_argument(undo)
+
+    again = commands.add_parser("again", help="run an earlier import again (see 'caixa jobs')")
+    again.add_argument("job", type=int, help="the number of the import to run again")
+    _box_argument(again)
+
     jobs = commands.add_parser("jobs", help="imports done and running")
     jobs.add_argument("--limit", type=int, default=20)
     _box_argument(jobs)
@@ -300,6 +310,55 @@ def _cmd_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _follow(service: Service, job: dict[str, Any], as_json: bool) -> int:
+    """Wait for a job, showing its stages; print its result. The exit code says how it ended."""
+    try:
+        done = service.wait(job["id"])
+    finally:
+        service.close()
+    if done["status"] != "done":
+        print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+        return 1
+    print(json.dumps(done["result"], indent=2) if as_json else _result_text(done["result"]))
+    return 0
+
+
+def _cmd_undo(args: argparse.Namespace) -> int:
+    service = _open(args)
+    info = service.import_undo_info()
+    if info["job"] is None:
+        print(info["reason"])
+        return 0
+    what = f"import #{info['job']} ({info['collector']}: {info['source']})"
+    changes = info["people_changes"]
+    extra = (
+        f" This also undoes {_plural(changes, 'change')} made to people since then."
+        if changes
+        else ""
+    )
+    if not args.yes:
+        print(f"This will undo {what}. The box goes back to how it was before it.{extra}")
+        if input("Undo it? [y/N] ").strip().lower() not in ("y", "yes"):
+            print("Nothing was changed.")
+            return 0
+    job = service.import_undo()
+    try:
+        done = service.wait(job["id"])
+    finally:
+        service.close()
+    if done["status"] != "done":
+        print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+        return 1
+    removed = done["result"].get("files_removed", 0)
+    print(f"Undid {what}: {_plural(removed, 'file')} removed.{extra}")
+    return 0
+
+
+def _cmd_again(args: argparse.Namespace) -> int:
+    service = _open(args)
+    return _follow(service, service.import_again(args.job), args.json)
+
+
 def _cmd_jobs(args: argparse.Namespace) -> int:
     jobs = _open(args, read_only=True).jobs_list(limit=args.limit)
     if args.json:
@@ -393,7 +452,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     handlers = {
         "box": _cmd_box,
         "collectors": _cmd_collectors,
+        "again": _cmd_again,
         "doctor": _cmd_doctor,
+        "undo": _cmd_undo,
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "people": _cmd_people,

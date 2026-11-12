@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 
-from caixa import settings
+from caixa import settings, undo
 from caixa.box import Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
@@ -540,6 +540,45 @@ class Service:
             raise ServiceError("input", f"Not found: {path}")
         return self._enqueue("import", collector, str(path), checked)
 
+    @method("import.undo.info")
+    def import_undo_info(self) -> dict[str, Any]:
+        """Which import can be undone now (the newest that has a snapshot), or why none can."""
+        box = self._require_box()
+        latest = undo.latest(box)
+        if latest is None:
+            return {"job": None, "reason": "There is no import to undo."}
+        return {
+            "job": latest["job"],
+            "collector": latest["collector"],
+            "source": latest["source"],
+            "taken": latest["taken"],
+            "people_changes": int(latest.get("people_changes", 0)),
+            "reason": None,
+        }
+
+    @method("import.undo", write=True)
+    def import_undo(self) -> dict[str, Any]:
+        """Undo the newest import: the box goes back to how it was before it, including any
+        naming of people done since. Runs as a job. The export it came from is not touched."""
+        box = self._require_box()
+        latest = undo.latest(box)
+        if latest is None:
+            raise ServiceError("conflict", "There is no import to undo.")
+        busy = [j for j in self._jobs().list(limit=1000) if j["status"] in ("queued", "running")]
+        if busy:
+            raise ServiceError("busy", "Wait for the import that is running to finish, then undo.")
+        return self._enqueue("undo", latest["collector"], latest["source"], {"job": latest["job"]})
+
+    @method("import.again", write=True)
+    def import_again(self, job: int) -> dict[str, Any]:
+        """Run an earlier import again: the same source, the same options."""
+        earlier = self._job(job)
+        if earlier["kind"] != "import":
+            raise ServiceError(
+                "conflict", f"Job {job} is not an import, so it cannot be run again."
+            )
+        return self.import_start(earlier["collector"], earlier["source"], earlier["options"])
+
     @method("import.cancel", write=True)
     def import_cancel(self, job: int) -> dict[str, Any]:
         """Cancel a queued job at once, or a running one at its next step."""
@@ -708,10 +747,41 @@ class Service:
     def _execute(
         self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
     ) -> dict[str, Any]:
+        if job["kind"] == "undo":
+            return self._undo(box, int(job["options"]["job"]), progress)
         if job["kind"] == "refresh":
-            return self._refresh_all(box, progress)
-        collector = self._collector(job["collector"])
-        return asdict(collector.run(box, Path(job["source"]), job["options"], progress))
+            result = self._refresh_all(box, progress)
+        else:
+            collector = self._collector(job["collector"])
+            undo.begin(box, job["id"], job["collector"], job["source"])
+            try:
+                result = asdict(collector.run(box, Path(job["source"]), job["options"], progress))
+            finally:
+                undo.finish(box, job["id"])  # however it ended, it can now be undone
+        undo.note_moves(box, result.pop("moved", []))
+        return result
+
+    def _undo(self, box: Box, target: int, progress: Callable[[Progress], None]) -> dict[str, Any]:
+        """Put the box back as it was before import `target`, then redraw the pages."""
+        progress(Progress("undoing", message="Putting the box back as it was"))
+        done = undo.restore(box, target)
+        with box.master() as master:
+            (last,) = master.connection.execute(
+                "SELECT COALESCE(MAX(id), 0) FROM imports"
+            ).fetchone()
+        result = self._refresh_all(box, progress)
+        result.pop("moved", None)
+        with box.master() as master:
+            # Redrawing the pages records itself as an import that changed nothing; that record
+            # is not part of how the box was, so it goes.
+            master.connection.execute(
+                "DELETE FROM imports WHERE id > ? AND inserted = 0 AND updated = 0", (last,)
+            )
+            master.commit()
+        store = self._jobs()
+        before = store.get(target)
+        store.update(target, result={**(before["result"] or {}), "undone": True})
+        return {**result, **done, "undone_job": target, "inserted": 0, "updated": 0}
 
     def _refresh_all(self, box: Box, progress: Callable[[Progress], None]) -> dict[str, Any]:
         """Redraw pages for every working folder that can (once each); the last result is kept."""
@@ -758,6 +828,7 @@ class Service:
         """The person as it now stands, plus the job that redraws the pages."""
         summary = next(p for p in master.summary() if p["id"] == person)
         master.commit()
+        undo.note_people_change(self._require_box())  # undoing the newest import would undo this
         job = self._enqueue("refresh", None, None, {}) if self._people_aware() else None
         return {"person": summary, "job": job}
 

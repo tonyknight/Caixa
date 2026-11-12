@@ -70,6 +70,9 @@ class RunResult:
     pages: int = 0
     unresolved: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
+    #: Files that changed place in the box, as (from, to) relative to it (a person was named and
+    #: their files followed). Caixa keeps this for undo; it is not shown.
+    moved: list[tuple[str, str]] = field(default_factory=list)
 
 
 @runtime_checkable

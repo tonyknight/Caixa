@@ -275,7 +275,11 @@ export class Store {
     this.set({ jobs: known ? this.state.jobs.map(existing => existing.id === id ? merged : existing) : [merged, ...this.state.jobs] })
     if (!FINISHED.has(job.status)) return
     // Redrawing pages after a change to people is routine: only its failure is worth a notice.
-    if (merged.kind !== 'import' && merged.status === 'done') { this.set({ boxVersion: this.state.boxVersion + 1 }); return }
+    if (merged.kind !== 'import' && merged.status === 'done') {
+      this.set({ boxVersion: this.state.boxVersion + 1 })
+      if (merged.kind === 'undo') { void this.refreshBox(); void this.refreshJobs() } // the counts went back; the undone import is marked
+      return
+    }
     void this.loadNames().then(() => this.toast(merged))
     void this.refreshBox() // the counts changed
   }

@@ -282,3 +282,34 @@ def test_doctor_needs_both_a_collector_and_a_source(capsys: pytest.CaptureFixtur
 
     assert cli.main(["doctor", "--source", "/x"]) == 1
     assert "--collector" in capsys.readouterr().err
+
+
+# --- caixa undo, caixa again ----------------------------------------------------------------
+
+
+def test_undo_and_again_from_the_command_line(
+    tmp_path: Path,
+    fixture_family,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    box = tmp_path / "Box"
+    chat = str(fixture_family.paths["whatsapp"] / "WhatsApp Chat - Ana Costa" / "_chat.txt")
+    assert cli.main(["box", "create", str(box), "--owner", family.OWNER.name]) == 0
+    assert cli.main(["undo", "--box", str(box)]) == 0
+    assert "no import to undo" in capsys.readouterr().out
+    assert cli.main(["import", "whatsapp", chat, "--box", str(box)]) == 0
+    capsys.readouterr()
+
+    monkeypatch.setattr("builtins.input", lambda prompt: "n")  # asked first, and "no" is no
+    assert cli.main(["undo", "--box", str(box)]) == 0
+    out = capsys.readouterr().out
+    assert "This will undo import #1 (whatsapp" in out and "Nothing was changed." in out
+    assert (box / "People" / family.ANA.name).is_dir()
+
+    assert cli.main(["undo", "--box", str(box), "--yes"]) == 0
+    assert "Undid import #1" in capsys.readouterr().out
+    assert not (box / "People" / family.ANA.name).exists()
+
+    assert cli.main(["again", "1", "--box", str(box)]) == 0
+    assert "7 new" in capsys.readouterr().out and (box / "People" / family.ANA.name).is_dir()

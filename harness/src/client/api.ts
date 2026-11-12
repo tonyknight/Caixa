@@ -138,6 +138,18 @@ export interface ImportResult {
   readonly pages: number
   readonly unresolved: readonly string[]
   readonly warnings: readonly string[]
+  /** True once this import has been undone. */
+  readonly undone?: boolean
+}
+
+/** The import that can be undone now (the newest), or why none can. */
+export interface UndoInfo {
+  readonly job: number | null
+  readonly collector?: string
+  readonly source?: string
+  readonly taken?: string
+  readonly people_changes?: number
+  readonly reason: string | null
 }
 
 export type JobStatus = 'queued' | 'running' | 'done' | 'failed' | 'cancelled' | 'interrupted'
@@ -267,6 +279,11 @@ export interface Api {
   /** With a `token`, the preview's progress is announced (`preview.progress`) and it can be cancelled. */
   preview(collector: string, source: string, options: Record<string, unknown>, token?: string): Promise<CaixaResult<PreviewResult>>
   cancelPreview(token: string): Promise<CaixaResult<{ cancelled: boolean }>>
+  undoInfo(): Promise<CaixaResult<UndoInfo>>
+  /** Undo the newest import (runs as a job). */
+  undo(): Promise<CaixaResult<Job>>
+  /** Run an earlier import again, with the same source and options. */
+  again(job: number): Promise<CaixaResult<Job>>
   startImport(collector: string, source: string, options: Record<string, unknown>): Promise<CaixaResult<Job>>
   cancel(job: number): Promise<CaixaResult<Job>>
   jobs(limit?: number): Promise<CaixaResult<Job[]>>
@@ -303,6 +320,9 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     collectors: () => run('collectors.list'),
     preview: (collector, source, options, token) => run('import.preview', token ? { collector, source, options, token } : { collector, source, options }),
     cancelPreview: token => run('import.preview.cancel', { token }),
+    undoInfo: () => run('import.undo.info'),
+    undo: () => run('import.undo'),
+    again: job => run('import.again', { job }),
     startImport: (collector, source, options) => run('import.start', { collector, source, options }),
     cancel: job => run('import.cancel', { job }),
     jobs: (limit = 100) => run('jobs.list', { limit }),

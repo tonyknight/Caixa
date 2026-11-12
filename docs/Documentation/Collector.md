@@ -301,6 +301,34 @@ errors, and, for a source, what Caixa sees in it. It never contains a name, a nu
 and your home folder is shown as `~`. It changes nothing, and works with a box open read-only. Paste
 it into your message when asking for help.
 
+## Undoing an import, and running one again
+
+Every import can be taken back. Before an import starts, Caixa keeps a copy of its databases and a list
+of the box's files (in `.caixa/undo/`). **Undo** puts the databases back, removes every file the import
+added, puts back any file that has moved since, and redraws the pages: the box is exactly as it was.
+Your export is never touched, so you can import it again.
+
+- In the browser: **Jobs**, **Undo the last import**. It asks twice. Each import in the list also has
+  **Run again** (the same source, the same options).
+- From the command line:
+
+  ```bash
+  caixa undo --box ~/Our\ Box          # says what it will undo and asks; --yes skips the question
+  caixa jobs --box ~/Our\ Box          # the imports, with their numbers
+  caixa again 4 --box ~/Our\ Box       # run import #4 again
+  ```
+
+Things to know:
+
+- Undo works **newest first**: the last import, then the one before it. The last 3 imports can be undone.
+- **Naming people is undone too** if you did it after that import (the names live in the same
+  databases). Caixa tells you how many such changes will go before you confirm.
+- An import that failed or was cancelled part-way can be undone the same way, to clean up after it.
+- Undo is refused while an import is running, and in a box opened read-only.
+- The copies take about as much room as Caixa's databases, three times over. They are inside `.caixa/`.
+
+This is the loop for trying an improved importer: **undo**, update Caixa, **run again**.
+
 ## Picking up where you left off
 
 Caixa remembers, in its own folder (`~/.local/share/caixa` on Linux, `~/Library/Application

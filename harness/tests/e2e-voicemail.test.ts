@@ -103,5 +103,23 @@ run('voicemail as named audio files, in a browser', () => {
     }
     const listing = await running.rpc('browse.list', { path: 'People/Ana Costa/Voicemail' })
     expect(listing.ok, JSON.stringify(listing)).toBe(true)
+
+    // Undo it from the Jobs section: the box is empty again; then run it again from the same row.
+    const again = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(again, running)
+      await page.getByRole('navigation').getByRole('button', { name: 'Jobs' }).click()
+      const card = page.getByRole('region', { name: 'Undo the last import' })
+      await card.getByText(/The last import was #\d+: iPhone voicemail/).waitFor({ timeout: 30_000 })
+      await card.getByRole('button', { name: 'Undo this import' }).click()
+      await card.getByRole('button', { name: 'Yes, undo it' }).click()
+      await page.getByText('Undone', { exact: true }).first().waitFor({ timeout: 60_000 })
+      expect((await running.rpc('box.status')).result.items).toBe(0)
+      expect((await running.rpc('browse.list', { path: 'People' })).result.entries).toEqual([])
+      await page.getByRole('button', { name: /Run again/ }).first().click()
+      await expect.poll(async () => (await running.rpc('box.status')).result.items, { timeout: 60_000 }).toBe(3)
+    } finally {
+      await again.close()
+    }
   }, 240_000)
 })

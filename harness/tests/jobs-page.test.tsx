@@ -134,3 +134,68 @@ describe('the toasts', () => {
     expect(screen.getByText('WhatsApp：已导入 7 条新内容。')).toBeTruthy()
   })
 })
+
+describe('undoing the last import, and running one again', () => {
+  const page = (setup: (api: any) => void) => renderWith(<JobsPage selected={undefined} onSelect={() => undefined} />, setup)
+  const last = (api: any) => {
+    api.jobList = [job({ id: 4 }), job({ id: 3, result: { inserted: 7, updated: 0, unchanged: 0, pages: 2, unresolved: [], warnings: [], undone: true } })]
+    api.undoReply = ok({ job: 4, collector: 'whatsapp', source: '/exports/chat.txt', taken: '2024-05-01T10:00:00+00:00', people_changes: 0, reason: null })
+  }
+
+  it('says which import is the last and asks twice before undoing it', async () => {
+    const view = await page(last)
+    const card = screen.getByRole('region', { name: 'Undo the last import' })
+    expect(within(card).getByText('The last import was #4: WhatsApp, from /exports/chat.txt.')).toBeTruthy()
+    fireEvent.click(within(card).getByRole('button', { name: 'Undo this import' }))
+    expect(view.api.calls.some(call => call[0] === 'undo')).toBe(false) // nothing yet
+    fireEvent.click(within(card).getByRole('button', { name: 'No, keep it' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Undo this import' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Yes, undo it' }))
+    await view.flush()
+    expect(view.api.calls.filter(call => call[0] === 'undo')).toHaveLength(1)
+    expect(within(card).getByRole('status').textContent).toContain('Undoing')
+  })
+
+  it('warns when naming people would be undone too', async () => {
+    await page((api) => { last(api); api.undoReply = ok({ job: 4, collector: 'whatsapp', source: '/x', people_changes: 2, reason: null }) })
+    expect(screen.getByText('This also undoes 2 change(s) made to people since that import.')).toBeTruthy()
+  })
+
+  it('offers nothing when there is nothing to undo, or the box is read-only', async () => {
+    await page((api) => { api.jobList = [job({ id: 4 })] })
+    expect(screen.queryByRole('region', { name: 'Undo the last import' })).toBeNull()
+    cleanup()
+    await page((api) => { last(api); api.readOnly = true })
+    expect(screen.queryByRole('region', { name: 'Undo the last import' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Run again/ })).toBeNull()
+  })
+
+  it('cannot be started while an import is running', async () => {
+    await page((api) => { last(api); api.jobList = [job({ id: 5, status: 'running', stage: 'importing', result: null }), ...api.jobList] })
+    expect((screen.getByRole('button', { name: 'Undo this import' }) as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('says why when the worker refuses', async () => {
+    const view = await page((api) => { last(api); api.undoResult = fail('busy', 'Wait for the import that is running to finish, then undo.') })
+    fireEvent.click(screen.getByRole('button', { name: 'Undo this import' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Yes, undo it' }))
+    await view.flush()
+    expect(screen.getByRole('status').textContent).toBe('It could not be undone: Wait for the import that is running to finish, then undo.')
+  })
+
+  it('marks an import that was undone, and runs any import again', async () => {
+    const view = await page(last)
+    const rows = screen.getAllByRole('row')
+    expect(within(rows[2]!).getByText('Undone')).toBeTruthy()
+    expect(within(rows[1]!).queryByText('Undone')).toBeNull()
+    fireEvent.click(within(rows[2]!).getByRole('button', { name: /Run again/ }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['again', 3])
+  })
+
+  it('calls an undo an undo in the list', async () => {
+    await page((api) => { api.jobList = [job({ id: 8, kind: 'undo', collector: 'whatsapp' })] })
+    expect(within(screen.getAllByRole('row')[1]!).getByText('Undo')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Run again/ })).toBeNull()
+  })
+})

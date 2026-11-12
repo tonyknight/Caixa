@@ -333,6 +333,7 @@ class _Chattr:
             pages=page_count,
             unresolved=unresolved,
             warnings=[*list(synced.conflicts), *self._audio_notes(published)],
+            moved=list(published.filed.moved) if published else [],
         )
 
     @staticmethod
