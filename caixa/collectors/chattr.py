@@ -143,14 +143,42 @@ class _Chattr:
         attachments_dir: Optional[Path],
         final: bool,
         progress: Callable[[Progress], None],
-    ) -> None:
+    ) -> list[str]:
+        """Convert every input; returns notes about any that held nothing (they are skipped).
+
+        People are linked once afterwards by the caller, not per input: an export can hold
+        thousands of conversations.
+        """
+        empty: list[Path] = []
         for number, item in enumerate(items, 1):
-            progress(Progress("importing", number - 1, len(items), item.name))
+            progress(Progress("importing", number - 1, len(items), self._label(item)))
             try:
                 self.convert(settings, item, options, owner, aliases, attachments_dir, final)
+            except commands.NothingFound as error:
+                if len(items) == 1:
+                    raise InputError(str(error)) from error
+                empty.append(item)
             except commands.CommandError as error:
                 raise InputError(str(error)) from error
         progress(Progress("importing", len(items), len(items)))
+        if empty and len(empty) == len(items):
+            raise InputError(
+                f"All {len(items)} conversations in this export had no messages, so there is "
+                "nothing to import."
+            )
+        if empty:
+            count = len(empty)
+            return [
+                f"{count} conversation{'s' if count != 1 else ''} had no messages and "
+                f"{'were' if count != 1 else 'was'} skipped."
+            ]
+        return []
+
+    @staticmethod
+    def _label(item: Path) -> str:
+        """What to call an input while it is read: a thread's folder says more than `message_1.json`."""
+        generic = item.name in ("message_1.json", "_chat.txt", "voicemail.db", "chat.db")
+        return item.parent.name if generic and item.parent.name else item.name
 
     # --- Preview ----------------------------------------------------------------------------
 
@@ -165,10 +193,12 @@ class _Chattr:
             settings = self._settings(scratch / "chattr")
             aliases = self._aliases(box, scratch / "aliases.json")
             owner = self._owner(opts, box)
-            self._import_all(
+            notes = self._import_all(
                 settings, items, opts, owner, aliases, None, False, lambda _progress: None
             )
-            return self._describe(settings, opts, owner, aliases)
+            described = self._describe(settings, opts, owner, aliases)
+            described.warnings[:0] = notes
+            return described
 
     def _describe(
         self,
@@ -227,11 +257,13 @@ class _Chattr:
         owner = self._owner(opts, box)
         attachments = box.root / self.attachments if self.attachments else None
 
-        self._import_all(settings, items, opts, owner, aliases, attachments, True, progress)
+        notes = self._import_all(settings, items, opts, owner, aliases, attachments, True, progress)
 
         progress(Progress("linking", message="Matching people"))
         commands.people(settings, owner, aliases, opts.get("contacts") or None)
-        return self._publish(box, settings, progress)
+        result = self._publish(box, settings, progress)
+        result.warnings[:0] = notes
+        return result
 
     # --- Pages and the master (after an import, or after people changed) ---------------------
 
@@ -387,6 +419,7 @@ class WhatsApp(_Chattr):
             aliases=aliases,
             attachments_dir=attachments_dir,
             contacts=options.get("contacts") or None,
+            resolve=False,
         )
 
 
@@ -436,6 +469,7 @@ class _Meta(_Chattr):
             aliases=aliases,
             attachments_dir=attachments_dir,
             contacts=options.get("contacts") or None,
+            resolve=False,
         )
 
 
@@ -505,6 +539,7 @@ class Mail(_Chattr):
             aliases=aliases,
             attachments_dir=attachments_dir,
             contacts=options.get("contacts") or None,
+            resolve=False,
         )
 
 
@@ -557,6 +592,7 @@ class GoogleVoice(_Chattr):
             aliases=aliases,
             attachments_dir=attachments_dir,
             contacts=options.get("contacts") or None,
+            resolve=False,
         )
 
 
@@ -677,6 +713,7 @@ class Voicemail(_Chattr):
             attachments_dir=attachments_dir,
             transcriber=transcriber,
             contacts=options.get("contacts") or None,
+            resolve=False,
         )
 
 
