@@ -326,7 +326,7 @@ def test_a_whatsapp_zip_is_unpacked_and_imported(
     result, _ = _run(six["whatsapp"], box, archive)
     assert result.inserted == 7
     assert list(
-        (box.root / "People" / family.ANA.name / "WhatsApp").glob("*.png")
+        (box.root / "People" / family.ANA.name / "WhatsApp").glob("*.jpg")
     )  # the media came too
 
 
@@ -557,7 +557,7 @@ def test_imessage_attachments_are_filed_under_the_person(
     six: dict[str, Collector], fixture_family, box: Box
 ) -> None:
     result, _ = _run(six["imessage"], box, _source(fixture_family, "imessage"))
-    photos = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.png"))
+    photos = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.jpg"))
     assert len(photos) == 2 and all("/iMessage/(2023-06-04)" in photo for photo in photos)
     assert not [w for w in result.warnings if "not on this Mac" in w]
     # the Mac's own attachment store still has its files
@@ -578,4 +578,4 @@ def test_attachments_still_in_icloud_are_said_before_and_after(
     result, _ = _run(six["imessage"], box, folder / "chat.db")
     (after,) = [w for w in result.warnings if "not on this Mac" in w]
     assert after.startswith("2 attachments are not on this Mac")
-    assert not list(box.root.rglob("*.png"))
+    assert not list(box.root.rglob("*.jpg"))

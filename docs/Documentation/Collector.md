@@ -544,6 +544,27 @@ it is not installed the import finishes, says how many recordings have no playab
 links the original. Install `ffmpeg` and import again to make the copies. The original is the record;
 the copy can always be made again.
 
+### Pictures
+
+Pictures from messages are filed so that any device and any photo library can open and date them:
+
+- **HEIC** (iPhone photos), **PNG** and **WebP** are filed as **JPEG at quality 85**. Only the JPEG is
+  kept in the box; the file in your export or on your Mac is never changed. A picture with see-through
+  parts gets a white background. The colour profile (iPhones use Display P3) is kept.
+- Every filed picture carries the date it was taken (`DateTimeOriginal`). A picture that already knows
+  its date keeps it. One that does not (screenshots, pictures that passed through WhatsApp or Messenger)
+  is given the local date and time of the message that carried it. A JPEG is dated without being
+  compressed again.
+- The file is named after its message, like every attachment: `(2024-03-01) 14-05-09 Ana Costa.jpg`.
+- JPEG that already has its date, GIF, moving pictures (animated stickers) and video are filed exactly
+  as they are. **Mail attachments are
+  never converted**: there the file itself is the record.
+- A picture that cannot be read (damaged, or only partly downloaded) is filed in its original format and
+  the import says how many there were.
+
+Nothing extra needs installing: Caixa does this itself. `exiftool` is used only for the rare JPEG that has
+camera data but no date; without it such a file is left as it is.
+
 ### iMessage attachments
 
 Attachments are **copied** from the Mac's store (`~/Library/Messages/Attachments`, never changed) and

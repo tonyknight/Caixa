@@ -337,7 +337,11 @@ class _Chattr:
             unchanged=synced.unchanged,
             pages=page_count,
             unresolved=unresolved,
-            warnings=[*list(synced.conflicts), *self._audio_notes(published)],
+            warnings=[
+                *list(synced.conflicts),
+                *self._audio_notes(published),
+                *self._picture_notes(published),
+            ],
             moved=list(published.filed.moved) if published else [],
         )
 
@@ -358,6 +362,18 @@ class _Chattr:
             f"{these} in a format most browsers cannot play, and ffmpeg could not convert "
             "them (the files may be damaged). The originals are in the box and linked from "
             "the page."
+        ]
+
+    @staticmethod
+    def _picture_notes(published: Optional[commands.Published]) -> list[str]:
+        """Say so when pictures could not be filed as JPEG."""
+        count = len(published.filed.unconverted) if published else 0
+        if not count:
+            return []
+        these = f"{count} picture{'s' if count != 1 else ''}"
+        return [
+            f"{these} could not be converted to JPEG (the files may be damaged or only "
+            "partly downloaded). They are in the box in their original format."
         ]
 
     @staticmethod
