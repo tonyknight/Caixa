@@ -122,6 +122,14 @@ lets a program read it only after you give that program **Full Disk Access** (Sy
 Security). Caixa opens the database read-only and never changes it. You can also copy `chat.db` (and the
 `Attachments` folder next to it) somewhere and import the copy.
 
+**What is read.** Text (including messages macOS stores only in its rich-text form), tapbacks, read and
+delivered times, **replies** (each shows what it answers, with a link), **edited messages** (the page
+shows the final text and keeps the earlier versions with their times under "Edited"), **unsent messages**
+(a line saying who unsent it, instead of an empty bubble), and the **events of a conversation** as plain
+sentences: someone added or removed, the conversation named, the group photo changed, someone left,
+location sharing started or stopped, an audio message kept, Emergency SOS events. An event Caixa does not
+recognise is still shown, with Messages' own code for it.
+
 **One person, one conversation.** Messages keeps a separate entry for each address a person uses (their
 phone number for iMessage, the same number for SMS, their email), and can split one conversation into
 several. Caixa joins addresses that are the same person (the same address on two services, addresses
