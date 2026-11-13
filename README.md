@@ -57,8 +57,9 @@ live app still uses) are never changed.
 year is known; a day is never invented). People are the second axis: all of your messages with one
 person, across every app, live together in one place.
 
-**Local first.** Nothing leaves your computer. There is no cloud service in the path; translation and
-speech-to-text, when you turn them on, talk only to a model on your own machine.
+**Local first.** Nothing leaves your computer unless you say so. There is no cloud service in the path;
+speech-to-text runs on your own machine, and translation, when you turn it on, talks only to the address
+you give. A paid translation service on the internet needs a second, explicit yes.
 
 **Open, durable formats, and Caixa is an enabler, not a requirement.** The box is SQLite, HTML,
 JSON and standard image metadata. Everything at its top level is ordinary files you can open with a
@@ -234,9 +235,9 @@ macOS is the target for iMessage. Windows is untested (and `caixa serve` does no
 | **Python 3.10 or newer** | everything | Required. Chattr's Python packages (Jinja2, vobject, phonenumbers, tqdm, python-dotenv, Pillow, pillow-heif, ffmpeg-python) are installed with it; that is the only time the network is needed. |
 | **Disk space** | every import | A box keeps its own copy of photos and recordings (your exports are never changed), so allow at least the size of the exports you import, and more for a large iMessage library. |
 | **ExifTool** | optional, recommended | Reads the date a photo was really taken, and writes the message date into photos that have none. Without it photos are dated by the message that carried them and nothing is written into them. Install with your package manager (`brew install exiftool`, `apt install libimage-exiftool-perl`). |
-| **FFmpeg** | optional | Only for local speech-to-text (it prepares the audio) and for the optional format conversion, which is off. |
+| **FFmpeg** | recommended | Files recordings (voicemail, voice notes) as `.m4a`, which every browser plays; without it they are kept in their original format. Also prepares audio for local speech-to-text. |
 | **A local speech model** | optional | To transcribe voicemail: whisper.cpp's `whisper-cli` and a model file, or the `faster-whisper` package and a model folder. Caixa never downloads a model. |
-| **A local translation model** | optional | Any OpenAI-compatible service on your own computer (for example Ollama at `http://localhost:11434/v1`). Off until you turn it on. |
+| **A translation model** | optional | Any OpenAI-compatible service: one on your own computer (for example Ollama at `http://localhost:11434/v1`) or a paid one (OpenRouter, DeepSeek) with your API key. Off until you turn it on; set it up and test it in Settings. |
 | **macOS "Full Disk Access"** | iMessage only | macOS lets a program read `~/Library/Messages/chat.db` only after you allow it in System Settings, Privacy & Security. Caixa opens the database read-only. |
 | **Node.js 24.9 or newer, and pnpm** | the browser interface only | `caixa serve` runs DeepSeek Harness, which needs Node 24.9+. `pnpm` is installed with `npm install -g pnpm` (or `corepack enable`). The first run downloads the pinned DeepSeek Harness once. |
 

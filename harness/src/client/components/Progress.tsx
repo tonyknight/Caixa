@@ -38,6 +38,13 @@ export function ProgressView({ step, stages, startedAt, now = Date.now }: {
   const stage = step?.stage ?? 'starting'
   if (step && seen.current?.stage !== step.stage) seen.current = { stage: step.stage, at: now(), current: step.current }
 
+  // Translating happens only when the box has it turned on, so it joins the list once it is seen.
+  const translates = useRef(false)
+  if (stage === 'translating') translates.current = true
+  if (translates.current && stages.includes('linking') && !stages.includes('translating')) {
+    const after = stages.indexOf('linking') + 1
+    stages = [...stages.slice(0, after), 'translating', ...stages.slice(after)]
+  }
   const position = stages.indexOf(stage)
   const counted = step && step.total !== null && step.total > 0
   let left: string | undefined

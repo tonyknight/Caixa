@@ -68,6 +68,7 @@ class RunResult:
     updated: int = 0
     unchanged: int = 0
     pages: int = 0
+    translated: int = 0  # messages given a translation by this run
     unresolved: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     #: Files that changed place in the box, as (from, to) relative to it (a person was named and

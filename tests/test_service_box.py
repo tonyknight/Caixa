@@ -110,7 +110,11 @@ def test_settings_have_defaults_and_a_schema(made: Service) -> None:
 
 def test_settings_are_saved_in_the_box(made: Service, tmp_path: Path) -> None:
     made.settings_set(
-        {"translation.enabled": True, "translation.endpoint": "http://localhost:1/v1"}
+        {
+            "translation.enabled": True,
+            "translation.endpoint": "http://localhost:1/v1",
+            "translation.model": "llama3.1",
+        }
     )
     again = Service(roots=[tmp_path])
     again.box_open(str(tmp_path / "Box"))

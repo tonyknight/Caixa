@@ -31,4 +31,13 @@ describe('how long is left', () => {
     expect(screen.queryByText(/left/)).toBeNull()
     expect(document.querySelector('progress')!.hasAttribute('value')).toBe(false)
   })
+  it('shows translating as a stage of its own once an import reaches it', async () => {
+    const view = await renderWith(<ProgressView step={{ stage: 'linking', current: 0, total: null, message: '' }} stages={IMPORT_STAGES} startedAt={Date.now()} />)
+    expect(screen.queryByText('Translating messages')).toBeNull()
+    view.rerender(<Providers store={view.store} t={t}><ProgressView step={{ stage: 'translating', current: 3, total: 40, message: 'Translating messages' }} stages={IMPORT_STAGES} startedAt={Date.now()} /></Providers>)
+    const now = document.querySelector('[aria-current="step"]')!
+    expect(now.textContent).toBe('Translating messages')
+    expect(now.previousElementSibling!.textContent).toBe('Matching people')
+    expect(screen.getByText(/3 of 40/)).toBeTruthy()
+  })
 })

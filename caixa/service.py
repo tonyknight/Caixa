@@ -25,8 +25,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union
+from urllib.parse import urlparse
 
-from caixa import settings, undo
+from chattr.translation import is_local_endpoint
+
+from caixa import settings, translation, undo
 from caixa.box import Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
@@ -340,11 +343,37 @@ class Service:
     @method("settings.get")
     def settings_get(self) -> dict[str, Any]:
         box = self._require_box()
+        values = settings.load(box)
+        endpoint = str(values.get("translation.endpoint") or "")
         return {
-            "values": settings.load(box),
+            "values": values,
             "schema": settings.SCHEMA,
             "box": {"root": str(box.root), "name": box.name},
+            # whether a key is saved for this endpoint; the key itself never leaves the worker
+            "translation": {"key_saved": self._keys().get(endpoint) is not None},
         }
+
+    def _keys(self) -> translation.Keys:
+        return translation.Keys(self.state.path.parent if self.state is not None else None)
+
+    @method("translation.key")
+    def translation_key(self, endpoint: str, key: str) -> dict[str, Any]:
+        """Save the key for this endpoint's host (an empty key forgets it). It is kept in
+        Caixa's own folder, never in the box."""
+        if key.strip() and not is_local_endpoint(endpoint):
+            if urlparse(endpoint).scheme != "https":
+                raise ServiceError(
+                    "invalid_params",
+                    "A key is only sent over https. Give an https:// endpoint first.",
+                )
+        self._keys().set(endpoint, key)
+        return {"key_saved": self._keys().get(endpoint) is not None}
+
+    @method("translation.test")
+    def translation_test(self, values: dict[str, Any], key: str = "") -> dict[str, Any]:
+        """Try the endpoint, model and key (the saved key unless one is given) with one fixed
+        sentence. Nothing from the box is sent."""
+        return translation.check(values, self._keys(), key or None)
 
     @method("settings.set", write=True)
     def settings_set(self, values: dict[str, Any]) -> dict[str, Any]:

@@ -321,6 +321,7 @@ function RunStep({ collector, jobId, onAgain, onShowJob, onShowPeople }: { colle
           <h3>{t('import.report.done')}</h3>
           <p>{t('import.report.counts', { inserted: result.inserted, updated: result.updated, unchanged: result.unchanged })}</p>
           <p>{t('import.report.pages', { count: result.pages })}</p>
+          {(result.translated ?? 0) > 0 && <p>{t('import.report.translated', { count: result.translated! })}</p>}
           {result.unresolved.length > 0 && (
             <p>{t('import.report.unresolved', { count: result.unresolved.length })}{' '}
               <button type="button" className={css.link} onClick={onShowPeople}>{t('import.report.name')}</button></p>

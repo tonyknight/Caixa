@@ -16,7 +16,7 @@ describe('the settings form', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy()
     expect(screen.getByText('Location: /boxes/Our box')).toBeTruthy()
     expect(screen.getByText(/Nothing here sends your archive anywhere/)).toBeTruthy()
-    for (const legend of ['Privacy', 'Translation (local model)', 'Speech-to-text (local model)']) {
+    for (const legend of ['Privacy', 'Translation', 'Speech-to-text (local model)']) {
       expect(screen.getByRole('group', { name: legend })).toBeTruthy()
     }
   })
@@ -132,5 +132,53 @@ describe('the settings form', () => {
     cleanup()
     await page(vi.fn(), (api) => { api.settingsReply = fail('not_found', 'no settings') })
     expect(screen.getByRole('alert').textContent).toBe('Something went wrong: no settings')
+  })
+})
+
+describe('translation: the key and the test', () => {
+  it('saves a typed key apart from the settings, and never shows a saved one', async () => {
+    const view = await page()
+    expect(screen.getByText(/No key is saved for this endpoint/)).toBeTruthy()
+    change('Translation endpoint', 'https://openrouter.ai/api/v1')
+    const field = screen.getByLabelText('API key') as HTMLInputElement
+    expect(field.type).toBe('password')
+    fireEvent.change(field, { target: { value: ' sk-secret-123 ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await screen.findByText('Settings saved.')
+    expect(view.api.keySaves).toEqual([['https://openrouter.ai/api/v1', 'sk-secret-123']])
+    expect(view.api.savedSettings.every(values => !JSON.stringify(values).includes('sk-secret'))).toBe(true)
+    expect((screen.getByLabelText('API key') as HTMLInputElement).value).toBe('')
+    expect(screen.getByText(/A key is saved for this endpoint/)).toBeTruthy()
+  })
+
+  it('forgets a saved key when asked', async () => {
+    const view = await page(vi.fn(), (api) => {
+      api.settingsReply = ok({ ...SETTINGS, values: { ...SETTINGS.values, 'translation.endpoint': 'https://api.deepseek.com/v1' }, translation: { key_saved: true } })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Forget the saved key' }))
+    await screen.findByText(/No key is saved for this endpoint/)
+    expect(view.api.keySaves).toEqual([['https://api.deepseek.com/v1', '']])
+  })
+
+  it('tests what is typed, saved or not, and shows the sample and what came back', async () => {
+    const view = await page()
+    change('Translation endpoint', 'http://localhost:11434/v1')
+    change('Translation model', 'llama3.1')
+    fireEvent.change(screen.getByLabelText('API key'), { target: { value: 'sk-typed' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    const result = await screen.findByTestId('translation-test-result')
+    expect(result.textContent).toContain('It works')
+    expect(result.textContent).toContain('Bom dia!')
+    expect(result.textContent).toContain('Good morning!')
+    expect(view.api.tests).toEqual([[{ 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
+    expect(view.api.savedSettings).toEqual([])  // testing saves nothing
+  })
+
+  it('says why a test failed', async () => {
+    await page(vi.fn(), (api) => { api.testReply = ok({ ok: false, message: 'The server refused the key (HTTP 401): No auth credentials found' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Test' }))
+    const result = await screen.findByTestId('translation-test-result')
+    expect(result.getAttribute('role')).toBe('alert')
+    expect(result.textContent).toContain('The test failed. The server refused the key (HTTP 401)')
   })
 })

@@ -25,6 +25,8 @@ ALL_METHODS = {
     "box.open",
     "box.status",
     "collectors.list",
+    "translation.key",
+    "translation.test",
     "import.preview",
     "import.preview.cancel",
     "import.start",

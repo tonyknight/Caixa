@@ -27,8 +27,10 @@ from chattr.database_manager import DatabaseManager
 from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
+from chattr.translation import TranslationError, translate_archive
 
 from caixa import settings as box_settings
+from caixa import translation
 from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
@@ -280,9 +282,56 @@ class _Chattr:
 
         progress(Progress("linking", message="Matching people"))
         commands.people(settings, owner, aliases, opts.get("contacts") or None)
+        translated, said = self._translate(box, settings, progress)
         result = self._publish(box, settings, progress)
-        result.warnings[:0] = notes
+        result.translated = translated
+        result.warnings[:0] = [*notes, *said]
         return result
+
+    @staticmethod
+    def _translate(
+        box: Box, settings: Settings, progress: Callable[[Progress], None]
+    ) -> tuple[int, list[str]]:
+        """Translate what needs it, when the box's settings turn translation on.
+
+        Every message in the box is considered, so turning translation on and importing anything
+        catches up on what was imported before; a message that has a translation is never sent
+        again. Returns how many were translated and what a person should know. A translation
+        service that is missing or failing never fails the import.
+        """
+        values = box_settings.load(box)
+        if not values.get("translation.enabled"):
+            return 0, []
+        wrong = translation.problems(values)
+        if wrong:
+            return 0, [f"Nothing was translated. {wrong[0]}"]
+        try:
+            translator = translation.translator(values)
+        except TranslationError as error:
+            return 0, [f"Nothing was translated. {error}"]
+
+        def report(done: int, total: int) -> None:
+            progress(Progress("translating", done, total, "Translating messages"))
+
+        progress(Progress("translating", message="Looking for messages to translate"))
+        with DatabaseManager(commands.central_database(settings)) as db:
+            stats = translate_archive(
+                db, translator, workers=translation.workers(values), on_progress=report
+            )
+        said: list[str] = []
+        if stats.aborted:
+            said.append(
+                f"Translation stopped after {stats.translated:,} messages because the "
+                f"translation service kept failing: {stats.errors[-1]} What was translated is "
+                "kept. Check it in Settings (Test), then import again to translate the rest."
+            )
+        elif stats.failed:
+            said.append(
+                f"{stats.failed:,} messages could not be translated ({stats.errors[-1]}). "
+                "If that keeps happening, check the service in Settings (Test). Import again to "
+                "try them once more."
+            )
+        return stats.translated, said
 
     # --- Pages and the master (after an import, or after people changed) ---------------------
 

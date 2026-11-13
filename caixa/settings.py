@@ -1,8 +1,10 @@
 """A box's own settings, kept in `.caixa/box.yaml` beside its name.
 
 Everything here is a plain value with a default, described by a JSON Schema so the Settings page
-can render a form without knowing any of it. Local services only: nothing is ever sent anywhere
-unless a person turns it on and names the place.
+can render a form without knowing any of it. Nothing is ever sent anywhere unless a person turns it
+on and names the place; and a place on the internet needs a second, explicit yes
+(`translation.allow_remote`). The key a paid translation service needs is not a setting and is not
+kept in the box: see `caixa.translation.Keys`.
 """
 
 from __future__ import annotations
@@ -12,7 +14,8 @@ import os
 from typing import Any, Mapping
 
 from caixa.box import Box
-from caixa.collectors.options import defaults, validate
+from caixa import translation
+from caixa.collectors.options import OptionsError, defaults, validate
 
 SCHEMA: dict[str, Any] = {
     "type": "object",
@@ -27,21 +30,41 @@ SCHEMA: dict[str, Any] = {
         "translation.enabled": {
             "type": "boolean",
             "default": False,
-            "title": "Translate with a local model",
-            "description": "Off by default. When on, text is sent only to the endpoint below.",
+            "title": "Translate messages that are not in English",
+            "description": (
+                "Off by default. When on, each import translates the messages that need it "
+                "(not English, and not already translated by their author) and shows the "
+                "translation under the original. Text is sent only to the endpoint below."
+            ),
         },
         "translation.endpoint": {
             "type": "string",
             "default": "",
             "title": "Translation endpoint",
-            "description": "An OpenAI-compatible address on this computer, such as "
-            "http://localhost:11434/v1.",
+            "description": (
+                "An OpenAI-compatible address. A model on this computer: "
+                "http://localhost:11434/v1 (Ollama) or http://localhost:1234/v1 (LM Studio). "
+                "A paid service: https://openrouter.ai/api/v1 or https://api.deepseek.com/v1."
+            ),
         },
         "translation.model": {
             "type": "string",
             "default": "",
             "title": "Translation model",
-            "description": "The model name the endpoint serves.",
+            "description": (
+                "The model's name as the endpoint knows it, such as llama3.1, deepseek-chat "
+                "or anthropic/claude-haiku-4.5."
+            ),
+        },
+        "translation.allow_remote": {
+            "type": "boolean",
+            "default": False,
+            "title": "Allow a service on the internet",
+            "description": (
+                "Needed for any endpoint that is not on this computer. The text of the "
+                "messages being translated is sent to that service, and the service may "
+                "charge for it. Leave off to keep translation on this computer."
+            ),
         },
         "speech.model": {
             "type": "string",
@@ -75,6 +98,9 @@ def load(box: Box) -> dict[str, Any]:
 def save(box: Box, values: Mapping[str, Any]) -> dict[str, Any]:
     """Change settings (raises `OptionsError` listing every problem, saving nothing)."""
     merged = validate(SCHEMA, {**load(box), **values}, subject="the settings")
+    wrong = translation.problems(merged)
+    if wrong:
+        raise OptionsError(wrong)
     document = _read(box)
     document["settings"] = merged
     path = box.caixa_dir / "box.yaml"

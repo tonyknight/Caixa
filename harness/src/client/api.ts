@@ -146,6 +146,8 @@ export interface ImportResult {
   readonly updated: number
   readonly unchanged: number
   readonly pages: number
+  /** Messages this import gave a translation (absent in results saved by older versions). */
+  readonly translated?: number
   readonly unresolved: readonly string[]
   readonly warnings: readonly string[]
   /** True once this import has been undone. */
@@ -249,7 +251,14 @@ export interface SettingsReply {
   readonly values: Readonly<Record<string, string | number | boolean>>
   readonly schema: OptionsSchema
   readonly box: { readonly root: string; readonly name: string }
+  /** Whether a translation key is saved for the endpoint (the key itself never reaches the page). */
+  readonly translation?: { readonly key_saved: boolean }
 }
+
+/** What trying the translation endpoint with one sample sentence came to. */
+export type TranslationTest =
+  | { readonly ok: true; readonly sample: string; readonly translation: string; readonly seconds: number; readonly local: boolean; readonly used_key: boolean }
+  | { readonly ok: false; readonly message: string }
 
 /** A box opened lately (from Caixa's own memory, not from the box). */
 export interface RecentBox {
@@ -303,6 +312,10 @@ export interface Api {
   browse(path?: string): Promise<CaixaResult<BrowseListing>>
   settings(): Promise<CaixaResult<SettingsReply>>
   saveSettings(values: Record<string, unknown>): Promise<CaixaResult<SettingsReply>>
+  /** Save the translation key for this endpoint's host (an empty key forgets it). */
+  saveTranslationKey(endpoint: string, key: string): Promise<CaixaResult<{ key_saved: boolean }>>
+  /** Try the endpoint, model and key (the saved key when none is given) with one sample sentence. */
+  testTranslation(values: Record<string, unknown>, key: string): Promise<CaixaResult<TranslationTest>>
   info(): Promise<CaixaResult<WorkerInfo>>
   session(): Promise<CaixaResult<SessionInfo>>
   /** Keep the section (`view`) and/or the import `draft` (null clears it) for the open box. */
@@ -342,6 +355,8 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     browse: path => run('browse.list', path === undefined ? {} : { path }),
     settings: () => run('settings.get'),
     saveSettings: values => run('settings.set', { values }),
+    saveTranslationKey: (endpoint, key) => run('translation.key', { endpoint, key }),
+    testTranslation: (values, key) => run('translation.test', { values, key }),
     info: () => run('worker.info'),
     session: () => run('session.get'),
     setSession: values => run('session.set', { values }),

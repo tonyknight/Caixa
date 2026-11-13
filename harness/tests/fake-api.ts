@@ -1,4 +1,5 @@
 import type {
+  TranslationTest,
   Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult, SessionInfo, ImportDraft, UndoInfo,
 } from '../src/client/api.ts'
@@ -126,6 +127,11 @@ export class FakeApi implements Api {
     if (this.saveReply) return this.saveReply(values)
     return ok({ ...SETTINGS, values: { ...SETTINGS.values, ...values } } as SettingsReply)
   }
+  keySaves: [string, string][] = []
+  testReply: CaixaResult<TranslationTest> = ok({ ok: true, sample: 'Bom dia!', translation: 'Good morning!', seconds: 0.4, local: true, used_key: false })
+  tests: [Record<string, unknown>, string][] = []
+  async saveTranslationKey(endpoint: string, key: string) { this.record('saveTranslationKey', endpoint, key); this.keySaves.push([endpoint, key]); return ok({ key_saved: key !== '' }) }
+  async testTranslation(values: Record<string, unknown>, key: string) { this.record('testTranslation', values, key); this.tests.push([values, key]); return this.testReply }
   async info() { this.record('info'); return ok<WorkerInfo>({ version: '0.1.0', protocol: 1, read_only: this.readOnly, methods: [] }) }
   async session() { this.record('session'); return this.sessionReply }
   async setSession(values: { view?: string | null; draft?: ImportDraft | null }) {

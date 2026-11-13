@@ -43,8 +43,10 @@ Three things hold for every collector:
 - **Running an import again is safe.** Every item has a stable identity, so a second run of the same
   export adds nothing and changes nothing. Import a newer export of the same chat and only what is new
   arrives.
-- **Nothing leaves your computer.** There is no network access in a collector. Translation and
-  speech-to-text are off by default and only ever talk to a model on your own computer.
+- **Nothing leaves your computer unless you say so.** Reading an export uses no network at all.
+  Speech-to-text runs on your own computer. Translation is off by default; turned on, it talks only to
+  the address you give, and an address on the internet (a paid service) needs a second, explicit yes
+  because the text being translated is sent there. See [Translation](#translation).
 
 ## Before you start
 
@@ -401,6 +403,57 @@ There are three ways to name people, and they combine:
 Naming (or renaming, or merging) re-draws the affected pages: they move to the person's folder and the old
 page is removed. The files already filed under the old name stay where they are and the new pages
 link to them there.
+
+## Translation
+
+Caixa can put an English translation under each message that is in another language. The original text
+is never changed; the translation is stored beside it and shown under it on the page.
+
+**Which messages are translated.** The rule is the one Chattr has always used:
+
+- only text messages (not mail, not voicemail transcripts, not system notices);
+- only when the language is clearly not English. Caixa recognises Portuguese, Spanish, French, German
+  and Italian; a message too short to tell, or in a language it does not recognise, is left alone
+  rather than guessed at;
+- not when the author already translated it themselves: if the same person wrote an English message of
+  about the same length (within 20%) within five minutes before or after, that is the translation and
+  nothing is sent;
+- never twice: a message that has a translation is not sent again.
+
+**What does the translating.** Any service that speaks the OpenAI chat format. In **Settings →
+Translation** give:
+
+| Setting | A model on this computer | A paid service |
+| --- | --- | --- |
+| Translation endpoint | `http://localhost:11434/v1` (Ollama), `http://localhost:1234/v1` (LM Studio) | `https://openrouter.ai/api/v1`, `https://api.deepseek.com/v1` |
+| Translation model | the model's name, such as `llama3.1` | such as `deepseek-chat`, or an OpenRouter model name |
+| Allow a service on the internet | leave off | **tick it**: without it Caixa refuses the address |
+| API key | leave empty | the key the service gave you |
+
+**The key** is not kept in the box, because a box is copied, shared and backed up. It is kept in Caixa's
+own folder on this computer (`keys.json`, readable only by you), it is never shown again once saved, and
+it is remembered for one host: change the endpoint to another service and the key is not sent there.
+
+**Test** sends one sample sentence (nothing from your box) using what is typed in the form, saved or not,
+and shows what came back, or says why it failed: the address does not answer, the key was refused, the
+model name is unknown, the account has no credit. Use it before the first import.
+
+**When it runs.** With translation on, every import has a *Translating messages* step after people are
+matched and before the pages are written. It considers every message in the box, so turning translation
+on and importing anything (the same export again will do) also translates what was imported before. A
+paid service is sent four messages at a time, a local model one. If the service fails, the import still
+finishes, keeps what was translated, and says what went wrong; import again to translate the rest.
+
+**What the model is told.** Each message is sent on its own, with an instruction to translate it and
+do nothing else: the message is text to translate, never a request to act on, so a message that says
+"ignore your instructions" is translated, not obeyed. A reply that is far longer than the message (a
+model that started chatting) is thrown away, and a reasoning model's "thinking" is removed.
+
+**Cost and privacy with a paid service.** The text of each message that needs translating is sent to
+that service, one message per request, with no names, dates or attachments. The service will charge
+for it; a large archive can be tens of thousands of messages. Nothing else leaves your computer.
+
+From the command line the same translation is `chattr-cli translate` (see Chattr's README).
 
 ## Where the data is stored
 
