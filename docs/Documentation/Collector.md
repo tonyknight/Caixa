@@ -279,8 +279,8 @@ is ticked (or `transcribe=true`); a model saved in Settings never turns it on by
 
 **What you get.** Each voicemail as an item (who, when, how long), its audio in the caller's `Voicemail`
 folder, and with transcription on, its text beside the player on the page. iPhone voicemail is recorded in
-AMR, which most browsers cannot play, so Caixa keeps the original `.amr` and makes an `.m4a` copy beside it
-that any browser plays (this needs `ffmpeg`; without it the import says so and the page links the original).
+AMR, which most browsers cannot play, so Caixa files it as `.m4a`, which every browser plays (this needs
+`ffmpeg`; without it the import says so and files the `.amr` as it is).
 
 **Good to know.** Transcription needs `ffmpeg` and a model (see [Installation](../../README.md#installation)). It
 runs with the network blocked for the process, so a speech engine that tried to fetch something would
@@ -417,8 +417,7 @@ Our Box/
       WhatsApp/
         (2024-03-01) 14-05-09 Ana Costa.png
       Voicemail/
-        (2018-12-21) 15-02-31 Ana Costa.amr      the recording as it arrived
-        (2018-12-21) 15-02-31 Ana Costa.m4a      a copy any browser can play
+        (2018-12-21) 15-02-31 Ana Costa.m4a      the recording, in a format any browser plays
       Google Voice/
         (2018-09-08) 10-22-45 Ana Costa.mp3
     +15550101/                    a number nobody has named yet (it moves when you name it)
@@ -534,15 +533,33 @@ Without ExifTool the copy is made unchanged.
 file that cannot be copied is reported in the job's log and skipped; it never stops the import.) Apple's
 proprietary "plugin payload" attachments are skipped as not suitable for archiving.
 
-### Audio a browser cannot play
+### Audio
 
-iPhone voicemail is AMR, and iMessage voice notes are CAF; most browsers play neither. For these Caixa
-keeps the original and makes a **playable copy** beside it with the same name and `.m4a` (AAC, the
-original's own sample rate and channels: 8 kHz mono for voicemail, at about the same size). The page's
-player uses the copy and links the original as "Original recording". The copy is made with `ffmpeg`; if
-it is not installed the import finishes, says how many recordings have no playable copy, and the page
-links the original. Install `ffmpeg` and import again to make the copies. The original is the record;
-the copy can always be made again.
+Recordings are filed as **`.m4a`** (AAC), the one format every browser and phone plays. iPhone voicemail
+(`.amr`), iMessage voice notes (`.caf`), WhatsApp voice notes (`.opus`), and `.ogg`, `.wav`, `.aiff`,
+`.wma` and `.flac` files are converted when they are filed, at the recording's own sample rate and
+channels (8 kHz mono for voicemail, at about the same size). Only the `.m4a` is kept in the box; the file
+in your export is never changed. `.mp3` and `.m4a` already play everywhere and are filed as they are.
+**Mail attachments are never converted.**
+
+The conversion uses `ffmpeg`. If it is not installed, or a recording is damaged, the import finishes,
+files the recording in its original format, says how many there were, and the page links the file with a
+note that it may not play. Install `ffmpeg` and import the same export again: those recordings are then
+converted and the old files removed.
+
+### One copy of each file
+
+The same file often arrives many times: a sticker sent fifty times, a photo sent to three people, a
+meme forwarded to a group. Caixa recognises identical files by their content (a SHA-256 checksum) and
+**stores each one once**. It is filed for the earliest message that carried it, and every other message
+shows that same file on its page. So:
+
+- a person's folder holds a file only if it was first seen in a conversation with them; their pages still
+  show everything they sent or received;
+- importing the same export again never adds a second copy;
+- the one copy follows its person if they are renamed or merged, and every page that shows it follows too;
+- mail is kept apart: a file that came both by mail and in a chat is kept once for each, because mail
+  attachments are never converted.
 
 ### Pictures
 
@@ -597,13 +614,13 @@ other file is a link. If the file is not in the box the page says so rather than
 
 ### Summary
 
-| Source | Where the files go | Playable copy? |
+| Source | Where the files go | Converted? |
 | --- | --- | --- |
-| WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/` (or `Groups/<Group>/<Source>/`) | not needed |
-| Google Voice | `People/<Person>/Google Voice/` | not needed (MP3) |
-| iPhone voicemail | `People/<Person>/Voicemail/` | yes: `.m4a` beside the `.amr` |
-| Mail | `Mail/<year>/Attachments/` | — |
-| iMessage | `People/<Person>/iMessage/` | yes, for `.caf` voice notes |
+| WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/` (or `Groups/<Group>/<Source>/`) | pictures to JPEG, voice notes to `.m4a` |
+| Google Voice | `People/<Person>/Google Voice/` | no (MP3 plays everywhere) |
+| iPhone voicemail | `People/<Person>/Voicemail/` | `.amr` to `.m4a` |
+| Mail | `Mail/<year>/Attachments/` | never |
+| iMessage | `People/<Person>/iMessage/` | pictures to JPEG, `.caf` voice notes to `.m4a` |
 
 ## How to measure success
 

@@ -232,11 +232,12 @@ def test_mail_attachments_and_voicemail_audio_live_in_the_box(
     assert [p.name for p in (box.root / "Mail" / "2019" / "Attachments").glob("*.png")] == [
         f"(2019-11-02) 16-00-00 {family.JOAO.name} — familia.png"
     ]
-    audio = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.amr"))
+    kind = ".m4a" if shutil.which("ffmpeg") else ".amr"  # recordings are filed as .m4a
+    audio = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob(f"*{kind}"))
     ana, joao = family.ANA.phones[0], family.JOAO.phones[0]  # nobody has named the callers yet
     assert audio == [
-        f"People/{ana}/Voicemail/(2022-06-14) 14-05-00 {ana}.amr",
-        f"People/{joao}/Voicemail/(2021-12-24) 19-30-00 {joao}.amr",
+        f"People/{ana}/Voicemail/(2022-06-14) 14-05-00 {ana}{kind}",
+        f"People/{joao}/Voicemail/(2021-12-24) 19-30-00 {joao}{kind}",
     ]
     assert not (box.root / "Audio").exists() and not (box.root / "Messages").exists()
     assert not (box.caixa_dir / "work" / "incoming").exists()  # the working copies are gone
@@ -505,7 +506,7 @@ def _amr(seconds: float) -> bytes:
 
 
 @pytest.mark.skipif(not shutil.which("ffmpeg"), reason="ffmpeg is not installed")
-def test_imported_voicemail_plays_in_a_browser_and_keeps_its_original(
+def test_imported_voicemail_is_filed_as_m4a_and_plays_in_a_browser(
     six: dict[str, Collector], box: Box, tmp_path: Path
 ) -> None:
     archive = tmp_path / "iPhone Voicemail.zip"
@@ -516,14 +517,14 @@ def test_imported_voicemail_plays_in_a_browser_and_keeps_its_original(
     assert result.inserted == 1 and result.warnings == []
     folder = box.root / "People" / family.ANA.name / "Voicemail"
     stem = f"(2018-12-21) 15-02-31 {family.ANA.name}"
-    assert sorted(p.name for p in folder.iterdir()) == [f"{stem}.amr", f"{stem}.m4a"]
-    assert (folder / f"{stem}.amr").read_bytes() == _amr(4)  # the original, untouched
+    assert sorted(p.name for p in folder.iterdir()) == [f"{stem}.m4a"]  # only the .m4a is kept
     copy = (folder / f"{stem}.m4a").stat().st_size
     assert 0 < copy < 2 * len(_amr(4))  # about the size of the original
     page = (box.root / "People" / family.ANA.name / f"(2018) {family.ANA.name}.html").read_text(
         encoding="utf-8"
     )
-    assert 'type="audio/mp4"' in page and "Original recording (.amr)" in page
+    assert "<audio" in page and f"{stem}.m4a".replace(" ", "%20") in page
+    assert "cannot play" not in page and "Original recording" not in page
     assert "filing" in [e.stage for e in events]
 
 

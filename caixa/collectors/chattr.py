@@ -347,21 +347,21 @@ class _Chattr:
 
     @staticmethod
     def _audio_notes(published: Optional[commands.Published]) -> list[str]:
-        """Say so when recordings could not be given a copy a browser can play."""
+        """Say so when recordings could not be filed as `.m4a`, which every browser plays."""
         count = len(published.filed.unplayable) if published else 0
         if not count:
             return []
         these = f"{count} recording{'s are' if count != 1 else ' is'}"
         if published and published.filed.ffmpeg_missing:
             return [
-                f"{these} in a format most browsers cannot play, and no playable copy could "
-                "be made because ffmpeg is not installed. Install ffmpeg, then import again "
-                "to make the copies. The originals are in the box."
+                f"{these} in a format most browsers cannot play, and could not be converted "
+                "to .m4a because ffmpeg is not installed. Install ffmpeg, then import again "
+                "to convert them. Until then they are in the box in their original format."
             ]
         return [
             f"{these} in a format most browsers cannot play, and ffmpeg could not convert "
-            "them (the files may be damaged). The originals are in the box and linked from "
-            "the page."
+            "them to .m4a (the files may be damaged). They are in the box in their original "
+            "format and linked from the page."
         ]
 
     @staticmethod
