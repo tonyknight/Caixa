@@ -147,3 +147,60 @@ def test_a_run_of_many_recordings_times_each_as_it_comes_out(
 def test_an_engine_that_cannot_take_many_is_not_offered_as_one() -> None:
     timed = TimedTranscriber(Slow([0.0]), lambda step: None)
     assert not hasattr(timed, "transcribe_many")
+
+
+# --- Google Voice voicemail --------------------------------------------------------------------------
+
+
+def _google_voice(tmp_path: Path) -> Path:
+    calls = tmp_path / "Takeout" / "Voice" / "Calls"
+    calls.mkdir(parents=True)
+    name, number = family.ANA.name, family.ANA.phones[0]
+    for day in (6, 7):
+        stem = f"{name} - Voicemail - 2021-01-0{day}T18_05_49Z"
+        (calls / f"{stem}.html").write_text(
+            '<html><body><div class="haudio"><span class="fn">Voicemail from</span>'
+            f'<abbr class="published" title="2021-01-0{day}T10:05:49.000-08:00">x</abbr>'
+            f'<cite class="contributor vcard"><a class="tel" href="tel:{number}">'
+            f'<span class="fn">{name}</span></a></cite>'
+            '<span class="full-text">what google heard</span>'
+            f'<abbr class="duration" title="PT12S">(00:12)</abbr><audio controls src="{stem}.mp3">'
+            "</audio></div></body></html>"
+        )
+        (calls / f"{stem}.mp3").write_bytes(f"ID3 recording {day}".encode())
+    return tmp_path / "Takeout"
+
+
+def test_google_voice_offers_the_same_speech_options_as_voicemail() -> None:
+    google, iphone = discover().get("googlevoice"), discover().get("voicemail")
+    for name in ("transcribe", "model", "language"):
+        assert (
+            google.info.options_schema["properties"][name]
+            == iphone.info.options_schema["properties"][name]
+        )
+
+
+def test_google_voice_voicemail_is_transcribed_when_ticked_also_on_a_second_import(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = [0.0]
+    monkeypatch.setattr("caixa.collectors.chattr.make_transcriber", lambda *a, **k: Slow(clock))
+    source = _google_voice(tmp_path)
+    box = Box.create(tmp_path / "Box", "Test box")
+    collector = discover().get("googlevoice")
+
+    def pages() -> str:
+        return "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(*.html"))
+
+    plain = collector.run(box, source, validate(collector.info.options_schema, {}), lambda s: None)
+    assert plain.inserted == 2 and clock == [0.0]  # not ticked: the model is not used
+    assert "what google heard" in pages()
+
+    events: list[Progress] = []
+    ticked = validate(collector.info.options_schema, {"transcribe": True, "model": "x"})
+    again = collector.run(box, source, ticked, events.append)
+    assert again.inserted == 0 and again.updated == 2  # the same voicemails, now with their text
+    heard = [e for e in events if e.stage == "transcribing"]
+    assert heard and heard[-1].current == heard[-1].total == 2
+    shown = pages().split("<script")[0]
+    assert shown.count("words from") == 2 and "what google heard" not in shown

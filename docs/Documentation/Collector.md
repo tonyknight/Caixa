@@ -257,6 +257,15 @@ per person, with their calls and voicemail in the same place.
 **What you get.** Calls (placed, received, missed), texts with their pictures, and voicemail as items on
 the person's pages; recordings and pictures go into the person's `Google Voice` folder.
 
+**Voicemail as text.** Google's own transcript, when the page has one, is shown as the voicemail's text.
+To use your own speech model instead, tick **Transcribe on this computer** in the import's options (or
+`--option transcribe=true`); the model and language come from Settings unless given here, exactly as for
+iPhone voicemail, and a model saved in Settings never turns transcription on by itself. Every voicemail
+recording is then put through the model, with the same progress and timing lines. Your model's text
+replaces Google's on the page; Google's is kept in the data and stays the text for any recording the
+model fails on or hears nothing in. Import the same export again with the box ticked to add transcripts
+to voicemail that is already in the box.
+
 **Many unnamed numbers.** A long Google Voice history is full of numbers that are not in your contacts
 (deliveries, spam, one-off calls), and the preview lists them. They are imported under the number; name
 the ones that matter afterwards, or set up Contacts in Settings first so the known ones arrive named.

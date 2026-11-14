@@ -162,6 +162,38 @@ class TimedTranscriber:
         self.progress(Progress("transcribing", self.done, self.total, summary))
 
 
+#: The speech-to-text options of every source that has recordings (voicemail, Google Voice).
+_SPEECH_OPTIONS: dict[str, Any] = {
+    "transcribe": {
+        "type": "boolean",
+        "default": False,
+        "title": "Transcribe on this computer",
+        "description": "Turn each voicemail into text with a speech model stored here.",
+    },
+    "model": {
+        "type": "string",
+        "default": "",
+        "title": "Speech model",
+        "description": (
+            "Path to a local speech-to-text model file (never downloaded). "
+            "Empty uses the one in Settings."
+        ),
+        "x-setting": "speech.model",
+        "x-picker": "file",
+    },
+    "language": {
+        "type": "string",
+        "default": "",
+        "title": "Language",
+        "description": (
+            "A language code such as 'en' or 'pt'; empty uses the one in Settings, "
+            "and if that is empty too, detects it."
+        ),
+        "x-setting": "speech.language",
+    },
+}
+
+
 def _schema(**extra: Any) -> dict[str, Any]:
     return {"type": "object", "properties": {**_COMMON_OPTIONS, **extra}}
 
@@ -176,6 +208,30 @@ def _imessage_defaults() -> dict[str, Any]:
 
 def _preview_error(error: commands.CommandError) -> InputError:
     return InputError(str(error))
+
+
+def _transcriber(settings: Settings, options: Mapping[str, Any], final: bool) -> Optional[Any]:
+    """The speech-to-text engine these options ask for (None when transcription is not ticked, or
+    this is only a preview), reporting each recording as it goes."""
+    if not (final and options.get("transcribe")):
+        return None
+    try:
+        transcriber: Any = make_transcriber(
+            settings,
+            enabled=True,
+            model_path=options.get("model") or None,
+            language=options.get("language") or None,
+        )
+    except TranscriptionUnavailable as error:
+        raise commands.CommandError(str(error)) from error
+    if transcriber is None:
+        raise commands.CommandError(
+            "No speech-to-text model is set. Give the model path in the options, or once in "
+            "Settings."
+        )
+    if options.get(REPORT):
+        transcriber = TimedTranscriber(transcriber, options[REPORT])
+    return transcriber
 
 
 class _Chattr:
@@ -800,7 +856,7 @@ class GoogleVoice(_Chattr):
             "export. Point Caixa at the .zip or at the unzipped folder; the calls, texts and "
             "voicemail are in Takeout/Voice/Calls."
         ),
-        options_schema=_schema(),
+        options_schema=_schema(**_SPEECH_OPTIONS),
     )
     attachments = GOOGLE_VOICE_AUDIO
 
@@ -833,6 +889,7 @@ class GoogleVoice(_Chattr):
             owner=owner,
             aliases=aliases,
             attachments_dir=attachments_dir,
+            transcriber=_transcriber(settings, options, final),
             contacts=options.get("contacts") or None,
             resolve=False,
         )
@@ -878,33 +935,7 @@ class Voicemail(_Chattr):
             "as written)."
         ),
         options_schema=_schema(
-            transcribe={
-                "type": "boolean",
-                "default": False,
-                "title": "Transcribe on this computer",
-                "description": "Turn each voicemail into text with a speech model stored here.",
-            },
-            model={
-                "type": "string",
-                "default": "",
-                "title": "Speech model",
-                "description": (
-                    "Path to a local speech-to-text model file (never downloaded). "
-                    "Empty uses the one in Settings."
-                ),
-                "x-setting": "speech.model",
-                "x-picker": "file",
-            },
-            language={
-                "type": "string",
-                "default": "",
-                "title": "Language",
-                "description": (
-                    "A language code such as 'en' or 'pt'; empty uses the one in Settings, "
-                    "and if that is empty too, detects it."
-                ),
-                "x-setting": "speech.language",
-            },
+            **_SPEECH_OPTIONS,
         ),
     )
     attachments = VOICEMAIL_AUDIO
@@ -931,23 +962,7 @@ class Voicemail(_Chattr):
         attachments_dir: Optional[Path],
         final: bool,
     ) -> None:
-        transcriber = None
-        if final and options.get("transcribe"):
-            try:
-                transcriber = make_transcriber(
-                    settings,
-                    enabled=True,
-                    model_path=options.get("model") or None,
-                    language=options.get("language") or None,
-                )
-            except TranscriptionUnavailable as error:
-                raise commands.CommandError(str(error)) from error
-            if transcriber is None:
-                raise commands.CommandError(
-                    "No speech-to-text model is set. Give the model path in the options."
-                )
-            if options.get(REPORT):
-                transcriber = TimedTranscriber(transcriber, options[REPORT])
+        transcriber = _transcriber(settings, options, final)
         commands.convert(
             settings,
             "voicemail",
