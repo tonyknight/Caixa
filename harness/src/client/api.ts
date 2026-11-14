@@ -255,6 +255,10 @@ export interface SettingsReply {
   readonly translation?: { readonly key_saved: boolean }
 }
 
+/** How many people one source of contacts can name, or why it cannot. */
+export interface ContactsSource { readonly on: boolean; readonly people: number; readonly problem: string }
+export interface ContactsCheck { readonly mac: ContactsSource; readonly file: ContactsSource }
+
 /** What trying the translation endpoint with one sample sentence came to. */
 export type TranslationTest =
   | { readonly ok: true; readonly sample: string; readonly translation: string; readonly seconds: number; readonly local: boolean; readonly used_key: boolean }
@@ -312,6 +316,8 @@ export interface Api {
   browse(path?: string): Promise<CaixaResult<BrowseListing>>
   settings(): Promise<CaixaResult<SettingsReply>>
   saveSettings(values: Record<string, unknown>): Promise<CaixaResult<SettingsReply>>
+  /** How many people the saved contacts settings can name (this Mac's Contacts, the vCard file). */
+  checkContacts(): Promise<CaixaResult<ContactsCheck>>
   /** Save the translation key for this endpoint's host (an empty key forgets it). */
   saveTranslationKey(endpoint: string, key: string): Promise<CaixaResult<{ key_saved: boolean }>>
   /** Try the endpoint, model and key (the saved key when none is given) with one sample sentence. */
@@ -355,6 +361,7 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     browse: path => run('browse.list', path === undefined ? {} : { path }),
     settings: () => run('settings.get'),
     saveSettings: values => run('settings.set', { values }),
+    checkContacts: () => run('contacts.check'),
     saveTranslationKey: (endpoint, key) => run('translation.key', { endpoint, key }),
     testTranslation: (values, key) => run('translation.test', { values, key }),
     info: () => run('worker.info'),

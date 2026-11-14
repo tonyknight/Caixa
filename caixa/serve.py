@@ -115,12 +115,72 @@ def plugin_directory(environ: Optional[Mapping[str, str]] = None) -> Path:
 
 
 def require_built(plugin: Path) -> None:
-    missing = [name for name in ("index.js", "client.js") if not (plugin / "lib" / name).is_file()]
+    missing = [name for name in BUILT if not (plugin / "lib" / name).is_file()]
     if missing:
         raise ServeError(
             f"The Caixa plugin in {plugin} is not built yet (no lib/{missing[0]}). Build it with "
             "`pnpm --dir harness install` and `pnpm --dir harness build`."
         )
+
+
+#: What the build writes, and what it is built from. `lib/` is not kept in git, so after the
+#: source changes (a `git pull`) it has to be made again or the browser shows the old interface.
+BUILT = ("index.js", "client.js")
+BUILT_FROM = ("src", "scripts", "package.json")
+
+
+def is_stale(plugin: Path) -> bool:
+    """True when the plugin's source is newer than its build, or it has source and no build.
+
+    A plugin with no source beside it (an installed one: only `lib/` is shipped) is never stale.
+    """
+    newest = 0.0
+    for name in BUILT_FROM:
+        path = plugin / name
+        files = [path] if path.is_file() else [f for f in path.rglob("*") if f.is_file()]
+        newest = max([newest, *(f.stat().st_mtime for f in files)])
+    if not (plugin / "src").is_dir():
+        return False
+    try:
+        return newest > min((plugin / "lib" / name).stat().st_mtime for name in BUILT)
+    except OSError:
+        return True
+
+
+def ensure_built(
+    plugin: Path, node: Node, say: Callable[[str], None], run: Runner = subprocess.run
+) -> bool:
+    """Build the interface when its source has changed since it was built; True when it did.
+
+    This is what makes a `git pull` take effect: without it `caixa serve` would go on showing
+    the interface as it was when it was first built.
+    """
+    if not is_stale(plugin):
+        require_built(plugin)
+        return False
+    env = {**os.environ, "PATH": f"{node.path.parent}{os.pathsep}{os.environ.get('PATH', '')}"}
+    first = not (plugin / "lib").is_dir()
+    say("Building the interface…" if first else "The interface has changed: rebuilding it…")
+    steps = [[str(node.path), "scripts/build.mjs"]]
+    if not (plugin / "node_modules").is_dir():
+        steps.insert(0, ["pnpm", "install", "--frozen-lockfile"])
+    for step in steps:
+        try:
+            done = run(step, capture_output=True, text=True, env=env, cwd=str(plugin), timeout=900)
+        except OSError as error:
+            raise ServeError(_build_failed(str(error))) from error
+        if done.returncode != 0:
+            raise ServeError(_build_failed(_tail((done.stderr or "") + (done.stdout or ""))))
+    require_built(plugin)
+    return True
+
+
+def _build_failed(why: str) -> str:
+    return (
+        "The interface could not be rebuilt, so it would be out of date. Run "
+        "`pnpm --dir harness install` and `pnpm --dir harness build` from the Caixa folder, "
+        f"then `caixa serve` again.\n{why}"
+    )
 
 
 def validate_port(port: int) -> int:
@@ -277,6 +337,8 @@ def prepare(
 # pinned version resolves the harness's own pre-release dependencies to newer builds than the ones
 # Caixa's plugin was tested with, and one of those cannot save the harness's settings.
 LOCK_STAMP = ".caixa-lock"
+#: Lines the worker marks this way are shown in the terminal (the same mark as caixa.service).
+TERMINAL_MARK = "[caixa] "
 
 
 def _data_file(name: str) -> bytes:
@@ -459,6 +521,7 @@ def start(
     read_only: bool,
     link_timeout: float = 90,
     ready_timeout: float = 30,
+    echo: Optional[Callable[[str], None]] = None,
 ) -> Running:
     """Start `dsh web` in a group of its own and return once it answers at its link.
 
@@ -481,6 +544,8 @@ def start(
         for line in stream:
             clean = redact(line.rstrip("\n"))
             log.write(clean + "\n")
+            if echo is not None and clean.startswith(TERMINAL_MARK):
+                echo(clean[len(TERMINAL_MARK) :])  # how a job is getting on (see caixa.service)
             tail.append(clean)
             del tail[:-8]
             match = LINK.search(line) if watch else None
@@ -582,16 +647,21 @@ def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -
             int(state["pid"]), int(state["port"]), str(state["url"]), box, options.read_only
         )
         say(f"Caixa is already running at http://127.0.0.1:{running.port}/")
+        if is_stale(plugin_directory()):
+            say(
+                "The interface has changed since Caixa was started. Stop it with "
+                "`caixa serve --stop` and start it again to see the changes."
+            )
     else:
         box = box or _last_box(home, say)
         node = find_node(options.node)
         plugin = plugin_directory()
-        require_built(plugin)
+        ensure_built(plugin, node, say)
         given = os.environ.get("CAIXA_DSH")
         prepared = prepare(home, node, plugin, Path(given) if given else None)
         patch = write_patch(home, box, options.read_only, sys.executable)
         say("Starting Caixa…")
-        running = start(prepared, patch, options.port, home, box, options.read_only)
+        running = start(prepared, patch, options.port, home, box, options.read_only, echo=say)
         say(f"Caixa is running at http://127.0.0.1:{running.port}/ (this computer only).")
     if options.no_browser:
         say(f"Open this link in your web browser: {running.url}")

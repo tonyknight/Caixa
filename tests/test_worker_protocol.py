@@ -25,6 +25,7 @@ ALL_METHODS = {
     "box.open",
     "box.status",
     "collectors.list",
+    "contacts.check",
     "translation.key",
     "translation.test",
     "import.preview",

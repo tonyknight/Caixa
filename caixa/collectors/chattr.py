@@ -16,7 +16,9 @@ import json
 import os
 import shutil
 import sqlite3
+import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
@@ -54,7 +56,12 @@ _COMMON_OPTIONS: dict[str, Any] = {
         "type": "string",
         "default": "",
         "title": "Contacts file (.vcf)",
-        "description": "A vCard export of your address book, used to name phone numbers and emails.",
+        "description": (
+            "A vCard export of your address book, used to name phone numbers and emails. "
+            "Set it once in Settings, under Contacts; leave this as it is to use that file."
+        ),
+        "x-setting": "contacts.file",
+        "x-picker": "file",
     },
     "owner": {
         "type": "string",
@@ -63,6 +70,73 @@ _COMMON_OPTIONS: dict[str, Any] = {
         "description": "Who 'me' is. Leave empty to use the owner of this box.",
     },
 }
+
+
+#: The key, in the options a source's `convert` is given, that holds the progress callback.
+REPORT = "_report"
+
+
+def audio_seconds(audio: Path) -> Optional[float]:
+    """How long a recording is, when ffprobe is installed and can tell."""
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return None
+    command = [ffprobe, "-v", "error", "-show_entries", "format=duration", "-of",
+               "default=nw=1:nk=1", str(audio)]  # fmt: skip
+    try:
+        said = subprocess.run(command, capture_output=True, text=True, timeout=30).stdout
+        return float(said.strip())
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
+
+
+class TimedTranscriber:
+    """A speech-to-text engine that says how it is getting on: which recording, how many of how
+    many, how long each took and how that compares with the recording's own length. Each line
+    is also printed, which puts it in the job's log."""
+
+    def __init__(
+        self,
+        inner: Any,
+        progress: Callable[[Progress], None],
+        clock: Callable[[], float] = time.monotonic,
+        length: Callable[[Path], Optional[float]] = audio_seconds,
+    ) -> None:
+        self.inner, self.progress, self.clock, self.length = inner, progress, clock, length
+        self.total: Optional[int] = None
+        self.done = 0
+        self.spent = 0.0
+        self.heard = 0.0
+
+    def expect(self, count: int) -> None:
+        self.total = count
+        self.progress(Progress("transcribing", 0, count, "Starting speech-to-text"))
+
+    def transcribe(self, audio: Path) -> Any:
+        self.progress(Progress("transcribing", self.done, self.total, f"Listening to {audio.name}"))
+        started = self.clock()
+        failed = ""
+        try:
+            return self.inner.transcribe(audio)
+        except Exception as error:
+            failed = f" (failed: {str(error)[:120] or type(error).__name__})"
+            raise
+        finally:
+            took = self.clock() - started
+            long = self.length(audio)
+            self.done += 1
+            self.spent += took
+            line = f"{audio.name}: {took:.1f} s"
+            if long:
+                self.heard += long
+                line += f" for {long:.0f} s of audio"
+                if took > 0:
+                    line += f" ({long / took:.1f}x real time)"
+            line += failed
+            average = self.spent / self.done
+            summary = f"{line}; average {average:.1f} s each"
+            print(f"Speech-to-text {self.done}/{self.total or '?'}: {summary}")
+            self.progress(Progress("transcribing", self.done, self.total, summary))
 
 
 def _schema(**extra: Any) -> dict[str, Any]:
@@ -112,13 +186,41 @@ class _Chattr:
         """The options with defaults filled in. An option that names a box setting (`x-setting`)
         and was left empty takes that setting's value, so a saved speech model is used."""
         merged = {**defaults(self.info.options_schema), **options}
-        if box is not None:
-            saved = box_settings.load(box)
-            for name, spec in self.info.options_schema["properties"].items():
-                key = spec.get("x-setting")
-                if key and merged.get(name) in (None, "") and saved.get(key) not in (None, ""):
-                    merged[name] = saved[key]
+        saved = box_settings.load(box) if box is not None else {}
+        for name, spec in self.info.options_schema["properties"].items():
+            key = spec.get("x-setting")
+            unset = name not in options or options[name] in (None, "")
+            if key and unset and saved.get(key) not in (None, ""):
+                merged[name] = saved[key]
+        # Contacts are a setting of the box, the same for every source (an option, where a source
+        # has one, has already taken its place above). Without a box nobody's Contacts are read.
+        merged.setdefault("mac_contacts", bool(saved.get("contacts.mac", False)))
+        if not merged.get("region"):
+            merged["region"] = saved.get("contacts.region") or ""
         return merged
+
+    @staticmethod
+    def _name_people(
+        settings: Settings,
+        options: Mapping[str, Any],
+        owner: Optional[str],
+        aliases: Optional[Path],
+    ) -> None:
+        """Link every handle to a person: the box's aliases, the contacts file, this Mac's Contacts."""
+        try:
+            commands.people(
+                settings,
+                owner,
+                aliases,
+                options.get("contacts") or None,
+                options.get("region") or None,
+                mac_contacts=bool(options.get("mac_contacts")),
+            )
+        except commands.CommandError as error:
+            raise InputError(
+                f"{error} (The contacts file is set in Settings, under Contacts, or in this "
+                "import's options.)"
+            ) from error
 
     def _owner(self, options: Mapping[str, Any], box: Optional[Box]) -> Optional[str]:
         if options.get("owner"):
@@ -160,6 +262,8 @@ class _Chattr:
         """
         empty: list[Path] = []
         notes: list[str] = []
+        # (a source that works on each file for a while, such as speech-to-text, reports through this)
+        options = {**options, REPORT: progress}
         for number, item in enumerate(items, 1):
             progress(Progress("importing", number - 1, len(items), self._label(item)))
             try:
@@ -228,7 +332,7 @@ class _Chattr:
         owner: Optional[str],
         aliases: Optional[Path],
     ) -> Preview:
-        commands.people(settings, owner, aliases, options.get("contacts") or None)
+        self._name_people(settings, options, owner, aliases)
         database = commands.central_database(settings)
         with DatabaseManager(database) as db:
             unresolved = [handle.identifier for handle in db.unresolved_handles()]
@@ -281,7 +385,7 @@ class _Chattr:
         notes = self._import_all(settings, items, opts, owner, aliases, attachments, True, progress)
 
         progress(Progress("linking", message="Matching people"))
-        commands.people(settings, owner, aliases, opts.get("contacts") or None)
+        self._name_people(settings, opts, owner, aliases)
         translated, said = self._translate(box, settings, progress)
         result = self._publish(box, settings, progress)
         result.translated = translated
@@ -476,7 +580,7 @@ class _Chattr:
         settings = self._settings(root)
         aliases = self._aliases(box, root / "aliases.json")
         progress(Progress("linking", message="Matching people"))
-        commands.people(settings, self._owner({}, box), aliases)
+        self._name_people(settings, self._options({}, box), self._owner({}, box), aliases)
         return self._publish(box, settings, progress)
 
 
@@ -819,6 +923,8 @@ class Voicemail(_Chattr):
                 raise commands.CommandError(
                     "No speech-to-text model is set. Give the model path in the options."
                 )
+            if options.get(REPORT):
+                transcriber = TimedTranscriber(transcriber, options[REPORT])
         commands.convert(
             settings,
             "voicemail",
@@ -853,14 +959,17 @@ class IMessage(_Chattr):
                     "title": "Use this Mac's Contacts",
                     "description": (
                         "Name people from the Contacts app on this Mac (read-only; needs Full "
-                        "Disk Access, like Messages). A contacts file, if given, is used as well."
+                        "Disk Access, like Messages). A contacts file, if given, is used as well. "
+                        "Starts from the choice in Settings, under Contacts."
                     ),
+                    "x-setting": "contacts.mac",
                 },
                 region={
                     "type": "string",
                     "default": "US",
                     "title": "Phone region",
                     "description": "Two-letter country code used to read local phone numbers.",
+                    "x-setting": "contacts.region",
                 },
                 spam_mode={
                     "type": "string",

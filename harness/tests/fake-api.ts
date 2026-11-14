@@ -1,5 +1,5 @@
 import type {
-  TranslationTest,
+  TranslationTest, ContactsCheck,
   Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult, SessionInfo, ImportDraft, UndoInfo,
 } from '../src/client/api.ts'
@@ -127,6 +127,8 @@ export class FakeApi implements Api {
     if (this.saveReply) return this.saveReply(values)
     return ok({ ...SETTINGS, values: { ...SETTINGS.values, ...values } } as SettingsReply)
   }
+  contactsReply: CaixaResult<ContactsCheck> = ok({ mac: { on: true, people: 412, problem: '' }, file: { on: false, people: 0, problem: '' } })
+  async checkContacts() { this.record('checkContacts'); return this.contactsReply }
   keySaves: [string, string][] = []
   testReply: CaixaResult<TranslationTest> = ok({ ok: true, sample: 'Bom dia!', translation: 'Good morning!', seconds: 0.4, local: true, used_key: false })
   tests: [Record<string, unknown>, string][] = []
@@ -175,9 +177,11 @@ export const HANDLES: Handle[] = [
 ]
 
 export const SETTINGS: SettingsReply = {
-  values: { 'privacy.default': 'private', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'speech.model': '', 'speech.language': '' },
+  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'speech.model': '', 'speech.language': '' },
   schema: { type: 'object', properties: {
     'privacy.default': { type: 'string', default: 'private', enum: ['private', 'family', 'public'], title: 'Who can see new items', description: 'Privacy given to items when first imported.' },
+    'contacts.mac': { type: 'boolean', default: true, title: 'Use this Mac\u2019s Contacts' },
+    'contacts.file': { type: 'string', default: '', title: 'Contacts file (.vcf)', 'x-picker': 'file' },
     'translation.enabled': { type: 'boolean', default: false, title: 'Translate with a local model', description: 'Off by default.' },
     'translation.endpoint': { type: 'string', default: '', title: 'Translation endpoint', description: 'An address on this computer.' },
     'translation.model': { type: 'string', default: '', title: 'Translation model' },

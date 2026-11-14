@@ -266,12 +266,16 @@ caixa --version         # caixa 0.1.0
 caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
 ```
 
-For the browser interface, build the plugin once, then start it:
+For the browser interface, install what the plugin is built with once, then start it:
 
 ```bash
-pnpm --dir harness install && pnpm --dir harness build
+pnpm --dir harness install
 caixa serve --box ~/Our\ Box
 ```
+
+`caixa serve` builds the interface when it starts, and builds it again whenever its source has changed
+(after a `git pull`), so the browser never shows an older interface than the code you have. Settings
+shows when the interface was built.
 
 To work on Caixa itself, add the development tools and run the tests:
 
@@ -316,7 +320,7 @@ for how it fits together, the pinned DeepSeek Harness version and how to develop
 24.9 or newer; everything else, including `chattr-cli serve`, needs only Python.
 
 ```bash
-pnpm --dir harness install && pnpm --dir harness build   # once, from a checkout
+pnpm --dir harness install       # once, from a checkout (caixa serve builds the interface itself)
 caixa serve --box ~/Our\ Box     # starts everything and opens your browser
 caixa serve --stop               # stops it
 ```

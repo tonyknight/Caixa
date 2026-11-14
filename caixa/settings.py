@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from typing import Any, Mapping
 
 from caixa.box import Box
@@ -26,6 +27,37 @@ SCHEMA: dict[str, Any] = {
             "enum": ["private", "family", "public"],
             "title": "Who can see new items",
             "description": "Privacy given to items when they are first imported.",
+        },
+        "contacts.mac": {
+            "type": "boolean",
+            "default": True,
+            "title": "Use this Mac's Contacts",
+            "description": (
+                "Name people in every import from the Contacts app on this Mac. Caixa only "
+                "reads it. macOS allows that once the program you start Caixa from (Terminal) "
+                "has Full Disk Access in System Settings, Privacy & Security; the web browser "
+                "needs no permission. On other computers this does nothing."
+            ),
+        },
+        "contacts.file": {
+            "type": "string",
+            "default": "",
+            "title": "Contacts file (.vcf)",
+            "description": (
+                "A vCard export of your address book, for when this Mac's Contacts cannot be "
+                "used or do not have everyone. Set it once here and every import uses it. "
+                "Where both know a number, the file wins."
+            ),
+            "x-picker": "file",
+        },
+        "contacts.region": {
+            "type": "string",
+            "default": "US",
+            "title": "Phone region",
+            "description": (
+                "Two-letter country code used to read phone numbers written without a "
+                "country code, such as US, BR or PT."
+            ),
         },
         "translation.enabled": {
             "type": "boolean",
@@ -99,6 +131,9 @@ def save(box: Box, values: Mapping[str, Any]) -> dict[str, Any]:
     """Change settings (raises `OptionsError` listing every problem, saving nothing)."""
     merged = validate(SCHEMA, {**load(box), **values}, subject="the settings")
     wrong = translation.problems(merged)
+    contacts_file = str(merged.get("contacts.file") or "").strip()
+    if contacts_file and not Path(contacts_file).expanduser().is_file():
+        wrong.append(f"Contacts file: there is no file at {contacts_file}.")
     if wrong:
         raise OptionsError(wrong)
     document = _read(box)

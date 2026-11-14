@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { SettingsReply, TranslationTest } from '../api.ts'
+import type { ContactsCheck, SettingsReply, TranslationTest } from '../api.ts'
 import { DiagnosticsReport } from '../components/Diagnostics.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
@@ -7,7 +7,16 @@ import type { CaixaKey } from '../locales.ts'
 import { fields as formFields, initialValues, toOptions, type FormValues } from '../options-form.ts'
 import css from '../caixa.module.css'
 
-const GROUPS = ['privacy', 'translation', 'speech']
+/** When the interface bundle was built (set by the build; absent when run unbundled, as in tests). */
+declare const __CAIXA_BUILT__: string | undefined
+const BUILT: string | undefined = typeof __CAIXA_BUILT__ === 'undefined' ? undefined : __CAIXA_BUILT__
+
+/** Why this Mac's Contacts could not be used, as the worker names it, and the words for it. */
+const MAC_PROBLEMS: Readonly<Record<string, CaixaKey>> = {
+  no_access: 'contacts.mac.no_access', empty: 'contacts.mac.empty', not_a_mac: 'contacts.mac.not_a_mac',
+}
+
+const GROUPS = ['privacy', 'contacts', 'translation', 'speech']
 
 /** The box's location, and its settings as a form drawn from the schema the worker publishes. */
 export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
@@ -22,6 +31,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
   // The translation key is not a setting: it is typed here, saved outside the box, and never read back.
   const [key, setKey] = useState('')
   const [keySaved, setKeySaved] = useState(false)
+  const [contacts, setContacts] = useState<ContactsCheck | undefined>()
   const [testing, setTesting] = useState(false)
   const [tested, setTested] = useState<TranslationTest | undefined>()
 
@@ -33,6 +43,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
       if (reply.ok) { setLoaded(reply.result); setKeySaved(reply.result.translation?.key_saved ?? false); setValues(initialValues(formFields(reply.result.schema), reply.result.values)) }
       else setFailure(reply.error.message)
     })
+    void store.api.checkContacts().then((reply) => { if (current && reply.ok) setContacts(reply.result) })
     return () => { current = false }
   }, [store, box?.root])
 
@@ -52,6 +63,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
       setLoaded(reply.result)
       setValues(initialValues(fields, reply.result.values))
       setKeySaved(reply.result.translation?.key_saved ?? false)
+      void store.api.checkContacts().then((checked) => { if (checked.ok) setContacts(checked.result) })
       if (key.trim()) {
         const kept = await store.api.saveTranslationKey(String(reply.result.values['translation.endpoint'] ?? ''), key.trim())
         if (!kept.ok) { setFailure(kept.error.message); return }
@@ -100,6 +112,25 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
                 <legend>{t(`settings.group.${group}` as CaixaKey)}</legend>
                 <OptionsForm fields={members} values={values} problems={fieldProblems}
                              onChange={(name, value) => { setSaved(false); setValues({ ...values, [name]: value }) }} />
+                {group === 'contacts' && contacts && (
+                  <div data-testid="contacts-check">
+                    {contacts.mac.on && (
+                      <p className={contacts.mac.problem ? css.problem : css.muted}>
+                        {contacts.mac.problem
+                          ? t(MAC_PROBLEMS[contacts.mac.problem] ?? 'contacts.mac.empty')
+                          : t('contacts.mac.ok', { count: contacts.mac.people.toLocaleString() })}
+                      </p>
+                    )}
+                    {contacts.file.on && (
+                      <p className={contacts.file.problem ? css.problem : css.muted}>
+                        {contacts.file.problem
+                          ? t('contacts.file.problem', { message: contacts.file.problem })
+                          : t('contacts.file.ok', { count: contacts.file.people.toLocaleString() })}
+                      </p>
+                    )}
+                    {!contacts.mac.on && !contacts.file.on && <p className={css.muted}>{t('contacts.none')}</p>}
+                  </div>
+                )}
                 {group === 'translation' && (
                   <>
                     <div>
@@ -151,6 +182,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
         <p>{t('diagnostics.lead')}</p>
         <DiagnosticsReport />
       </div>
+      <p className={css.muted} data-testid="caixa-built">{t('settings.built', { when: BUILT ? new Date(BUILT).toLocaleString() : t('settings.built.unknown') })}</p>
     </div>
   )
 }

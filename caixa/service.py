@@ -18,6 +18,7 @@ import functools
 import inspect
 import mimetypes
 import queue
+import sys
 import threading
 import time
 import traceback
@@ -27,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
+from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import is_local_endpoint
 
 from caixa import settings, translation, undo
@@ -108,6 +110,16 @@ def _listing(folder: Path, show_hidden: bool = False) -> list[Path]:
     return sorted(found, key=lambda p: (not p.is_dir(), p.name.casefold()))
 
 
+def _readable(folder: Path) -> bool:
+    """Whether macOS lets this program list the Contacts folder (it refuses without Full Disk
+    Access)."""
+    try:
+        next(folder.iterdir(), None)
+    except OSError:
+        return False
+    return True
+
+
 class JobCancelled(Exception):
     """Raised inside a running import, from its progress callback, when a person cancelled it."""
 
@@ -140,6 +152,38 @@ class _Pace:
         held, self.held = self.held, None
         if held is not None:
             self.emit(held)
+
+
+#: A line the worker writes to its error stream with this mark is shown, by `caixa serve`, in the
+#: terminal Caixa was started from (see `caixa.serve`); everything else there goes to a log file.
+TERMINAL_MARK = "[caixa] "
+
+
+class _Terminal:
+    """Tell the terminal that started Caixa how a job is getting on: each new stage, each
+    recording put through speech-to-text, and otherwise a line every few seconds."""
+
+    def __init__(self, job: int, interval: float = 5.0, out: Any = None) -> None:
+        self.job, self.interval = job, interval
+        self.out = out if out is not None else sys.__stderr__
+        self.stage: Optional[str] = None
+        self.message = ""
+        self.sent = 0.0
+
+    def __call__(self, step: Progress) -> None:
+        now = time.monotonic()
+        each = step.stage == "transcribing" and step.message != self.message
+        if step.stage == self.stage and not each and now - self.sent < self.interval:
+            return
+        self.stage, self.message, self.sent = step.stage, step.message, now
+        count = f" {step.current:,}/{step.total:,}" if step.total else ""
+        text = f"{TERMINAL_MARK}job {self.job}: {step.stage}{count}"
+        if step.message:
+            text += f" - {step.message}"
+        try:
+            print(text, file=self.out, flush=True)
+        except (OSError, ValueError, AttributeError):
+            pass  # no terminal to tell
 
 
 Listener = Callable[[str, dict[str, Any]], None]
@@ -352,6 +396,30 @@ class Service:
             # whether a key is saved for this endpoint; the key itself never leaves the worker
             "translation": {"key_saved": self._keys().get(endpoint) is not None},
         }
+
+    @method("contacts.check")
+    def contacts_check(self) -> dict[str, Any]:
+        """How many people each source of contacts in the settings can name, so a person can
+        see that it works: `mac` and `file` are each `{on, people, problem}`."""
+        values = settings.load(self._require_box())
+        region = str(values.get("contacts.region") or "US")
+        folder = mac_contacts_folder()
+        mac: dict[str, Any] = {"on": bool(values.get("contacts.mac")), "people": 0, "problem": ""}
+        if mac["on"]:
+            if sys.platform != "darwin" and not folder.is_dir():
+                mac["problem"] = "not_a_mac"
+            else:
+                mac["people"] = len(Contacts.from_macos(folder, region))
+                if not mac["people"]:
+                    mac["problem"] = "no_access" if not _readable(folder) else "empty"
+        path = str(values.get("contacts.file") or "").strip()
+        file: dict[str, Any] = {"on": bool(path), "people": 0, "problem": ""}
+        if path:
+            try:
+                file["people"] = len(Contacts.from_vcf(Path(path).expanduser(), region))
+            except Exception as error:  # a file that is not a vCard, or cannot be read
+                file["problem"] = str(error) or type(error).__name__
+        return {"mac": mac, "file": file}
 
     def _keys(self) -> translation.Keys:
         return translation.Keys(self.state.path.parent if self.state is not None else None)
@@ -748,10 +816,12 @@ class Service:
             )
 
         pace = _Pace(save)
+        terminal = _Terminal(number)
 
         def progress(step: Progress) -> None:
             if number in self._cancelled:
                 raise JobCancelled()
+            terminal(step)
             pace(step)
 
         outcome: dict[str, Any]

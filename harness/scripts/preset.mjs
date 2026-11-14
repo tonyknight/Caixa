@@ -86,7 +86,8 @@ export function clientOptions(manifest, root) {
     target: 'es2022',
     jsx: 'automatic',
     plugins: [purity, cssModules],
-    define: { 'process.env.NODE_ENV': '"production"' },
+    // __CAIXA_BUILT__: when this bundle was made, shown in Settings so a stale interface is easy to spot
+    define: { 'process.env.NODE_ENV': '"production"', __CAIXA_BUILT__: JSON.stringify(new Date().toISOString()) },
     banner: { js: `window.__ModuleLoader__.load({ id: ${JSON.stringify(manifest.name)}, factory: (require) => { var module = { exports: {} }; var exports = module.exports;` },
     footer: { js: 'return module.exports; } });' },
   }

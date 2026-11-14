@@ -66,6 +66,7 @@ if os.environ.get("FAKE_PIDFILE"):
     )
 link = f"http://127.0.0.1:{chosen}/?token={TOKEN}"
 print(f"dsh: harness is up at {link}", file=sys.stderr, flush=True)
+print("[caixa] job 1: transcribing 1/2 - 1.amr: 2.0 s", file=sys.stderr, flush=True)
 if mode != "silent":
     print(f"dsh web: {link}", flush=True)
 signal.signal(signal.SIGTERM, lambda *a: (child.kill(), os._exit(0)))

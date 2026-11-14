@@ -235,8 +235,31 @@ caixa import googlevoice ~/Downloads/takeout-voice.zip --box ~/Our\ Box
 caixa import googlevoice ~/Takeout/Voice/Calls --box ~/Our\ Box
 ```
 
-**What you get.** Calls (placed, received, missed), texts and voicemail as items on the person's pages;
-voicemail audio goes into the person's `Google Voice` folder.
+**What is in the export.** Three kinds of file, all in one folder, named for who, what and when:
+
+| File | Example | What Caixa does with it |
+| --- | --- | --- |
+| `.html` | `Adam Zell - Text - 2013-02-26T02_20_23Z.html` | The texts of one day with one person (or one group), one line per message with its time and sender. Also one page per call (`Placed`, `Received`, `Missed`) and per voicemail. Each message, call and voicemail becomes an item. |
+| `.mp3` | `Mary Afraimi - Voicemail - 2021-01-06T18_05_49Z.mp3` | The recording of a voicemail. It is attached to its voicemail and filed as `.m4a`, like iPhone voicemail. Google's own transcript, when the page has one, is kept as the text. |
+| `.jpg` (and video) | `Stella Ellis - Text - 2019-09-15T23_14_04Z-27-1.jpg` | A picture sent by text. It is attached to the message that carried it, shown in the thread, and filed like any other picture (JPEG, dated, named for its message). |
+
+**How the days become conversations.** Google writes a page per day; Caixa joins them into one timeline
+per person, with their calls and voicemail in the same place.
+
+- **"Me"** is the owner of the box: those messages are shown as sent.
+- A day on which only you wrote names nobody inside the page. Caixa takes the person from the file
+  name and matches them to the number that name has on other days.
+- A group's page lists its members; the group is one conversation whoever wrote that day.
+- "MMS Received" and "MMS Sent" are Google's placeholders for a message that was only a picture; they
+  are dropped when the picture is there.
+- A voicemail `.mp3` whose page is missing is still imported, from its file name alone.
+
+**What you get.** Calls (placed, received, missed), texts with their pictures, and voicemail as items on
+the person's pages; recordings and pictures go into the person's `Google Voice` folder.
+
+**Many unnamed numbers.** A long Google Voice history is full of numbers that are not in your contacts
+(deliveries, spam, one-off calls), and the preview lists them. They are imported under the number; name
+the ones that matter afterwards, or set up Contacts in Settings first so the known ones arrive named.
 
 ### iPhone voicemail
 
@@ -278,6 +301,14 @@ caixa import voicemail ~/iphone-backup/Voicemail --box ~/Our\ Box \
 In the browser, the wizard's options step starts the model and language from Settings and has a **Browse
 this computer** button for the model file. Transcription only happens when **Transcribe on this computer**
 is ticked (or `transcribe=true`); a model saved in Settings never turns it on by itself.
+
+**How long it takes.** Speech-to-text is the slow part of a voicemail import, so it has a stage of its
+own, *Turning speech into text*, with a bar, "3 of 40", the time left, and for each recording how long it
+took against how long it is: `12.amr: 4.1 s for 31 s of audio (7.6x real time); average 4.3 s each`. The
+same lines are in the job's log (Jobs → the job → Log) and in the terminal you started `caixa serve`
+from, so two models can be compared by running the same small export with each. A large model is loaded
+again for every recording, which is most of the time on short voicemails; a smaller model (`small`,
+`base`) is usually several times faster.
 
 **What you get.** Each voicemail as an item (who, when, how long), its audio in the caller's `Voicemail`
 folder, and with transcription on, its text beside the player on the page. iPhone voicemail is recorded in
@@ -384,8 +415,16 @@ every app, live together** under that person's name.
 
 There are three ways to name people, and they combine:
 
-1. **A contacts file.** `--option contacts=$HOME/contacts.vcf` on any import. Phone numbers and emails in the
-   export are matched against it.
+1. **Contacts, set once.** In **Settings → Contacts** choose either or both:
+   - **Use this Mac's Contacts** (on by default). Caixa reads the Contacts app's database, read-only.
+     macOS allows that once the program you start Caixa from (Terminal) has **Full Disk Access** in
+     System Settings → Privacy & Security; the web browser needs no permission. Settings shows how many
+     people could be read, or what to do when none could.
+   - **A contacts file** (`.vcf`, a vCard export of your address book). Give its path once; every
+     import then uses it and none asks again. Where both know a number, the file wins.
+
+   Every import of every source uses these. From the command line a file can still be given for one
+   import with `--option contacts=$HOME/contacts.vcf`.
 2. **By hand**, one handle at a time:
 
    ```bash
@@ -472,7 +511,7 @@ Our Box/
       Voicemail/
         (2018-12-21) 15-02-31 Ana Costa.m4a      the recording, in a format any browser plays
       Google Voice/
-        (2018-09-08) 10-22-45 Ana Costa.mp3
+        (2018-09-08) 10-22-45 Ana Costa.m4a
     +15550101/                    a number nobody has named yet (it moves when you name it)
   Groups/
     Costa Family/
@@ -591,8 +630,9 @@ proprietary "plugin payload" attachments are skipped as not suitable for archivi
 Recordings are filed as **`.m4a`** (AAC), the one format every browser and phone plays. iPhone voicemail
 (`.amr`), iMessage voice notes (`.caf`), WhatsApp voice notes (`.opus`), and `.ogg`, `.wav`, `.aiff`,
 `.wma` and `.flac` files are converted when they are filed, at the recording's own sample rate and
-channels (8 kHz mono for voicemail, at about the same size). Only the `.m4a` is kept in the box; the file
-in your export is never changed. `.mp3` and `.m4a` already play everywhere and are filed as they are.
+channels (8 kHz mono for voicemail, at about the same size). `.mp3` (Google Voice voicemail) is converted
+too, at its own bit rate, so that every recording in the box is one format. Only the `.m4a` is kept in
+the box; the file in your export is never changed. `.m4a` is filed as it is.
 **Mail attachments are never converted.**
 
 The conversion uses `ffmpeg`. If it is not installed, or a recording is damaged, the import finishes,
@@ -670,7 +710,7 @@ other file is a link. If the file is not in the box the page says so rather than
 | Source | Where the files go | Converted? |
 | --- | --- | --- |
 | WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/` (or `Groups/<Group>/<Source>/`) | pictures to JPEG, voice notes to `.m4a` |
-| Google Voice | `People/<Person>/Google Voice/` | no (MP3 plays everywhere) |
+| Google Voice | `People/<Person>/Google Voice/` | voicemail `.mp3` to `.m4a`, pictures to JPEG |
 | iPhone voicemail | `People/<Person>/Voicemail/` | `.amr` to `.m4a` |
 | Mail | `Mail/<year>/Attachments/` | never |
 | iMessage | `People/<Person>/iMessage/` | pictures to JPEG, `.caf` voice notes to `.m4a` |

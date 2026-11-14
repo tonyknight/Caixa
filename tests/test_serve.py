@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import stat
 import subprocess
 from pathlib import Path
@@ -346,3 +348,88 @@ def test_a_missing_pnpm_is_explained(tmp_path: Path, monkeypatch: pytest.MonkeyP
     with pytest.raises(ServeError, match="pnpm") as stop:
         serve.prepare(home, node, _plugin(tmp_path), dsh=given, run=no_pnpm)
     assert "npm install -g pnpm" in str(stop.value)
+
+
+# --- The interface is rebuilt when its source has changed ------------------------------------------
+
+
+def _checkout(tmp_path: Path, built_before_source: bool) -> Path:
+    """A plugin folder with source and a build; the build is older or newer than the source."""
+    plugin = _plugin(tmp_path)
+    (plugin / "src" / "client").mkdir(parents=True)
+    source = plugin / "src" / "client" / "page.tsx"
+    source.write_text("export {}")
+    (plugin / "scripts").mkdir()
+    (plugin / "scripts" / "build.mjs").write_text("")
+    old, new = 1_700_000_000, 1_700_000_500
+    for built in (plugin / "lib" / "index.js", plugin / "lib" / "client.js"):
+        os.utime(built, (old, old) if built_before_source else (new, new))
+    for file in (source, plugin / "scripts" / "build.mjs", plugin / "package.json"):
+        os.utime(file, (new, new) if built_before_source else (old, old))
+    return plugin
+
+
+def test_a_build_older_than_its_source_is_stale(tmp_path: Path) -> None:
+    assert serve.is_stale(_checkout(tmp_path, built_before_source=True))
+
+
+def test_a_build_newer_than_its_source_is_current(tmp_path: Path) -> None:
+    assert not serve.is_stale(_checkout(tmp_path, built_before_source=False))
+
+
+def test_a_plugin_with_no_source_beside_it_is_taken_as_built(tmp_path: Path) -> None:
+    assert not serve.is_stale(_plugin(tmp_path))  # an installed plugin: only lib/ is shipped
+
+
+def test_a_stale_interface_is_rebuilt_before_starting_and_says_so(tmp_path: Path) -> None:
+    plugin = _checkout(tmp_path, built_before_source=True)
+    node = serve.Node(tmp_path / "bin" / "node", (24, 9, 0))
+    (plugin / "node_modules").mkdir()
+    ran: list[list[str]] = []
+    said: list[str] = []
+
+    def run(command: list[str], **options: Any) -> subprocess.CompletedProcess[str]:
+        ran.append(command)
+        assert options["cwd"] == str(plugin)
+        for built in ("index.js", "client.js"):
+            (plugin / "lib" / built).write_text("new")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    assert serve.ensure_built(plugin, node, said.append, run=run) is True
+    assert ran == [[str(node.path), "scripts/build.mjs"]]
+    assert any("rebuilding" in line for line in said)
+    assert not serve.is_stale(plugin)
+    assert serve.ensure_built(plugin, node, said.append, run=run) is False and len(ran) == 1
+
+
+def test_a_first_build_installs_what_the_build_needs(tmp_path: Path) -> None:
+    plugin = _checkout(tmp_path, built_before_source=True)
+    shutil.rmtree(plugin / "lib")
+    node = serve.Node(tmp_path / "bin" / "node", (24, 9, 0))
+    ran: list[str] = []
+
+    def run(command: list[str], **options: Any) -> subprocess.CompletedProcess[str]:
+        ran.append(Path(command[0]).name + " " + command[1])
+        if command[1] == "scripts/build.mjs":
+            (plugin / "lib").mkdir(exist_ok=True)
+            for built in ("index.js", "client.js"):
+                (plugin / "lib" / built).write_text("new")
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    serve.ensure_built(plugin, node, lambda line: None, run=run)
+    assert ran == ["pnpm install", "node scripts/build.mjs"]
+
+
+def test_a_build_that_fails_says_what_to_run(tmp_path: Path) -> None:
+    plugin = _checkout(tmp_path, built_before_source=True)
+    (plugin / "node_modules").mkdir()
+    node = serve.Node(tmp_path / "bin" / "node", (24, 9, 0))
+
+    def run(command: list[str], **options: Any) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 1, "", "error: Could not resolve esbuild")
+
+    with pytest.raises(ServeError) as stop:
+        serve.ensure_built(plugin, node, lambda line: None, run=run)
+    assert "pnpm --dir harness install" in str(stop.value) and "Could not resolve" in str(
+        stop.value
+    )

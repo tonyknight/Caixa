@@ -16,7 +16,7 @@ describe('the settings form', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy()
     expect(screen.getByText('Location: /boxes/Our box')).toBeTruthy()
     expect(screen.getByText(/Nothing here sends your archive anywhere/)).toBeTruthy()
-    for (const legend of ['Privacy', 'Translation', 'Speech-to-text (local model)']) {
+    for (const legend of ['Privacy', 'Contacts', 'Translation', 'Speech-to-text (local model)']) {
       expect(screen.getByRole('group', { name: legend })).toBeTruthy()
     }
   })
@@ -65,7 +65,7 @@ describe('the settings form', () => {
 
   it('browses for the speech model file and saves the path it picked', async () => {
     const view = await page()
-    fireEvent.click(screen.getByRole('button', { name: 'Browse this computer' }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Speech-to-text (local model)' })).getByRole('button', { name: 'Browse this computer' }))
     await view.flush()
     fireEvent.click(within(screen.getByText('chat.zip').parentElement!).getByRole('button', { name: 'Choose' }))
     expect((screen.getByLabelText('Speech-to-text model') as HTMLInputElement).value).toBe('/home/me/chat.zip')
@@ -180,5 +180,33 @@ describe('translation: the key and the test', () => {
     const result = await screen.findByTestId('translation-test-result')
     expect(result.getAttribute('role')).toBe('alert')
     expect(result.textContent).toContain('The test failed. The server refused the key (HTTP 401)')
+  })
+})
+
+describe('contacts', () => {
+  it('says how many people this Mac\u2019s Contacts can name', async () => {
+    await page()
+    const status = await screen.findByTestId('contacts-check')
+    expect(status.textContent).toContain('This Mac\u2019s Contacts can be read: 412 people')
+  })
+
+  it('says what to do when macOS will not let them be read, and counts a contacts file', async () => {
+    await page(vi.fn(), (api) => {
+      api.contactsReply = ok({ mac: { on: true, people: 0, problem: 'no_access' }, file: { on: true, people: 87, problem: '' } })
+    })
+    const status = await screen.findByTestId('contacts-check')
+    expect(status.textContent).toContain('Full Disk Access')
+    expect(status.textContent).toContain('The contacts file can be read: 87 people')
+    expect(status.textContent).toContain('you will not be asked again')
+  })
+
+  it('offers to browse for the contacts file and checks again after saving', async () => {
+    const view = await page()
+    await screen.findByTestId('contacts-check')
+    change('Contacts file (.vcf)', '/home/maria/contacts.vcf')
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await screen.findByText('Settings saved.')
+    expect(view.api.savedSettings).toEqual([{ 'contacts.file': '/home/maria/contacts.vcf' }])
+    expect(view.api.calls.filter(call => call[0] === 'checkContacts').length).toBe(2)
   })
 })

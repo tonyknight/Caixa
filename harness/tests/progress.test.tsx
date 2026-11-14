@@ -40,4 +40,13 @@ describe('how long is left', () => {
     expect(now.previousElementSibling!.textContent).toBe('Matching people')
     expect(screen.getByText(/3 of 40/)).toBeTruthy()
   })
+  it('shows speech-to-text as a stage of its own, with the recording and its timing', async () => {
+    const message = '1.amr: 2.0 s for 30 s of audio (15.0x real time); average 2.0 s each'
+    await renderWith(<ProgressView step={{ stage: 'transcribing', current: 1, total: 40, message }} stages={IMPORT_STAGES} startedAt={Date.now()} />)
+    const now = document.querySelector('[aria-current="step"]')!
+    expect(now.textContent).toBe('Turning speech into text')
+    expect(now.previousElementSibling!.textContent).toBe('Reading the export')
+    expect(screen.getByText(/1 of 40/)).toBeTruthy()
+    expect(screen.getByText(message)).toBeTruthy()
+  })
 })

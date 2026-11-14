@@ -6,6 +6,8 @@ import css from '../caixa.module.css'
 
 /** The stages an import goes through, in order (a preview stops after `linking`). */
 export const IMPORT_STAGES = ['preparing', 'importing', 'linking', 'filing', 'rendering', 'syncing'] as const
+/** Stages an import has only when asked for, and the stage each one follows. */
+const OPTIONAL_STAGES: Readonly<Record<string, string>> = { transcribing: 'preparing', translating: 'linking' }
 export const PREVIEW_STAGES = ['preparing', 'importing', 'linking'] as const
 
 /** `75` → "1 min 15 s"; under a minute, just seconds. */
@@ -38,12 +40,15 @@ export function ProgressView({ step, stages, startedAt, now = Date.now }: {
   const stage = step?.stage ?? 'starting'
   if (step && seen.current?.stage !== step.stage) seen.current = { stage: step.stage, at: now(), current: step.current }
 
-  // Translating happens only when the box has it turned on, so it joins the list once it is seen.
-  const translates = useRef(false)
-  if (stage === 'translating') translates.current = true
-  if (translates.current && stages.includes('linking') && !stages.includes('translating')) {
-    const after = stages.indexOf('linking') + 1
-    stages = [...stages.slice(0, after), 'translating', ...stages.slice(after)]
+  // Some stages happen only when asked for (translation, speech-to-text), so each joins the list,
+  // after the stage it follows, once it has been seen.
+  const extra = useRef(new Set<string>())
+  if (stage in OPTIONAL_STAGES) extra.current.add(stage)
+  for (const [name, after] of Object.entries(OPTIONAL_STAGES)) {
+    if (extra.current.has(name) && stages.includes(after) && !stages.includes(name)) {
+      const at = stages.indexOf(after) + 1
+      stages = [...stages.slice(0, at), name, ...stages.slice(at)]
+    }
   }
   const position = stages.indexOf(stage)
   const counted = step && step.total !== null && step.total > 0

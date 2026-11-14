@@ -580,3 +580,54 @@ def test_attachments_still_in_icloud_are_said_before_and_after(
     (after,) = [w for w in result.warnings if "not on this Mac" in w]
     assert after.startswith("2 attachments are not on this Mac")
     assert not list(box.root.rglob("*.jpg"))
+
+
+# --- Google Voice as Takeout really writes it ----------------------------------------------------
+
+
+def test_a_google_voice_day_with_a_picture_and_a_voicemail_recording(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    import io
+
+    from PIL import Image
+
+    calls = tmp_path / "Takeout" / "Voice" / "Calls"
+    calls.mkdir(parents=True)
+    picture = io.BytesIO()
+    Image.new("RGB", (40, 30), "orange").save(picture, "JPEG")
+    name, number = family.ANA.name, family.ANA.phones[0]
+    stem = f"{name} - Text - 2019-09-15T23_14_04Z"
+    (calls / f"{stem}-1-1.jpg").write_bytes(picture.getvalue())
+
+    def message(when: str, who: str, tel: str, text: str, extra: str = "") -> str:
+        return (
+            f'<div class="message"><abbr class="dt" title="{when}">x</abbr>: <cite class="sender '
+            f'vcard"><a class="tel" href="tel:{tel}"><abbr class="fn" title="">{who}</abbr></a>'
+            f"</cite>: <q>{text}</q>{extra}</div>"
+        )
+
+    image = f'<div><img src="{stem}-1-1" alt="Image MMS Attachment" /></div>'
+    day = message("2019-09-15T16:14:04.000-07:00", name, number, "MMS Received", image)
+    day += message("2019-09-15T16:20:00.000-07:00", "Me", "+15550000", "Lovely!")
+    (calls / f"{stem}.html").write_text(
+        f'<html><body><div class="hChatLog hfeed">{day}</div></body></html>'
+    )
+    reply = message("2019-09-16T09:00:00.000-07:00", "Me", "+15550000", "Call me later")
+    (calls / f"{name} - Text - 2019-09-16T16_00_00Z.html").write_text(
+        f'<html><body><div class="hChatLog hfeed">{reply}</div></body></html>'
+    )
+    (calls / f"{name} - Voicemail - 2021-01-06T18_05_49Z.mp3").write_bytes(b"ID3 a recording")
+
+    result, _ = _run(six["googlevoice"], box, tmp_path / "Takeout")
+    assert result.inserted == 4  # two texts one day, one the next, and the voicemail
+    folders = [p.name for p in (box.root / "People").iterdir() if p.is_dir()]
+    assert len(folders) == 1  # one person: the day only I wrote joined her conversation
+    files = sorted(p.name for p in (box.root / "People" / folders[0] / "Google Voice").iterdir())
+    assert len(files) == 2 and files[0].startswith("(2019-09-15) ") and files[0].endswith(".jpg")
+    assert files[1].startswith(
+        "(2021-01-06) "
+    )  # the recording (left as .mp3: it is not real audio)
+    page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(2019)*.html"))
+    assert "<img" in page and "Lovely!" in page and "Call me later" in page
+    assert "MMS Received" not in page.split("<script")[0]

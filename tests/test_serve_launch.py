@@ -382,3 +382,18 @@ def test_a_last_box_that_has_gone_is_just_not_reopened(
         [sys.executable, "-m", "caixa", "serve", "--stop"], env=environment, capture_output=True
     )
     process.communicate(timeout=30)
+
+
+def test_what_the_worker_marks_for_the_terminal_is_shown_there_and_nothing_else(
+    home: Path, prepared: serve.Prepared
+) -> None:
+    patch = serve.write_patch(home, None, False, sys.executable)
+    shown: list[str] = []
+    running = serve.start(prepared, patch, 0, home, box=None, read_only=False, echo=shown.append)
+    try:
+        deadline = time.time() + 10
+        while not shown and time.time() < deadline:
+            time.sleep(0.05)
+        assert shown == ["job 1: transcribing 1/2 - 1.amr: 2.0 s"]  # not the harness's own lines
+    finally:
+        serve.stop_group(running.pid, process=running.process)

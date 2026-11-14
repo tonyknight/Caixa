@@ -88,7 +88,7 @@ run('voicemail as named audio files, in a browser', () => {
       expect(await page.getByLabel('Speech model').inputValue()).toBe('/models/ggml-saved.bin')
       expect(await page.getByLabel('Language', { exact: true }).inputValue()).toBe('pt')
       expect(await page.getByLabel('Transcribe on this computer').isChecked()).toBe(false)
-      await page.getByRole('button', { name: 'Browse this computer' }).click()
+      await page.getByRole('button', { name: 'Browse this computer' }).last().click()  // (the first is the contacts file's)
       await page.locator('[role="group"]').getByRole('button', { name: 'Up one level' }).waitFor({ timeout: 15_000 }).catch(() => undefined)
 
       await page.getByRole('button', { name: 'Preview' }).click()
