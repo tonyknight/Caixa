@@ -379,6 +379,9 @@ class Service:
                 key = spec.get("x-setting")
                 if key and key in saved:
                     spec["default"] = saved[key]
+                flag = spec.get("x-on-when-set")
+                if flag:
+                    spec["default"] = saved.get(flag) not in (None, "")
             entry["options_schema"] = schema
         return described
 
@@ -552,10 +555,18 @@ class Service:
         except KeyError:
             raise ServiceError("not_found", f"No collector '{collector_id}'.") from None
 
-    @staticmethod
-    def _options(collector: Collector, options: Optional[dict[str, Any]]) -> dict[str, Any]:
+    def _options(self, collector: Collector, options: Optional[dict[str, Any]]) -> dict[str, Any]:
+        given = dict(options or {})
+        if self.box is not None:
+            # an option that is on once a setting is set (transcribe, once a speech model is
+            # saved) and was not mentioned at all: the setting decides
+            saved = settings.load(self.box)
+            for name, spec in collector.info.options_schema["properties"].items():
+                flag = spec.get("x-on-when-set")
+                if flag and name not in given:
+                    given[name] = saved.get(flag) not in (None, "")
         try:
-            return validate(collector.info.options_schema, options or {})
+            return validate(collector.info.options_schema, given)
         except OptionsError as error:
             raise ServiceError("invalid_params", str(error), {"errors": error.errors}) from None
 

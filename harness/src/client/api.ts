@@ -240,6 +240,12 @@ export interface WorkerInfo {
   readonly protocol: number
   readonly read_only: boolean
   readonly methods: readonly string[]
+  /** The commit of the code the worker runs ('' when unknown; absent from older workers). */
+  readonly commit?: string
+  /** When the worker started (ISO). */
+  readonly started?: string
+  /** True when Caixa's code on disk is newer than the running worker: it must be restarted. */
+  readonly restart_needed?: boolean
 }
 
 export interface BrowseListing {

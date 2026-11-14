@@ -258,9 +258,9 @@ per person, with their calls and voicemail in the same place.
 the person's pages; recordings and pictures go into the person's `Google Voice` folder.
 
 **Voicemail as text.** Google's own transcript, when the page has one, is shown as the voicemail's text.
-To use your own speech model instead, tick **Transcribe on this computer** in the import's options (or
-`--option transcribe=true`); the model and language come from Settings unless given here, exactly as for
-iPhone voicemail, and a model saved in Settings never turns transcription on by itself. Every voicemail
+To use your own speech model instead, save it in Settings (Speech-to-text model): **Transcribe on this
+computer** is then ticked to begin with in the import's options, exactly as for iPhone voicemail. Untick
+it to skip transcription for one import (`--option transcribe=false`). Every voicemail
 recording is then put through the model, with the same progress and timing lines. Your model's text
 replaces Google's on the page; Google's is kept in the data and stays the text for any recording the
 model fails on or hears nothing in. Import the same export again with the box ticked to add transcripts
@@ -303,13 +303,14 @@ caixa import voicemail ~/iphone-backup/Voicemail --box ~/Our\ Box \
 
 | Option | Default | Meaning |
 | --- | --- | --- |
-| `transcribe` | `false` | Turn each voicemail into text with a speech model on this computer. |
+| `transcribe` | on when a speech model is saved in Settings, else off | Turn each voicemail into text with a speech model on this computer. |
 | `model` | *(empty)* | Path to a local speech model (a whisper.cpp model file, or a faster-whisper model folder). Caixa never downloads one. Empty uses **Speech-to-text model** in Settings. |
 | `language` | *(empty)* | A language code such as `en` or `pt`. Empty uses **Speech language** in Settings, and if that is empty too, the model detects it. |
 
 In the browser, the wizard's options step starts the model and language from Settings and has a **Browse
-this computer** button for the model file. Transcription only happens when **Transcribe on this computer**
-is ticked (or `transcribe=true`); a model saved in Settings never turns it on by itself.
+this computer** button for the model file. **Transcribe on this computer** starts ticked once a speech
+model is saved in Settings, and unticked until then; untick it (or `transcribe=false`) to skip
+transcription for one import.
 
 **How long it takes.** Speech-to-text is the slow part of a voicemail import, so it has a stage of its
 own, *Turning speech into text*, with a bar, "3 of 40", the time left, and for each recording how long it

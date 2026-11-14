@@ -210,3 +210,22 @@ describe('contacts', () => {
     expect(view.api.calls.filter(call => call[0] === 'checkContacts').length).toBe(2)
   })
 })
+
+describe('which Caixa is running', () => {
+  it('shows the version, the commit and when it started', async () => {
+    await page(vi.fn(), (api) => {
+      api.info = async () => ok({ version: '0.1.0', protocol: 1, read_only: false, methods: [], commit: 'a855910', started: '2026-11-14T08:00:00+00:00', restart_needed: false })
+    })
+    const line = await screen.findByTestId('caixa-version')
+    expect(line.textContent).toContain('Caixa 0.1.0, commit a855910')
+    expect(screen.queryByTestId('caixa-restart')).toBeNull()
+  })
+
+  it('says to restart when the code on disk is newer than what is running', async () => {
+    await page(vi.fn(), (api) => {
+      api.info = async () => ok({ version: '0.1.0', protocol: 1, read_only: false, methods: [], commit: 'a855910', started: '2026-11-14T08:00:00+00:00', restart_needed: true })
+    })
+    const warning = await screen.findByTestId('caixa-restart')
+    expect(warning.textContent).toContain('still running the older code')
+  })
+})

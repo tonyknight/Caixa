@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Optional
 
+from caixa import revision
 from caixa.state import State, caixa_home
 
 #: The one DeepSeek Harness version Caixa's plugin is built and tested against (the plugin's
@@ -647,10 +648,10 @@ def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -
             int(state["pid"]), int(state["port"]), str(state["url"]), box, options.read_only
         )
         say(f"Caixa is already running at http://127.0.0.1:{running.port}/")
-        if is_stale(plugin_directory()):
+        if is_stale(plugin_directory()) or revision.changed_since(float(state.get("started", 0))):
             say(
-                "The interface has changed since Caixa was started. Stop it with "
-                "`caixa serve --stop` and start it again to see the changes."
+                "Caixa's code has changed since it was started, and it is still running the "
+                "old code. Stop it with `caixa serve --stop` and start it again."
             )
     else:
         box = box or _last_box(home, say)
@@ -660,7 +661,8 @@ def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -
         given = os.environ.get("CAIXA_DSH")
         prepared = prepare(home, node, plugin, Path(given) if given else None)
         patch = write_patch(home, box, options.read_only, sys.executable)
-        say("Starting Caixa…")
+        version = revision.commit()
+        say(f"Starting Caixa{f' (commit {version})' if version else ''}…")
         running = start(prepared, patch, options.port, home, box, options.read_only, echo=say)
         say(f"Caixa is running at http://127.0.0.1:{running.port}/ (this computer only).")
     if options.no_browser:

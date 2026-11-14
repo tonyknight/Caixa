@@ -275,7 +275,9 @@ caixa serve --box ~/Our\ Box
 
 `caixa serve` builds the interface when it starts, and builds it again whenever its source has changed
 (after a `git pull`), so the browser never shows an older interface than the code you have. Settings
-shows when the interface was built.
+shows when the interface was built, and which version and commit of Caixa is running. A running Caixa
+keeps the code it started with: after an update, stop it and start it again (Settings and `caixa serve`
+both say so when the code on disk is newer than what is running).
 
 To work on Caixa itself, add the development tools and run the tests:
 

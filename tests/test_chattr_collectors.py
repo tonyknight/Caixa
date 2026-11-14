@@ -468,11 +468,13 @@ def test_the_speech_options_name_the_setting_they_follow(six: dict[str, Collecto
     validate(six["voicemail"].info.options_schema, {})  # and the extra keywords are accepted
 
 
-def test_a_saved_model_is_not_enough_to_turn_transcription_on(
+def test_unticking_transcribe_skips_it_even_with_a_model_saved(
     six: dict[str, Collector], fixture_family, box: Box
 ) -> None:
     _speech_settings(box, "/nowhere/ggml-model.bin")
-    result, _ = _run(six["voicemail"], box, _source(fixture_family, "voicemail"))
+    result, _ = _run(
+        six["voicemail"], box, _source(fixture_family, "voicemail"), {"transcribe": False}
+    )
     assert result.inserted == 2  # no transcriber was made, so the missing model never mattered
 
 

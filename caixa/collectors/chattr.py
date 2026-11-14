@@ -168,7 +168,12 @@ _SPEECH_OPTIONS: dict[str, Any] = {
         "type": "boolean",
         "default": False,
         "title": "Transcribe on this computer",
-        "description": "Turn each voicemail into text with a speech model stored here.",
+        "description": (
+            "Turn each voicemail into text with a speech model stored here. On to begin with "
+            "when a speech model is saved in Settings; untick it to skip transcription for "
+            "this import."
+        ),
+        "x-on-when-set": "speech.model",
     },
     "model": {
         "type": "string",
@@ -271,6 +276,9 @@ class _Chattr:
             unset = name not in options or options[name] in (None, "")
             if key and unset and saved.get(key) not in (None, ""):
                 merged[name] = saved[key]
+            flag = spec.get("x-on-when-set")  # on unless said otherwise, once that setting is set
+            if flag and name not in options:
+                merged[name] = saved.get(flag) not in (None, "")
         # Contacts are a setting of the box, the same for every source (an option, where a source
         # has one, has already taken its place above). Without a box nobody's Contacts are read.
         merged.setdefault("mac_contacts", bool(saved.get("contacts.mac", False)))

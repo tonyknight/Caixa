@@ -24,14 +24,19 @@ import argparse
 import json
 import sys
 import threading
+import time
 import traceback
+from datetime import datetime, timezone
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Optional, TextIO
 
-from caixa import __version__
+from caixa import __version__, revision
 from caixa.service import Service, ServiceError
 from caixa.state import State
+
+#: When this process loaded its code.
+STARTED = time.time()
 
 PROTOCOL = 1
 PARSE_ERROR, INVALID_REQUEST, UNKNOWN_METHOD, INVALID_PARAMS, INTERNAL = (
@@ -108,6 +113,11 @@ class Worker:
                 "protocol": PROTOCOL,
                 "read_only": self.service.read_only,
                 "methods": sorted([*self.service.METHODS, "worker.info"]),
+                # which code this is, and whether the files have changed since it started (a
+                # `git pull` without a restart): the interface says so
+                "commit": revision.commit(),
+                "started": datetime.fromtimestamp(STARTED, timezone.utc).isoformat(),
+                "restart_needed": revision.changed_since(STARTED),
             }
         return self.service.call(name, params)
 

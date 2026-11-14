@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ContactsCheck, SettingsReply, TranslationTest } from '../api.ts'
+import type { ContactsCheck, SettingsReply, TranslationTest, WorkerInfo } from '../api.ts'
 import { DiagnosticsReport } from '../components/Diagnostics.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
@@ -32,6 +32,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
   const [key, setKey] = useState('')
   const [keySaved, setKeySaved] = useState(false)
   const [contacts, setContacts] = useState<ContactsCheck | undefined>()
+  const [worker, setWorker] = useState<WorkerInfo | undefined>()
   const [testing, setTesting] = useState(false)
   const [tested, setTested] = useState<TranslationTest | undefined>()
 
@@ -44,6 +45,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
       else setFailure(reply.error.message)
     })
     void store.api.checkContacts().then((reply) => { if (current && reply.ok) setContacts(reply.result) })
+    void store.api.info().then((reply) => { if (current && reply.ok) setWorker(reply.result) })
     return () => { current = false }
   }, [store, box?.root])
 
@@ -99,6 +101,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
         <button type="button" className={css.button} onClick={onChangeBox}>{t('settings.box.other')}</button>
       </div>
       <p className={css.muted}>{t('settings.local')}</p>
+      {worker?.restart_needed && <p className={css.banner} role="alert" data-testid="caixa-restart">{t('settings.restart')}</p>}
       {readOnly && <p className={css.banner}>{t('settings.readOnly')}</p>}
       {failure && <p className={css.error} role="alert">{t('common.error', { message: failure })}</p>}
       {!loaded && !failure && <p className={css.muted}>{t('common.loading')}</p>}
@@ -182,6 +185,11 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
         <p>{t('diagnostics.lead')}</p>
         <DiagnosticsReport />
       </div>
+      {worker && (
+        <p className={css.muted} data-testid="caixa-version">
+          {t('settings.version', { version: worker.version, commit: worker.commit || t('settings.built.unknown'), when: worker.started ? new Date(worker.started).toLocaleString() : t('settings.built.unknown') })}
+        </p>
+      )}
       <p className={css.muted} data-testid="caixa-built">{t('settings.built', { when: BUILT ? new Date(BUILT).toLocaleString() : t('settings.built.unknown') })}</p>
     </div>
   )

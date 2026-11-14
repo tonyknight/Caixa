@@ -204,3 +204,46 @@ def test_google_voice_voicemail_is_transcribed_when_ticked_also_on_a_second_impo
     assert heard and heard[-1].current == heard[-1].total == 2
     shown = pages().split("<script")[0]
     assert shown.count("words from") == 2 and "what google heard" not in shown
+
+
+# --- On by default once a speech model is saved --------------------------------------------------------
+
+
+def _transcribe_default(service, collector_id: str) -> bool:
+    described = {c["id"]: c for c in service.collectors_list()}[collector_id]
+    return described["options_schema"]["properties"]["transcribe"]["default"]
+
+
+def test_the_wizard_starts_with_transcription_ticked_once_a_model_is_saved(tmp_path: Path) -> None:
+    from caixa.service import Service
+
+    service = Service(roots=[tmp_path])
+    service.box_create(str(tmp_path / "Box"), name="Our box", owner="Maria Costa")
+    for source in ("voicemail", "googlevoice"):
+        assert _transcribe_default(service, source) is False
+    service.settings_set({"speech.model": "/models/ggml-large-v3-turbo.bin"})
+    for source in ("voicemail", "googlevoice"):
+        assert _transcribe_default(service, source) is True
+    service.settings_set({"speech.model": ""})
+    assert _transcribe_default(service, "googlevoice") is False
+
+
+def test_an_import_that_does_not_mention_transcription_follows_the_saved_model(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.service import Service
+
+    clock = [0.0]
+    monkeypatch.setattr("caixa.collectors.chattr.make_transcriber", lambda *a, **k: Slow(clock))
+    source = _google_voice(tmp_path)
+    service = Service(roots=[tmp_path])
+    service.box_create(str(tmp_path / "Box"), name="Our box", owner="Maria Costa")
+    collector = service.registry.get("googlevoice")
+    assert service._options(collector, {})["transcribe"] is False
+    service.settings_set({"speech.model": "/models/ggml-large-v3-turbo.bin"})
+    assert service._options(collector, {})["transcribe"] is True  # nothing said: the model decides
+    assert service._options(collector, {"transcribe": False})["transcribe"] is False  # unticked
+    job = service.import_start("googlevoice", str(source), {})
+    service.wait(job["id"], timeout=60)
+    service.close()
+    assert clock[0] > 0  # the model was used
