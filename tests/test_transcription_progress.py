@@ -112,3 +112,38 @@ def test_the_terminal_hears_each_stage_and_each_recording_but_not_every_step() -
 
 def test_the_mark_is_the_one_caixa_serve_listens_for() -> None:
     assert serve.TERMINAL_MARK == TERMINAL_MARK
+
+
+class Batch(Slow):
+    """An engine that takes every recording in one run; the first waits for the model to load."""
+
+    def transcribe_many(self, files):
+        self.clock[0] += 6.0  # loading the model, once
+        for audio in files:
+            self.clock[0] += 1.0
+            failed = self.fail_on and self.fail_on in audio.name
+            yield audio, (RuntimeError("bad audio") if failed else Transcript("words", "en", "m"))
+
+
+def test_a_run_of_many_recordings_times_each_as_it_comes_out(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    clock, steps = [0.0], []
+    timed = TimedTranscriber(
+        Batch(clock, fail_on="2"), steps.append, clock=lambda: clock[0], length=lambda a: 20.0
+    )
+    timed.expect(3)
+    results = list(timed.transcribe_many([Path("1.amr"), Path("2.amr"), Path("3.amr")]))
+    assert [audio.name for audio, _ in results] == ["1.amr", "2.amr", "3.amr"]
+    assert steps[1].message == "Loading the speech model (once)"
+    assert [s.current for s in steps[2:]] == [1, 2, 3]
+    assert "1.amr: 7.0 s for 20 s of audio" in steps[2].message
+    assert "includes loading the model" in steps[2].message
+    assert "2.amr: 1.0 s" in steps[3].message and "failed: bad audio" in steps[3].message
+    assert steps[4].message.endswith("average 3.0 s each")
+    assert len(capsys.readouterr().out.splitlines()) == 3
+
+
+def test_an_engine_that_cannot_take_many_is_not_offered_as_one() -> None:
+    timed = TimedTranscriber(Slow([0.0]), lambda step: None)
+    assert not hasattr(timed, "transcribe_many")

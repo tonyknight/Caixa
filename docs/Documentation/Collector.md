@@ -306,9 +306,10 @@ is ticked (or `transcribe=true`); a model saved in Settings never turns it on by
 own, *Turning speech into text*, with a bar, "3 of 40", the time left, and for each recording how long it
 took against how long it is: `12.amr: 4.1 s for 31 s of audio (7.6x real time); average 4.3 s each`. The
 same lines are in the job's log (Jobs → the job → Log) and in the terminal you started `caixa serve`
-from, so two models can be compared by running the same small export with each. A large model is loaded
-again for every recording, which is most of the time on short voicemails; a smaller model (`small`,
-`base`) is usually several times faster.
+from, so two models can be compared by running the same small export with each. With whisper.cpp all the
+recordings of an import go to one run of the program, so the model is loaded once (the first recording's
+time includes that) and not once per recording; a recording the run could not finish is tried again on
+its own. A smaller model (`small`, `base`) is still usually several times faster than a large one.
 
 **What you get.** Each voicemail as an item (who, when, how long), its audio in the caller's `Voicemail`
 folder, and with transcription on, its text beside the player on the page. iPhone voicemail is recorded in

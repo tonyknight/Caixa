@@ -103,6 +103,10 @@ class TimedTranscriber:
         length: Callable[[Path], Optional[float]] = audio_seconds,
     ) -> None:
         self.inner, self.progress, self.clock, self.length = inner, progress, clock, length
+        if hasattr(inner, "transcribe_many"):
+            # the engine takes every recording in one run (the model is loaded once): time each
+            # as it comes out. The first one's time includes loading the model.
+            self.transcribe_many = self._many
         self.total: Optional[int] = None
         self.done = 0
         self.spent = 0.0
@@ -119,24 +123,43 @@ class TimedTranscriber:
         try:
             return self.inner.transcribe(audio)
         except Exception as error:
-            failed = f" (failed: {str(error)[:120] or type(error).__name__})"
+            failed = self._why(error)
             raise
         finally:
-            took = self.clock() - started
-            long = self.length(audio)
-            self.done += 1
-            self.spent += took
-            line = f"{audio.name}: {took:.1f} s"
-            if long:
-                self.heard += long
-                line += f" for {long:.0f} s of audio"
-                if took > 0:
-                    line += f" ({long / took:.1f}x real time)"
-            line += failed
-            average = self.spent / self.done
-            summary = f"{line}; average {average:.1f} s each"
-            print(f"Speech-to-text {self.done}/{self.total or '?'}: {summary}")
-            self.progress(Progress("transcribing", self.done, self.total, summary))
+            self._finished(audio, self.clock() - started, failed)
+
+    def _many(self, files: Any) -> Any:
+        files = list(files)
+        self.progress(
+            Progress("transcribing", self.done, self.total, "Loading the speech model (once)")
+        )
+        started = self.clock()
+        for audio, result in self.inner.transcribe_many(files):
+            now = self.clock()
+            failed = self._why(result) if isinstance(result, Exception) else ""
+            note = " (includes loading the model)" if self.done == 0 else ""
+            self._finished(audio, now - started, failed + note)
+            started = now
+            yield audio, result
+
+    @staticmethod
+    def _why(error: BaseException) -> str:
+        return f" (failed: {str(error)[:120] or type(error).__name__})"
+
+    def _finished(self, audio: Path, took: float, note: str) -> None:
+        long = self.length(audio)
+        self.done += 1
+        self.spent += took
+        line = f"{audio.name}: {took:.1f} s"
+        if long:
+            self.heard += long
+            line += f" for {long:.0f} s of audio"
+            if took > 0:
+                line += f" ({long / took:.1f}x real time)"
+        line += note
+        summary = f"{line}; average {self.spent / self.done:.1f} s each"
+        print(f"Speech-to-text {self.done}/{self.total or '?'}: {summary}")
+        self.progress(Progress("transcribing", self.done, self.total, summary))
 
 
 def _schema(**extra: Any) -> dict[str, Any]:
