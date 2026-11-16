@@ -20,13 +20,13 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Union
 
 import chattr.commands as commands
 import chattr.preflight as preflight
 from chattr.config import Settings
-from chattr.database_manager import DatabaseManager
-from chattr.meta_friends import Friends, find_friend_files, load_friends
+from chattr.database_manager import DatabaseManager, unresolved_rows
+from chattr.meta_friends import Friends, find_friend_files, find_profile_name, load_friends
 from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
@@ -312,8 +312,9 @@ class _Chattr:
         options: Mapping[str, Any],
         owner: Optional[str],
         aliases: Optional[Path],
-    ) -> None:
-        """Link every handle to a person: the box's aliases, the contacts file, this Mac's Contacts."""
+    ) -> list[str]:
+        """Link every handle to a person: the box's aliases, the contacts file, this Mac's Contacts.
+        Returns what a person should know (groups left out)."""
         try:
             commands.people(
                 settings,
@@ -328,14 +329,33 @@ class _Chattr:
                 f"{error} (The contacts file is set in Settings, under Contacts, or in this "
                 "import's options.)"
             ) from error
-        # What is left unnamed on WhatsApp and Google Voice and is shown by a name (not a number)
-        # is a name from the owner's own phone or Google contacts: take it as the person. The
-        # same name as a contact (or anyone else) is the same person.
+        # Group conversations: only those the owner wrote in, and of their members only those
+        # who wrote (see DatabaseManager.tidy_groups). Then what is left unnamed on WhatsApp,
+        # Google Voice and voicemail and is shown by a name (not a number) is a name from the
+        # owner's own phone or Google contacts: take it as the person. The same name as a contact
+        # (or anyone else) is the same person.
+        notes: list[str] = []
         database = commands.central_database(settings)
         if database.exists():
             with DatabaseManager(database) as db:
+                tidy = db.tidy_groups()
                 for service in SHOWN_BY_OWN_NAME:
                     db.name_handles(service, own_name)
+            count = len(tidy.groups_removed)
+            if count:
+                notes.append(
+                    f"{count:,} group conversation{'s' if count != 1 else ''} you never wrote "
+                    f"in {'were' if count != 1 else 'was'} left out."
+                )
+                print(f"Left out, groups you never wrote in ({count}):")
+                for name in sorted(tidy.groups_removed, key=str.casefold):
+                    print(f"  {name}")
+            for service in sorted(tidy.unchecked):
+                notes.append(
+                    f"Your own messages could not be recognised in {service}, so its group "
+                    "conversations were all kept. Check 'Your name' in the import's options."
+                )
+        return notes
 
     def _owner(self, options: Mapping[str, Any], box: Optional[Box]) -> Optional[str]:
         if options.get("owner"):
@@ -447,7 +467,7 @@ class _Chattr:
         owner: Optional[str],
         aliases: Optional[Path],
     ) -> Preview:
-        self._name_people(settings, options, owner, aliases)
+        said = self._name_people(settings, options, owner, aliases)
         database = commands.central_database(settings)
         with DatabaseManager(database) as db:
             unresolved = [handle.identifier for handle in db.unresolved_handles()]
@@ -477,6 +497,7 @@ class _Chattr:
             last=last[:10] if last else None,
             participants=people,
             unresolved=unresolved,
+            warnings=said,
         )
 
     # --- Run --------------------------------------------------------------------------------
@@ -500,7 +521,7 @@ class _Chattr:
         notes = self._import_all(settings, items, opts, owner, aliases, attachments, True, progress)
 
         progress(Progress("linking", message="Matching people"))
-        self._name_people(settings, opts, owner, aliases)
+        notes += self._name_people(settings, opts, owner, aliases)
         translated, said = self._translate(box, settings, progress)
         result = self._publish(box, settings, progress)
         result.translated = translated
@@ -665,14 +686,8 @@ class _Chattr:
         if not database.is_file():
             return []
         link = sqlite3.connect(f"{database.resolve().as_uri()}?mode=ro", uri=True)
-        link.row_factory = sqlite3.Row
         try:
-            rows = link.execute(
-                "SELECT h.service, h.identifier, h.display_name, COUNT(m.id) AS messages "
-                "FROM handles h LEFT JOIN messages m ON m.sender_handle_id = h.id "
-                "WHERE h.person IS NULL GROUP BY h.id "
-                "ORDER BY messages DESC, h.service, h.identifier"
-            ).fetchall()
+            rows = unresolved_rows(link)
         finally:
             link.close()
         return [
@@ -759,20 +774,38 @@ class WhatsApp(_Chattr):
 
 #: Private keys in the options a Meta import passes to `convert`: the friends to keep threads
 #: with (None: keep every thread), and the list the threads left out are added to.
-FRIENDS, LEFT_OUT = "_friends", "_left_out"
+FRIENDS, OWNERS, LEFT_OUT = "_friends", "_owners", "_left_out"
+
+
+def _folded(name: Optional[str]) -> str:
+    return " ".join((name or "").split()).casefold()
 
 
 class _Meta(_Chattr):
     """Messenger and Instagram: one Meta export can hold threads of both.
 
-    Messenger threads can be limited to people on the owner's Facebook friends lists (friends and
-    removed friends, read from the same export), which leaves out Marketplace buyers and sellers,
-    page bots and strangers; those friends are also named by the name Facebook gives them.
-    Instagram threads are not affected: Instagram has no friends list, only follows.
+    Every thread in the export is a candidate: each folder holding a `message_1.json`, in
+    `messages/inbox`, `archived_threads`, `e2ee_cutover`, `message_requests` and `filtered_threads`.
+    What is kept, unless the options say otherwise:
+
+    - not `message_requests` (people who wrote and were never answered) or `filtered_threads`
+      (what Facebook set aside as spam);
+    - Messenger threads with someone on the owner's friends lists (friends and removed friends, read
+      from the same export) or a deactivated account; Marketplace buyers and sellers, pages and
+      strangers are left out, and friends are named by the name Facebook gives them;
+    - group threads the owner wrote in at least once (known by the box's owner name and the
+      export's own profile name), which leaves out groups someone added them to and they left
+      (this is the rule for every group, see `DatabaseManager.tidy_groups`; here it also says
+      which groups they were in the log).
+
+    Instagram threads are only subject to the first rule: Instagram has follows, not friends.
     """
 
     services: tuple[str, ...] = ()
     attachments = MESSAGES
+
+    #: Folders of threads the owner never took part in, left out unless asked for.
+    REQUESTS = ("message_requests", "filtered_threads")
 
     def _import_all(
         self,
@@ -786,6 +819,17 @@ class _Meta(_Chattr):
         progress: Callable[[Progress], None],
     ) -> list[str]:
         notes: list[str] = []
+        left_out: dict[str, list[str]] = {"requests": [], "friends": [], "groups": []}
+        if not options.get("include_requests", False):
+            requests = [i for i in items if any(part in self.REQUESTS for part in i.parts)]
+            left_out["requests"] = [i.parent.name for i in requests]
+            items = [i for i in items if i not in requests]
+            if not items:
+                raise InputError(
+                    "Every conversation in this export is a message request or filtered "
+                    "message, which are left out. Tick 'Include message requests and filtered "
+                    "messages' to import them."
+                )
         friends: Optional[Friends] = None
         messenger = [item for item in items if self._service(item) == "messenger"]
         if messenger:
@@ -806,32 +850,60 @@ class _Meta(_Chattr):
                 "friends, include 'Friends' (Connections) when downloading your information, "
                 "or point 'Facebook friends list' at the export's connections/friends folder."
             )
-        left_out: list[list[str]] = []
-        chosen = {**options, FRIENDS: friends if only else None, LEFT_OUT: left_out}
+        profile = find_profile_name(items[0]) if items else None
+        mine = {name for name in (owner, profile) if name}
+        chosen = {
+            **options,
+            FRIENDS: friends if only else None,
+            OWNERS: {_folded(name) for name in mine},
+            LEFT_OUT: left_out,
+        }
         notes += super()._import_all(
             settings, items, chosen, owner, aliases, attachments_dir, final, progress
         )
-        if friends:
-            with DatabaseManager(commands.central_database(settings)) as db:
+        with DatabaseManager(commands.central_database(settings)) as db:
+            if profile and owner and _folded(profile) != _folded(owner):
+                # the owner's own Facebook name is the owner, not someone else
+                for service in ("Messenger", "Instagram"):
+                    db.mark_owner(service, profile, owner)
+            if friends:
                 db.name_handles("Messenger", friends.name_of)
-        if left_out:
-            # the owner is in every thread: their own name says nothing about who it was with
-            everyone = set.intersection(*(set(people) for people in left_out))
-            mine = everyone if len(left_out) > 1 else set()
-            mine |= {owner} if owner else set()
-            shown = [", ".join(p for p in people if p not in mine) or ", ".join(people)
-                     for people in left_out]  # fmt: skip
-            count = len(left_out)
-            notes.append(
-                f"{count:,} Messenger conversation{'s' if count != 1 else ''} with nobody from "
-                "your Facebook friends list (Marketplace, pages, strangers) "
-                f"{'were' if count != 1 else 'was'} left out."
-                + (" Their names are in the job's log." if final else "")
+        notes += self._left_out_notes(left_out, final)
+        return notes
+
+    @staticmethod
+    def _left_out_notes(left_out: dict[str, list[str]], final: bool) -> list[str]:
+        """What was left out and why, in words; with `final`, who it was with goes to the log."""
+        said = {
+            "requests": (
+                "conversation{s} from message requests and filtered (spam) messages "
+                "{was} left out (people who wrote and were never answered)."
+            ),
+            "friends": (
+                "Messenger conversation{s} with nobody from your Facebook friends list "
+                "(Marketplace, pages, strangers) {was} left out."
+            ),
+            "groups": "group conversation{s} you never wrote in {was} left out.",
+        }
+        heading = {
+            "requests": "message requests and filtered messages",
+            "friends": "nobody on the friends lists",
+            "groups": "groups you never wrote in",
+        }
+        notes = []
+        for reason, entries in left_out.items():
+            if not entries:
+                continue
+            count = len(entries)
+            words = said[reason].format(
+                s="" if count == 1 else "s", was="was" if count == 1 else "were"
             )
+            tail = " Who they were with is in the job's log." if final else ""
+            notes.append(f"{count:,} {words}{tail}")
             if final:
-                print(f"Left out, not on the friends lists ({count}):")
-                for name in sorted(shown, key=str.casefold):
-                    print(f"  {name}")
+                print(f"Left out, {heading[reason]} ({count}):")
+                for entry in sorted(entries, key=str.casefold):
+                    print(f"  {entry}")
         return notes
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
@@ -867,6 +939,16 @@ class _Meta(_Chattr):
         if options.get("service") in ("messenger", "instagram"):
             service = str(options["service"])
         friends = options.get(FRIENDS) if service == "messenger" else None
+        owners = options.get(OWNERS) if service == "messenger" else None
+
+        def keep(conversation: Any, messages: list[dict[str, Any]]) -> Union[bool, str]:
+            if friends is not None and not friends.in_conversation(conversation):
+                return "friends"
+            if owners and conversation.type == "group":
+                if not any(_folded(m.get("author")) in owners for m in messages):
+                    return "groups"
+            return True
+
         try:
             commands.convert(
                 settings,
@@ -877,12 +959,16 @@ class _Meta(_Chattr):
                 attachments_dir=attachments_dir,
                 contacts=options.get("contacts") or None,
                 resolve=False,
-                keep=friends.in_conversation if friends else None,
+                keep=keep if friends is not None or owners else None,
             )
         except commands.LeftOut as left:
             conversation = left.conversation
-            people = [p for p in conversation.participants if p]
-            options[LEFT_OUT].append(people or [conversation.name or conversation.source_id])
+            mine = owners or set()
+            others = [p for p in conversation.participants if p and _folded(p) not in mine]
+            label = ", ".join(others) or conversation.name or conversation.source_id
+            if left.reason == "groups":
+                label = f"{conversation.name or conversation.source_id}: {label}"
+            options[LEFT_OUT][left.reason or "friends"].append(label)
 
 
 class Messenger(_Meta):
@@ -905,6 +991,16 @@ class Messenger(_Meta):
                 "enum": ["auto", "messenger", "instagram"],
                 "title": "Service",
                 "description": "Which service the threads belong to; 'auto' decides from the folder names.",
+            },
+            include_requests={
+                "type": "boolean",
+                "default": False,
+                "title": "Include message requests and filtered messages",
+                "description": (
+                    "Message requests are from people who wrote to you and were never "
+                    "answered; filtered messages are what Facebook set aside as spam. Both are "
+                    "left out unless this is ticked."
+                ),
             },
             only_friends={
                 "type": "boolean",

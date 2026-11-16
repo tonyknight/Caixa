@@ -28,6 +28,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Optional, Union
 
+from chattr.database_manager import unresolved_rows
+
 from caixa.master import Master
 
 COLLECTOR = "chattr"
@@ -222,11 +224,7 @@ def _sync(
 
     result.unresolved = [
         UnresolvedHandle(r["service"], r["identifier"], r["display_name"], r["messages"])
-        for r in db.execute(
-            "SELECT h.service, h.identifier, h.display_name, COUNT(m.id) AS messages "
-            "FROM chattr.handles h LEFT JOIN chattr.messages m ON m.sender_handle_id = h.id "
-            "WHERE h.person IS NULL GROUP BY h.id ORDER BY messages DESC, h.service, h.identifier"
-        )
+        for r in unresolved_rows(db, "chattr")
     ]
 
 

@@ -660,7 +660,7 @@ def test_whatsapp_senders_shown_by_name_are_named_and_numbers_are_not(
     result, _ = _run(six["whatsapp"], box, chat, {"owner": family.OWNER.name})
     unnamed = " | ".join(result.unresolved)
     assert "Tia Lurdes" not in unnamed  # a name from the phone's own contacts: a person
-    assert "912" in unnamed  # a number still waits for a name
+    assert "912" not in unnamed  # a number that wrote only in a group is never brought in
     assert "Pushname Pedro" in unnamed  # a name someone gave themselves (~): not trusted
 
 

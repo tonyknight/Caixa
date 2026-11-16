@@ -54,6 +54,10 @@ def _thread(folder: Path, other: str, count: int, start: int = 0) -> None:
     (folder / "message_1.json").write_text(json.dumps(body), encoding="utf-8")
 
 
+#: Message requests and filtered messages are left out unless asked for: these tests read them all.
+EVERY_FOLDER = {"include_requests": True}
+
+
 def _export(root: Path, per_top: int = 3, messages: int = 4) -> Path:
     """`your_facebook_activity/messages/<top>/<thread>/message_1.json`, plus the loose files."""
     base = root / "your_facebook_activity" / "messages"
@@ -68,14 +72,14 @@ def _export(root: Path, per_top: int = 3, messages: int = 4) -> Path:
 
 
 def test_every_top_folder_of_the_export_is_read(messenger: Collector, tmp_path: Path) -> None:
-    preview = messenger.preview(_export(tmp_path), {})
+    preview = messenger.preview(_export(tmp_path), EVERY_FOLDER)
     assert preview.conversations == len(TOPS) * 3
     assert preview.items == len(TOPS) * 3 * 4
 
 
 def test_the_folder_above_messages_works_too(messenger: Collector, tmp_path: Path) -> None:
     source = _export(tmp_path).parent.parent  # the unzipped export itself
-    assert messenger.preview(source, {}).conversations == len(TOPS) * 3
+    assert messenger.preview(source, EVERY_FOLDER).conversations == len(TOPS) * 3
 
 
 def test_people_are_linked_once_not_once_per_thread(
@@ -102,7 +106,7 @@ def test_a_thread_with_no_messages_is_skipped_and_reported(
     base = _export(tmp_path)
     for n in range(2):
         _thread(base / "message_requests" / f"empty{n}_1", f"Empty {n}", 0)
-    preview = messenger.preview(base, {})
+    preview = messenger.preview(base, EVERY_FOLDER)
     assert preview.conversations == len(TOPS) * 3
     assert any("2 conversations had no messages" in note for note in preview.warnings)
 
@@ -135,7 +139,7 @@ def test_progress_counts_threads_as_they_are_read(
 ) -> None:
     events: list[Progress] = []
     messenger.run(
-        box, _export(tmp_path), validate(messenger.info.options_schema, {}), events.append
+        box, _export(tmp_path), validate(messenger.info.options_schema, EVERY_FOLDER), events.append
     )
     importing = [e for e in events if e.stage == "importing"]
     assert importing[0].total == len(TOPS) * 3 and importing[-1].current == len(TOPS) * 3

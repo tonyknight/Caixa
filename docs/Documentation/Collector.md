@@ -194,6 +194,22 @@ imports Messenger and Instagram threads together; a thread is called Instagram w
 Pointed at one `message_1.json` it reads that whole conversation, including `message_2.json` and the
 following files of a long thread.
 
+**What is read from a Facebook download, exactly.**
+
+| Part of the download | Used? | What for |
+| --- | --- | --- |
+| `…/messages/inbox/<thread>/message_1.json` (and `message_2.json`, …) | yes | your conversations |
+| `…/messages/archived_threads/…`, `…/messages/e2ee_cutover/…` | yes | conversations you archived; conversations from after Messenger's end-to-end encryption |
+| `…/messages/message_requests/…` | no, unless asked | people who wrote to you and were never answered |
+| `…/messages/filtered_threads/…` | no, unless asked | what Facebook set aside as spam |
+| `connections/friends/your_friends.json`, `removed_friends.json` | yes | who to keep, and their names (nothing is imported from them) |
+| `personal_information/profile_information/profile_information.json` | yes | your own Facebook name, to know your messages (nothing is imported from it) |
+| Anything else (posts, comments, photos and albums, Marketplace listings, pages, events, …) | no | |
+
+From each conversation: its participants, its title, and each message's sender, time, text, photos,
+videos, voice notes, files, GIFs and stickers, shared links, reactions (with who reacted), calls (with
+their length), whether it was unsent, and "added to the group" / "left the group" notices.
+
 **Only friends.** A Messenger history is full of people the owner never knew: Marketplace buyers and
 sellers, pages, strangers. Caixa keeps only the Messenger conversations in which someone is on your
 **Facebook friends list or removed-friends list**, both read from the same export
@@ -213,10 +229,19 @@ named".
   `Facebook user (<conversation>)`, so you can link each to who they were.
 - Untick **Only conversations with Facebook friends** (`--option only_friends=false`) to keep everything.
 - Instagram conversations are not affected: Instagram has follows, not friends.
-- A conversation imported before this was in place stays in the box; rebuild the box to drop them.
+- A conversation imported before this was in place stays in the box; reset the box and import again
+  to drop them.
+
+**Groups** follow the rules for every group conversation (see [Group conversations](#group-conversations)):
+kept only if you wrote in them, and only the members who wrote are brought in. Your Facebook messages
+are recognised by your name in the box and by the name in the download's own profile, so it works when
+your Facebook name differs; that name is also taken to be you, not someone else.
+
+Every import says how many conversations it left out and why, and the job's log lists them.
 
 **Options.** `service` (`auto`, `messenger` or `instagram`) overrides the guess; leave it on `auto`.
-`only_friends` (on) and `friends_list` (empty: found beside the messages) are described above.
+`only_friends` (on), `include_requests` (off) and `friends_list` (empty: found beside the messages) are
+described above.
 
 **What you get.** Pages per person and year, reactions, shared links, and the photos of the thread in the
 person's `Messenger` or `Instagram` folder.
@@ -516,6 +541,23 @@ There are three ways to name people, and they combine:
 Naming (or renaming, or merging) re-draws the affected pages: they move to the person's folder and the old
 page is removed. The files already filed under the old name stay where they are and the new pages
 link to them there.
+
+## Group conversations
+
+The same rules apply to every group conversation, from every source (iMessage, WhatsApp, Messenger,
+Instagram, Google Voice):
+
+1. **A group is kept only if you wrote in it.** Groups someone added you to and you left, or never
+   answered, are left out, messages and all. The import says how many, and the job's log names them.
+   (If none of your own messages can be recognised in a source, its groups are all kept and the import
+   says so: check **Your name** in the import's options.)
+2. **Only the members who wrote are brought in.** Someone listed as a member who never wrote anything is
+   not brought in at all: no name, no place in the group, and a reaction of theirs keeps its emoji but
+   not who sent it.
+3. **A phone number from a group is never brought in**, even if it wrote. Its messages stay on the
+   group's page, shown with the number, but it is never listed under "Not yet named". If the number is in
+   your Contacts, its messages are shown under that person's name, as anywhere else. A number you also
+   have a conversation of your own with is listed as usual.
 
 ## Translation
 

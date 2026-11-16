@@ -34,8 +34,9 @@ def _thread(root: Path, folder: str, people: list[str], app: str = "facebook") -
         {
             "participants": [{"name": _mojibake(p)} for p in people],
             "messages": [
-                {"sender_name": _mojibake(others[0]), "timestamp_ms": 1600000000000 + n,
-                 "content": f"message {n} in {folder}"}
+                # in a group, the owner writes too (groups they never wrote in are left out)
+                {"sender_name": _mojibake(ME if n and len(others) > 1 else others[0]),
+                 "timestamp_ms": 1600000000000 + n, "content": f"message {n} in {folder}"}
                 for n in range(2)
             ],
             "title": _mojibake(", ".join(others)),
@@ -103,7 +104,8 @@ def test_friends_are_named_and_so_not_listed_as_not_yet_named(
     result = _run(messenger, box, _export(tmp_path / "export"))
     unnamed = " ".join(result.unresolved)
     assert "João Costa" not in unnamed and "Rui Pereira" not in unnamed
-    assert "Cousin Not Friend" in unnamed  # in a kept group, but not a friend: still to be named
+    # in a kept group, but never wrote in it: not brought in at all
+    assert "Cousin Not Friend" not in unnamed
 
 
 def test_a_zip_of_the_whole_export_works_the_same(
@@ -172,3 +174,88 @@ def test_threads_with_a_deactivated_account_come_through_one_person_each(
     assert all("facebookuser_" in h for h in unnamed)
     people = _people(box)
     assert len([p for p in people if p.startswith("Facebook user")]) == 2
+
+
+# --- Only conversations you were part of ----------------------------------------------------------------
+
+
+def _group(
+    root: Path, folder: str, people: list[str], writers: list[str], place: str = "inbox"
+) -> None:
+    _write(
+        root / "your_facebook_activity" / "messages" / place / folder / "message_1.json",
+        {
+            "participants": [{"name": _mojibake(p)} for p in people],
+            "messages": [
+                {"sender_name": _mojibake(w), "timestamp_ms": 1600000000000 + n, "content": f"hi {n}"}
+                for n, w in enumerate(writers)
+            ],
+            "title": folder,
+            "thread_path": f"{place}/{folder}",
+        },
+    )  # fmt: skip
+
+
+def _noisy(root: Path) -> Path:
+    export = _export(root)
+    # a group a friend added you to, full of strangers, that you never wrote in (and left)
+    _group(export, "promo_9", ["João Costa", "Spammer One", "Spammer Two"], ["Spammer One"] * 3)
+    # a group you did write in
+    _group(export, "dinner_10", ["João Costa", "New Friend", ME], ["New Friend", ME])
+    # requests you never accepted, and what Facebook filtered as spam
+    _group(export, "request_11", ["João Costa", ME], ["João Costa"], place="message_requests")
+    _group(export, "spam_12", ["Rui Pereira", ME], ["Rui Pereira"], place="filtered_threads")
+    return export
+
+
+def test_groups_you_never_wrote_in_and_requests_are_left_out(
+    messenger: Collector, box: Box, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = _run(messenger, box, _noisy(tmp_path / "export"))
+    assert result.inserted == 2 * 4 + 2  # as before, and the dinner group
+    groups = _groups(box)
+    assert "dinner_10" in groups and "promo_9" not in groups
+    notes = " ".join(result.warnings)
+    assert "1 group conversation you never wrote in was left out" in notes
+    assert "2 conversations from message requests and filtered (spam) messages" in notes
+    log = capsys.readouterr().out
+    assert "promo_9" in log and "request_11" in log and "spam_12" in log
+
+
+def test_strangers_who_only_sat_in_a_group_are_not_waiting_to_be_named(
+    messenger: Collector, box: Box, tmp_path: Path
+) -> None:
+    export = _noisy(tmp_path / "export")
+    _group(export, "big_13", ["João Costa", "Silent Member", "Talker", ME], ["Talker", ME])
+    result = _run(messenger, box, export)
+    unnamed = " | ".join(result.unresolved)
+    assert "Talker" in unnamed  # wrote something: worth a name
+    assert "Silent Member" not in unnamed  # only listed as a member of a group
+    assert "Spammer" not in unnamed
+
+
+def test_all_of_it_can_be_kept_when_asked(messenger: Collector, box: Box, tmp_path: Path) -> None:
+    options = {"only_friends": False, "include_requests": True}
+    result = _run(messenger, box, _noisy(tmp_path / "export"), options)
+    assert result.inserted == 2 * 6 + 2 + 1 + 1  # all but the group you never wrote in
+    assert [w for w in result.warnings if "left out" in w] == [
+        "1 group conversation you never wrote in was left out. Who they were with is in the "
+        "job's log."
+    ]
+
+
+def test_your_own_facebook_name_counts_when_it_is_not_the_boxs(
+    messenger: Collector, box: Box, tmp_path: Path
+) -> None:
+    export = _export(tmp_path / "export")
+    _group(
+        export, "dinner_10", ["João Costa", "New Friend", "Maria C."], ["New Friend", "Maria C."]
+    )
+    _write(
+        export / "personal_information" / "profile_information" / "profile_information.json",
+        {"profile_v2": {"name": {"full_name": "Maria C."}}},
+    )
+    result = _run(messenger, box, export)
+    assert "dinner_10" in _groups(box)  # she wrote in it, under her Facebook name
+    assert not any("never wrote in" in w for w in result.warnings)
+    assert "Maria C." not in _people(box)  # her Facebook name is her, not someone else
