@@ -229,3 +229,35 @@ describe('which Caixa is running', () => {
     expect(warning.textContent).toContain('still running the older code')
   })
 })
+
+describe('starting the box again', () => {
+  it('asks first, then clears, keeping the names unless asked', async () => {
+    const view = await page()
+    const card = screen.getByRole('region', { name: 'Start this box again' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Start again\u2026' }))
+    const asking = within(card).getByRole('alertdialog')
+    expect(asking.textContent).toContain('the names you gave people stay')
+    expect(view.api.resets).toEqual([])  // nothing happens before it is confirmed
+    fireEvent.click(within(asking).getByRole('button', { name: 'Start again' }))
+    const result = await screen.findByTestId('reset-result')
+    expect(result.textContent).toContain('42 files removed')
+    expect(result.textContent).toContain('2 names you gave people')
+    expect(view.api.resets).toEqual([false])
+    expect(view.api.calls.some(call => call[0] === 'boxStatus')).toBe(true)
+  })
+
+  it('can forget the names too, can be called off, and lists files it left', async () => {
+    const view = await page(vi.fn(), (api) => { api.resetReply = ok({ removed: 3, left: ['People/Ana/my notes.txt'], names_kept: 0 }) })
+    const card = screen.getByRole('region', { name: 'Start this box again' })
+    fireEvent.click(within(card).getByRole('button', { name: 'Start again\u2026' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Cancel' }))
+    expect(within(card).queryByRole('alertdialog')).toBeNull()
+    fireEvent.click(within(card).getByLabelText('Also forget the names I gave people'))
+    fireEvent.click(within(card).getByRole('button', { name: 'Start again\u2026' }))
+    expect(within(card).getByRole('alertdialog').textContent).toContain('forget the names')
+    fireEvent.click(within(card).getByRole('button', { name: 'Start again' }))
+    const result = await screen.findByTestId('reset-result')
+    expect(result.textContent).toContain('People/Ana/my notes.txt')
+    expect(view.api.resets).toEqual([true])
+  })
+})

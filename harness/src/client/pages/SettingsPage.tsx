@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ContactsCheck, SettingsReply, TranslationTest, WorkerInfo } from '../api.ts'
+import type { ContactsCheck, ResetResult, SettingsReply, TranslationTest, WorkerInfo } from '../api.ts'
 import { DiagnosticsReport } from '../components/Diagnostics.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
@@ -33,6 +33,10 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
   const [keySaved, setKeySaved] = useState(false)
   const [contacts, setContacts] = useState<ContactsCheck | undefined>()
   const [worker, setWorker] = useState<WorkerInfo | undefined>()
+  const [resetting, setResetting] = useState<'no' | 'asking' | 'busy'>('no')
+  const [forgetNames, setForgetNames] = useState(false)
+  const [reset, setReset] = useState<ResetResult | undefined>()
+  const [resetFailure, setResetFailure] = useState<string | undefined>()
   const [testing, setTesting] = useState(false)
   const [tested, setTested] = useState<TranslationTest | undefined>()
 
@@ -77,6 +81,15 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
       if (listed?.length) setProblems(listed)
       else setFailure(reply.error.message)
     }
+  }
+  const startAgain = async () => {
+    setResetting('busy'); setResetFailure(undefined); setReset(undefined)
+    const reply = await store.api.resetBox(forgetNames)
+    setResetting('no')
+    if (!reply.ok) { setResetFailure(reply.error.message); return }
+    setReset(reply.result)
+    await store.refreshBox()
+    await store.refreshJobs()
   }
   const forgetKey = async () => {
     const reply = await store.api.saveTranslationKey(endpoint, '')
@@ -184,6 +197,29 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
         <h3>{t('diagnostics.heading')}</h3>
         <p>{t('diagnostics.lead')}</p>
         <DiagnosticsReport />
+      </div>
+      <div className={css.card} role="region" aria-label={t('reset.heading')}>
+        <h3>{t('reset.heading')}</h3>
+        <p>{t('reset.lead')}</p>
+        <label className={css.check}>
+          <input type="checkbox" checked={forgetNames} disabled={readOnly || resetting === 'busy'} onChange={event => setForgetNames(event.target.checked)} />
+          <span>{t('reset.forgetNames')}</span>
+        </label>
+        {resetting === 'no' && <button type="button" className={css.button} disabled={readOnly} onClick={() => { setReset(undefined); setResetting('asking') }}>{t('reset.start')}</button>}
+        {resetting !== 'no' && (
+          <div className={css.banner} role="alertdialog" aria-label={t('reset.confirm', { name: box.name })}>
+            <p>{t(forgetNames ? 'reset.confirmForget' : 'reset.confirm', { name: box.name })}</p>
+            <button type="button" className={`${css.button} ${css.primary}`} disabled={resetting === 'busy'} onClick={() => void startAgain()}>{t(resetting === 'busy' ? 'reset.working' : 'reset.do')}</button>
+            {' '}<button type="button" className={css.button} disabled={resetting === 'busy'} onClick={() => setResetting('no')}>{t('people.cancel')}</button>
+          </div>
+        )}
+        {reset && (
+          <div role="status" data-testid="reset-result">
+            <p><strong>{t('reset.done', { count: reset.removed.toLocaleString() })}</strong>{reset.names_kept > 0 && <> {t('reset.namesKept', { count: reset.names_kept })}</>}</p>
+            {reset.left.length > 0 && <><p>{t('reset.left')}</p><ul>{reset.left.map(file => <li key={file}>{file}</li>)}</ul></>}
+          </div>
+        )}
+        {resetFailure && <p className={css.error} role="alert">{t('common.error', { message: resetFailure })}</p>}
       </div>
       {worker && (
         <p className={css.muted} data-testid="caixa-version">

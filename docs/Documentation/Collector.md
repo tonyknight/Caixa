@@ -417,6 +417,32 @@ Things to know:
 
 This is the loop for trying an improved importer: **undo**, update Caixa, **run again**.
 
+### Starting a box again
+
+To begin from scratch without setting anything up again, **reset** the box. It takes out everything
+that was imported: the pages, the photos, recordings and attachments Caixa filed, the people, the list
+of imports and their undo copies. It keeps:
+
+- the box's settings (Contacts, translation, speech-to-text, privacy) and its name and owner;
+- its `README.md`, its `Inbox/` and anything waiting there;
+- the **names you gave people** (a number linked to a person, a rename, a merge), which apply again on
+  the next import, unless you ask for them to go too;
+- the translation key, which is not kept in the box anyway.
+
+Only files Caixa wrote are deleted. A file you put in a person's folder yourself stays where it is, and
+the reset lists it. The exports you imported from are never touched.
+
+- In the browser: **Settings**, **Start this box again**. Tick **Also forget the names I gave people**
+  to clear those too. It asks before doing anything.
+- From the command line:
+
+  ```bash
+  caixa reset --box ~/Our\ Box                  # says what it will do and asks; --yes skips the question
+  caixa reset --box ~/Our\ Box --forget-names   # the names you gave people go too
+  ```
+
+A reset is refused while an import is running, and in a box opened read-only. It cannot be undone.
+
 ## Picking up where you left off
 
 Caixa remembers, in its own folder (`~/.local/share/caixa` on Linux, `~/Library/Application

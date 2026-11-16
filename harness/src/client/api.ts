@@ -265,6 +265,14 @@ export interface SettingsReply {
 export interface ContactsSource { readonly on: boolean; readonly people: number; readonly problem: string }
 export interface ContactsCheck { readonly mac: ContactsSource; readonly file: ContactsSource }
 
+/** What resetting a box did. */
+export interface ResetResult {
+  readonly removed: number
+  /** Files above .caixa/ that Caixa did not write, left in place. */
+  readonly left: readonly string[]
+  readonly names_kept: number
+}
+
 /** What trying the translation endpoint with one sample sentence came to. */
 export type TranslationTest =
   | { readonly ok: true; readonly sample: string; readonly translation: string; readonly seconds: number; readonly local: boolean; readonly used_key: boolean }
@@ -322,6 +330,8 @@ export interface Api {
   browse(path?: string): Promise<CaixaResult<BrowseListing>>
   settings(): Promise<CaixaResult<SettingsReply>>
   saveSettings(values: Record<string, unknown>): Promise<CaixaResult<SettingsReply>>
+  /** Take everything imported out of the box, keeping its settings (and, unless asked, the names given). */
+  resetBox(forgetNames: boolean): Promise<CaixaResult<ResetResult>>
   /** How many people the saved contacts settings can name (this Mac's Contacts, the vCard file). */
   checkContacts(): Promise<CaixaResult<ContactsCheck>>
   /** Save the translation key for this endpoint's host (an empty key forgets it). */
@@ -368,6 +378,7 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     settings: () => run('settings.get'),
     saveSettings: values => run('settings.set', { values }),
     checkContacts: () => run('contacts.check'),
+    resetBox: forgetNames => run('box.reset', { forget_names: forgetNames }),
     saveTranslationKey: (endpoint, key) => run('translation.key', { endpoint, key }),
     testTranslation: (values, key) => run('translation.test', { values, key }),
     info: () => run('worker.info'),

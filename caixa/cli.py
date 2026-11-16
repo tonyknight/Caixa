@@ -76,6 +76,14 @@ def build_parser() -> argparse.ArgumentParser:
     undo.add_argument("--yes", action="store_true", help="do it without asking")
     _box_argument(undo)
 
+    reset = commands.add_parser(
+        "reset",
+        help="take out everything imported, keeping the box's settings and the names you gave",
+    )
+    reset.add_argument("--forget-names", action="store_true", help="forget those names too")
+    reset.add_argument("--yes", action="store_true", help="do it without asking")
+    _box_argument(reset)
+
     again = commands.add_parser("again", help="run an earlier import again (see 'caixa jobs')")
     again.add_argument("job", type=int, help="the number of the import to run again")
     _box_argument(again)
@@ -323,6 +331,33 @@ def _follow(service: Service, job: dict[str, Any], as_json: bool) -> int:
     return 0
 
 
+def _cmd_reset(args: argparse.Namespace) -> int:
+    service = _open(args)
+    try:
+        box = service._require_box()
+        names = (
+            "and the names you gave people" if args.forget_names else "but not the names you gave"
+        )
+        if not args.yes:
+            print(
+                f"This takes everything imported out of '{box.name}' ({box.root}): its pages, the "
+                f"files it filed, its people {names}. Its settings, its owner, README.md and "
+                "Inbox stay. The exports you imported from are not touched."
+            )
+            if input("Reset the box? [y/N] ").strip().lower() not in ("y", "yes"):
+                print("Nothing was changed.")
+                return 0
+        done = service.box_reset(forget_names=args.forget_names)
+    finally:
+        service.close()
+    print(f"Reset: {_plural(done['removed'], 'file')} removed.")
+    if done["names_kept"]:
+        print(f"{_plural(done['names_kept'], 'name')} you gave people will apply again.")
+    for left in done["left"]:
+        print(f"Left in place (not written by Caixa): {left}")
+    return 0
+
+
 def _cmd_undo(args: argparse.Namespace) -> int:
     service = _open(args)
     info = service.import_undo_info()
@@ -455,6 +490,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "again": _cmd_again,
         "doctor": _cmd_doctor,
         "undo": _cmd_undo,
+        "reset": _cmd_reset,
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "people": _cmd_people,

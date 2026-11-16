@@ -1,5 +1,5 @@
 import type {
-  TranslationTest, ContactsCheck,
+  TranslationTest, ContactsCheck, ResetResult,
   Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult, SessionInfo, ImportDraft, UndoInfo,
 } from '../src/client/api.ts'
@@ -129,6 +129,9 @@ export class FakeApi implements Api {
   }
   contactsReply: CaixaResult<ContactsCheck> = ok({ mac: { on: true, people: 412, problem: '' }, file: { on: false, people: 0, problem: '' } })
   async checkContacts() { this.record('checkContacts'); return this.contactsReply }
+  resets: boolean[] = []
+  resetReply: CaixaResult<ResetResult> = ok({ removed: 42, left: [], names_kept: 2 })
+  async resetBox(forgetNames: boolean) { this.record('resetBox', forgetNames); this.resets.push(forgetNames); return this.resetReply }
   keySaves: [string, string][] = []
   testReply: CaixaResult<TranslationTest> = ok({ ok: true, sample: 'Bom dia!', translation: 'Good morning!', seconds: 0.4, local: true, used_key: false })
   tests: [Record<string, unknown>, string][] = []

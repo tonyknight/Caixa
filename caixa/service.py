@@ -38,6 +38,7 @@ from caixa.collectors.inputs import InputError
 from caixa.collectors.messages import alias_kind
 from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
+from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
 from caixa.state import State
 
@@ -287,6 +288,9 @@ class Service:
     def _attach(self, box: Box) -> None:
         """Make `box` the open box and open its jobs table (marking anything a crash left)."""
         self.close()
+        with self._lock:  # job numbers belong to a jobs table: another box's (or a reset's) restart
+            self._finished.clear()
+            self._cancelled.clear()
         self.box = box
         if self.state is not None:
             self.state.remember_box(str(box.root), box.name)
@@ -296,6 +300,22 @@ class Service:
         else:
             self.jobs = JobStore(path)
             self.jobs.mark_interrupted()
+
+    @method("box.reset", write=True)
+    def box_reset(self, forget_names: bool = False) -> dict[str, Any]:
+        """Take out everything that was imported, keeping the box's settings, its owner and (unless
+        `forget_names`) the names given by hand; see `caixa.reset`."""
+        box = self._require_box()
+        busy = [j for j in self._jobs().list(limit=1000) if j["status"] in ("queued", "running")]
+        if busy:
+            raise ServiceError(
+                "busy", "An import is running. Wait for it to finish (or cancel it), then reset."
+            )
+        self.close()
+        done = reset_box(box, forget_names=forget_names)
+        self._attach(box)
+        self._announce("box.reset", {"removed": done.removed})
+        return {"removed": done.removed, "left": done.left, "names_kept": done.names_kept}
 
     @method("box.status")
     def box_status(self) -> dict[str, Any]:

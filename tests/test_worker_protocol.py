@@ -24,6 +24,7 @@ ALL_METHODS = {
     "box.create",
     "box.open",
     "box.status",
+    "box.reset",
     "collectors.list",
     "contacts.check",
     "translation.key",
@@ -396,6 +397,7 @@ def test_read_only_reads_everything(viewer: Client) -> None:
     "method, params",
     [
         ("box.create", {"path": "/tmp/never"}),
+        ("box.reset", {}),
         ("import.start", {"collector": "whatsapp", "source": "/tmp/x"}),
         ("import.cancel", {"job": 1}),
         ("people.link", {"service": "WhatsApp", "identifier": "x", "person": "Someone"}),
@@ -415,6 +417,7 @@ def test_the_write_methods_are_exactly_the_ones_read_only_refuses() -> None:
     writes = {name for name, m in Service.METHODS.items() if m.write}
     assert writes == {
         "box.create",
+        "box.reset",
         "import.start",
         "import.cancel",
         "import.undo",
