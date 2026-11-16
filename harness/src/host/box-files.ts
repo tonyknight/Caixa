@@ -7,21 +7,24 @@
  * file it names. Because the generated pages link to each other and to their media with relative URLs,
  * which a query-string route would break, served HTML has those links rewritten to this route.
  *
- * Everything is sent with a strict Content-Security-Policy (no scripts; images and media only from
- * here) and `nosniff`. Only pages, plain text, common images, audio and video are shown inline; any
+ * Everything is sent with a strict Content-Security-Policy (no scripts but the pages' own lightbox,
+ * allowed by its hash; images and media only from here) and `nosniff`. A page of any size has its
+ * links rewritten: a large one (a whole life of messages with someone) is rewritten as it is sent. Only pages, plain text, common images, audio and video are shown inline; any
  * other file is sent as an attachment. Audio and video answer `Range` requests so they can seek.
  */
 
 import { createReadStream, readFileSync } from 'node:fs'
 import { posix } from 'node:path'
 import { Readable } from 'node:stream'
+import { PAGE_SCRIPTS } from './page-scripts.ts'
 import { UNAVAILABLE, WorkerError } from './worker-client.ts'
 
 export const ROUTE = '/api/caixa/box'
 const MAX_PAGE_BYTES = 20_000_000
 
 export const CSP = [
-  "default-src 'none'", "img-src 'self' data:", "media-src 'self'", "style-src 'unsafe-inline'",
+  "default-src 'none'", `script-src ${PAGE_SCRIPTS.map(hash => `'${hash}'`).join(' ')}`,
+  "img-src 'self' data:", "media-src 'self'", "style-src 'unsafe-inline'",
   "font-src 'self'", "frame-ancestors 'self'", "base-uri 'none'", "form-action 'none'",
 ].join('; ')
 
@@ -64,6 +67,22 @@ export function rewriteLinks(html: string, pagePath: string): string {
     if (resolved.startsWith('..') || resolved === '.' || posix.isAbsolute(resolved)) return whole
     return `${attribute}="${boxUrl(resolved, fragment).replace(/&/g, '&amp;')}"`
   })
+}
+
+/**
+ * `rewriteLinks` for a page too large to hold at once: read in pieces, each cut after the last
+ * complete tag, so no attribute is ever split between two pieces.
+ */
+export async function* rewriteStream(file: string, pagePath: string, piece = 1 << 20): AsyncGenerator<string> {
+  let carry = ''
+  for await (const chunk of createReadStream(file, { encoding: 'utf8', highWaterMark: piece })) {
+    const text = carry + (chunk as string)
+    const open = text.lastIndexOf('<')
+    const cut = open > text.lastIndexOf('>') ? open : text.length
+    carry = text.slice(cut)
+    if (cut > 0) yield rewriteLinks(text.slice(0, cut), pagePath)
+  }
+  if (carry) yield rewriteLinks(carry, pagePath)
 }
 
 function headers(extra: Record<string, string>): Headers {
@@ -124,6 +143,21 @@ export async function serveBoxFile(client: Caller, request: Request): Promise<Re
     const body = rewriteLinks(readFileSync(info.absolute, 'utf8'), info.path)
     const bytes = Buffer.byteLength(body)
     return new Response(head ? null : body, { headers: headers({ ...common, 'content-length': String(bytes), 'accept-ranges': 'none' }) })
+  }
+  if (info.mime === 'text/html') {
+    const out = headers({ ...common, 'accept-ranges': 'none' })
+    if (head) return new Response(null, { headers: out })
+    const encoder = new TextEncoder()
+    const pieces = rewriteStream(info.absolute, info.path)
+    const body = new ReadableStream<Uint8Array>({
+      async pull(controller) {
+        const next = await pieces.next()
+        if (next.done) controller.close()
+        else controller.enqueue(encoder.encode(next.value))
+      },
+      async cancel() { await pieces.return(undefined) },
+    })
+    return new Response(body, { headers: out })
   }
 
   const wanted = request.headers.get('range')

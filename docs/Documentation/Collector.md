@@ -475,8 +475,8 @@ every app, live together** under that person's name.
 **Who is named without being asked.**
 
 - **Contacts** (Settings → Contacts) name a phone number, an email address or an exact name.
-- **WhatsApp and Google Voice** show a sender by the name saved for them in your phone or in Google
-  Contacts. A sender shown by a name is taken as that person; a sender shown only by a phone number
+- **WhatsApp, Google Voice and iPhone voicemail exported as named files** show a sender by the name
+  saved for them in your phone or in Google Contacts. A sender shown by a name is taken as that person; a sender shown only by a phone number
   waits for a name. On WhatsApp a name written after `~` is one people gave themselves, and is not
   taken.
 - **Facebook friends** (and removed friends) are named by the name Facebook gives them.
@@ -484,7 +484,7 @@ every app, live together** under that person's name.
 The same name from two sources is one person: "Ana Costa" in WhatsApp, in your Contacts and on Facebook
 all land on one page. A name that differs ("Jon Smith" here, "Jonathan Smith" there) makes two people,
 which you can merge in the People section. Caixa never guesses that two different names are one person.
-Everyone else (a number, an email address, an iPhone voicemail caller, a Messenger stranger in a group
+Everyone else (a number, an email address, a Messenger stranger in a group
 with a friend, a deactivated Facebook account) is listed under "Not yet named" until you name them.
 
 There are three ways to name people, and they combine:
@@ -607,7 +607,10 @@ back to the top. A page for someone you wrote to every day for years can hold a 
 messages; it still opens at once: the browser shows the top while the rest arrives, lays out only the
 days on screen, and loads pictures, video and audio only when you scroll to them. (Measured on a page of
 100,000 messages, 84 MB: the first messages show in about 0.2 seconds and the whole page has arrived in
-about 2.5 seconds.) The page runs no script, so it looks the same in any browser and inside Caixa.
+about 2.5 seconds.) Click a picture to see it full size over the page; the arrows (or the arrow keys)
+go to the pictures before and after it, and Escape closes it. That is the page's one script: without
+it, in any browser, each picture is still a link to its file. Caixa's viewer lets pages run exactly
+that script and nothing else.
 Every file is named for its date, time and sender; nothing you can see is named by a code. You can also
 keep your own notes or files in a person's folder: Caixa only ever removes pages it wrote itself.
 

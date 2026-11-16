@@ -74,8 +74,9 @@ _COMMON_OPTIONS: dict[str, Any] = {
 
 
 #: Services that show a sender by the name the owner saved for them (in their phone, in Google
-#: Contacts), so a sender shown by a name is that person.
-SHOWN_BY_OWN_NAME = ("WhatsApp", "Google Voice")
+#: Contacts; iPhone voicemail exported as files named after the caller), so a sender shown by a name
+#: is that person.
+SHOWN_BY_OWN_NAME = ("WhatsApp", "Google Voice", "Voicemail")
 
 
 def own_name(value: Optional[str]) -> Optional[str]:

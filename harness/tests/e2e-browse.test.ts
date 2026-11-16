@@ -49,10 +49,26 @@ run('Browse and Settings, in a browser', () => {
       await frame.getByText('Que lindo! Buy two.').waitFor({ timeout: 30_000 })
 
       // Its photo comes through the box route (relative links were rewritten).
-      const photo = frame.locator('img').first()
-      await photo.waitFor()
+      // (go to its year first: only the days on screen are laid out, the rest wait until scrolled to)
+      await frame.getByRole('navigation', { name: 'Years' }).getByRole('link', { name: '2024' }).click()
+      // (pictures load when scrolled to)
+      const photo = frame.locator('.attachment img').first()
+      await photo.waitFor({ state: 'attached' })
+      await photo.evaluate((image: HTMLElement) => image.scrollIntoView({ block: 'center' }))
       await expect.poll(() => photo.evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 30_000 }).toBeGreaterThan(0)
       expect(await photo.getAttribute('src')).toMatch(/^\/api\/caixa\/box\?path=People%2FAna%20Costa%2FWhatsApp/)
+
+      // Clicking it shows it full size over the page (the one script Caixa lets a page run), and
+      // Escape closes it.
+      const errors: string[] = []
+      page.on('console', (message: any) => { if (message.type() === 'error') errors.push(message.text()) })
+      await photo.click()
+      const lightbox = frame.getByRole('dialog', { name: 'Picture' })
+      await lightbox.waitFor({ timeout: 15_000 })
+      expect(await lightbox.locator('img').getAttribute('src')).toMatch(/^http.*\/api\/caixa\/box\?path=People%2FAna%20Costa%2FWhatsApp/)
+      await page.keyboard.press('Escape')
+      await lightbox.waitFor({ state: 'hidden', timeout: 15_000 })
+      expect(errors.filter(text => /Content Security Policy|Refused to execute/i.test(text))).toEqual([])
 
       // The box's index page links on to the person's page, inside the frame.
       await page.getByRole('navigation', { name: 'Where you are' }).getByRole('button', { name: 'Box' }).click()

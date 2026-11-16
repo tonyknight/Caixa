@@ -82,7 +82,8 @@ describe('the viewer', () => {
     await opened('(2024) Ana Costa.html')
     const frame = screen.getByTitle('The page (2024) Ana Costa.html') as HTMLIFrameElement
     expect(frame.getAttribute('src')).toBe(`/api/caixa/box?path=${encodeURIComponent('Messages/Ana Costa/(2024) Ana Costa.html')}`)
-    expect(frame.getAttribute('sandbox')).toBe('allow-same-origin') // never allow-scripts
+    // scripts may run, but the page is served under a policy that admits only the lightbox's hash
+    expect(frame.getAttribute('sandbox')).toBe('allow-same-origin allow-scripts')
     const tab = screen.getByRole('link', { name: 'Open in a new tab' })
     expect(tab.getAttribute('href')).toBe(frame.getAttribute('src'))
     expect(tab.getAttribute('target')).toBe('_blank')

@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { boxUrl, CSP, parseRange, rewriteLinks, serveBoxFile } from '../src/host/box-files.ts'
+import { boxUrl, CSP, parseRange, rewriteLinks, rewriteStream, serveBoxFile } from '../src/host/box-files.ts'
+import { PAGE_SCRIPTS } from '../src/host/page-scripts.ts'
 import { caixaRoutes } from '../src/host/routes.ts'
 import { WorkerClient } from '../src/host/worker-client.ts'
 import { launchProcess, withOwnHome } from './helpers.ts'
@@ -98,11 +99,36 @@ run('serving a real box through the real worker', () => {
     expect(response.headers.get('content-length')).toBe(String(Buffer.byteLength(text)))
   })
 
-  it('forbids scripts, whatever the page contains', () => {
+  it('forbids every script but the pages\u2019 own lightbox, whatever the page contains', () => {
     expect(CSP).toContain("default-src 'none'")
-    expect(CSP).not.toMatch(/script-src/)
+    const scripts = /script-src ([^;]*)/.exec(CSP)![1]!.trim().split(/\s+/)
+    expect(scripts).toEqual(PAGE_SCRIPTS.map(hash => `'${hash}'`))  // hashes only
+    expect(scripts.every(source => /^'sha256-[A-Za-z0-9+/=]+'$/.test(source))).toBe(true)
+    expect(CSP).not.toMatch(/script-src[^;]*unsafe/)
     expect(CSP).not.toContain("'unsafe-eval'")
     expect(CSP).toContain("frame-ancestors 'self'")
+  })
+
+  it('rewrites the links of a page too large to hold at once, as it sends it', async () => {
+    const entry = '<article><img src="Attachments/photo.png" alt="a"><a href="../../index.html">All</a></article>\n'
+    const many = Math.ceil(21_000_000 / entry.length)
+    writeFileSync(join(box, 'Messages', 'Ana Costa', 'Big.html'), `<html><body>${entry.repeat(many)}</body></html>`)
+    const response = await ask('Messages/Ana Costa/Big.html')
+    expect(response.status).toBe(200)
+    expect(response.headers.get('content-security-policy')).toBe(CSP)
+    const text = await response.text()
+    const photo = `src="/api/caixa/box?path=${encodeURIComponent('Messages/Ana Costa/Attachments/photo.png')}"`
+    expect(text.split(photo).length - 1).toBe(many)  // every one, none cut in two between pieces
+    expect(text).not.toContain('src="Attachments/')
+  }, 60_000)
+
+  it('cuts pieces only between tags', async () => {
+    const page = join(folder, 'pieces.html')
+    writeFileSync(page, '<p><img src="a.png"></p>'.repeat(50))
+    const pieces: string[] = []
+    for await (const piece of rewriteStream(page, 'Messages/x.html', 7)) pieces.push(piece)
+    expect(pieces.length).toBeGreaterThan(5)
+    expect(pieces.join('').split(`src="/api/caixa/box?path=${encodeURIComponent('Messages/a.png')}"`).length - 1).toBe(50)
   })
 
   it('serves a photo as it is, and sends HEAD without a body', async () => {

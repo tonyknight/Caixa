@@ -28,7 +28,7 @@ run('the Caixa page in a short window', () => {
     const code = [
       'import sys, zipfile',
       'z = zipfile.ZipFile(sys.argv[1], "w")',
-      'for n in range(120): z.writestr(f"vm/(2019-01-{1 + n % 28:02d}) 10 {n % 60:02d} 00 - Caller Number {n}.amr", "a")',
+      'for n in range(120): z.writestr(f"vm/(2019-01-{1 + n % 28:02d}) 10 {n % 60:02d} 00 - +1555{n:07d}.amr", "a")',  // callers as numbers: they wait to be named
       'z.close()',
     ].join('\n')
     execFileSync('python', ['-c', code, archive])
@@ -76,9 +76,9 @@ run('the Caixa page in a short window', () => {
     expect(await inView(start)).toBe(true) // no scrolling needed to go on
     await shot(page, 'layout-preview')
     // 120 callers are not all listed at once
-    expect(await page.getByText('Caller Number 119').count()).toBe(0)
+    expect(await page.getByText('+15550000119').count()).toBe(0)
     await page.getByRole('button', { name: /Show all 120/ }).first().click()
-    expect(await page.getByText(/Caller Number 119/).count()).toBeGreaterThan(0)
+    expect(await page.getByText(/\+15550000119/).count()).toBeGreaterThan(0)
     expect(await inView(start)).toBe(true)
   }, 120_000)
 

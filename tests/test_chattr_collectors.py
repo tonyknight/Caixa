@@ -675,3 +675,13 @@ def test_a_name_that_matches_a_contact_exactly_becomes_one_person(
     with box.master() as master:
         names = [p.name for p in master.people()]
     assert names.count(family.ANA.name) == 1  # WhatsApp's name and Google Voice's number agree
+
+
+def test_voicemail_callers_named_in_the_file_names_are_people(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    result, _ = _run(six["voicemail"], box, _voicemail_zip(tmp_path))
+    unnamed = " | ".join(result.unresolved)
+    assert family.ANA.name not in unnamed and family.JOAO.name not in unnamed
+    with box.master() as master:
+        assert {family.ANA.name, family.JOAO.name} <= {p.name for p in master.people()}
