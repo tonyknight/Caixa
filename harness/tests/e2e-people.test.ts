@@ -53,17 +53,18 @@ run('the People section, in a browser', () => {
         await page.getByText('The pages are up to date.').waitFor({ timeout: 60_000 })
       }
 
-      // The queue shows what the imports could not name.
-      await page.getByText('Ana Costa', { exact: true }).first().waitFor({ timeout: 30_000 }) // (wait: the list re-reads itself when a job ends)
+      // WhatsApp showed Ana by the name saved in the phone, so she is a person already.
+      await page.getByRole('heading', { name: 'People (2)' }).waitFor({ timeout: 30_000 })
       expect(pages(box, 'Ana Costa')).toEqual(['(2024) Ana Costa.html'])
+      expect((await running.rpc('people.unresolved')).result.handles.map((h: { service: string }) => h.service)).not.toContain('WhatsApp')
 
-      // Name the WhatsApp handle: the page moves to the new person's folder and the old one goes.
-      await page.getByLabel('Name for Ana Costa').fill('Ana A')
-      await page.getByRole('row', { name: /Ana Costa/ }).getByRole('button', { name: 'Link' }).click()
-      await upToDate('Linked “Ana Costa” to Ana A.')
+      // Rename her: the page moves to the new name's folder and the old one goes.
+      await page.getByRole('button', { name: 'Rename Ana Costa' }).click()
+      await page.getByLabel('New name for Ana Costa').fill('Ana A')
+      await page.getByRole('button', { name: 'Save' }).click()
+      await upToDate('Renamed to Ana A.')
       expect(pages(box, 'Ana A')).toEqual(['(2024) Ana A.html'])
       expect(pages(box, 'Ana Costa')).toEqual([])
-      await page.getByRole('heading', { name: 'People (2)' }).waitFor()
 
       // Name an iMessage handle for a second person.
       const handles = (await running.rpc('people.unresolved')).result.handles as { service: string; identifier: string }[]

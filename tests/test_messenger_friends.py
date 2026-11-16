@@ -154,3 +154,21 @@ def test_a_friends_list_downloaded_separately_can_be_pointed_at(
     assert result.inserted == 2 * 3  # João, the family group, Instagram
     with pytest.raises(InputError, match="No Facebook friends list could be read"):
         _run(messenger, box, messages, {"friends_list": str(tmp_path / "nowhere")})
+
+
+# --- Deactivated accounts ("Facebook user") ------------------------------------------------------------
+
+
+def test_threads_with_a_deactivated_account_come_through_one_person_each(
+    messenger: Collector, box: Box, tmp_path: Path
+) -> None:
+    export = _export(tmp_path / "export")
+    _thread(export, "facebookuser_7", ["Facebook user", ME])
+    _thread(export, "facebookuser_8", ["Facebook user", ME])
+    result = _run(messenger, box, export)
+    assert result.inserted == 2 * 6  # the four kept before, and both deactivated threads
+    unnamed = [h for h in result.unresolved if "Facebook user" in h]
+    assert len(unnamed) == 2  # one handle each, so each can be linked to its own person
+    assert all("facebookuser_" in h for h in unnamed)
+    people = _people(box)
+    assert len([p for p in people if p.startswith("Facebook user")]) == 2

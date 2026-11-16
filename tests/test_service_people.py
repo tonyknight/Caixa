@@ -79,7 +79,7 @@ def test_nothing_is_unresolved_before_anything_is_imported(service: Service) -> 
 
 def test_people_are_listed_with_what_they_have(service: Service, fixture_family) -> None:
     _whatsapp(service, fixture_family)
-    service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)")
+    service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)
     service.wait(service.jobs_list()[0]["id"], 60)
     people = {p["name"]: p for p in service.people_list()["people"]}
     assert people[family.OWNER.name]["is_owner"] is True
@@ -95,7 +95,7 @@ def test_linking_a_handle_names_it_and_moves_its_pages(
     _whatsapp(service, fixture_family)
     assert _pages(tmp_path, "Ana Costa") == ["(2024) Ana Costa.html"]
     before = _change_count(service, "link")
-    linked = service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)")
+    linked = service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)
     assert linked["person"]["name"] == "Ana (daughter)" and linked["job"]["kind"] == "refresh"
     assert service.wait(linked["job"]["id"], 60)["status"] == "done"
     assert _pages(tmp_path, "Ana (daughter)") == ["(2024) Ana (daughter).html"]
@@ -103,6 +103,7 @@ def test_linking_a_handle_names_it_and_moves_its_pages(
     assert _links(service, "Ana (daughter)") > 0
     assert _change_count(service, "link") > before
     assert service.people_unresolved()["handles"] == []
+    # (WhatsApp showed her by the name in the phone, so she was a person before; linking moved her)
     page = (
         tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
     ).read_text(encoding="utf-8")
@@ -113,7 +114,9 @@ def test_the_pages_still_link_their_photos_after_a_move(
     service: Service, fixture_family, tmp_path: Path
 ) -> None:
     _whatsapp(service, fixture_family)
-    service.wait(service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)")["job"]["id"], 60)
+    service.wait(
+        service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)["job"]["id"], 60
+    )
     page = (
         tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
     ).read_text(encoding="utf-8")
@@ -167,7 +170,7 @@ def test_renaming_moves_the_pages_and_keeps_the_aliases(
     service: Service, fixture_family, tmp_path: Path
 ) -> None:
     _whatsapp(service, fixture_family)
-    first = service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)")
+    first = service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)
     service.wait(first["job"]["id"], 60)
     renamed = service.people_rename(first["person"]["id"], "Ana Cruz")
     assert renamed["person"]["name"] == "Ana Cruz"
@@ -208,7 +211,7 @@ def test_merging_joins_two_people_and_their_pages(
 ) -> None:
     _whatsapp(service, fixture_family)
     _imessage(service, fixture_family)
-    a = service.people_link("WhatsApp", "Ana Costa", "Ana A")
+    a = service.people_link("WhatsApp", "Ana Costa", "Ana A", move=True)
     b = service.people_link("iMessage", family.ANA.phones[0], "Ana B")
     service.wait(b["job"]["id"], 60)
     service.wait(a["job"]["id"], 60)

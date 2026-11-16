@@ -208,6 +208,9 @@ named".
   came in a separate download, point **Facebook friends list** at that download's `connections/friends`
   folder.
 - If no list is found, everything is kept and the import says so.
+- A conversation with an account that was deleted or deactivated (Facebook shows it as "Facebook user")
+  is kept: it may have been a friend. Each such person is listed separately under "Not yet named" as
+  `Facebook user (<conversation>)`, so you can link each to who they were.
 - Untick **Only conversations with Facebook friends** (`--option only_friends=false`) to keep everything.
 - Instagram conversations are not affected: Instagram has follows, not friends.
 - A conversation imported before this was in place stays in the box; rebuild the box to drop them.
@@ -443,15 +446,20 @@ display name. Until a handle is **named**, its pages go in a folder called after
 (`People/+15550101/…`). Naming a handle links it to a person, so **all of a person's messages, across
 every app, live together** under that person's name.
 
-**Why a recognizable name can still be "Not yet named".** A handle that is already a name (WhatsApp and
-Google Voice show the names from your phone's or Google's contacts; Messenger shows each person's own
-Facebook name) is named only when something confirms who it is: a contact with **exactly** that name
-(case and spacing aside), a Facebook friend, or you. Caixa does not guess that "Jon Smith" on Messenger
-is "Jonathan Smith" in your Contacts, or that two people called "John Smith" are one. So a name stays
-unnamed when it is spelled differently in your Contacts (a nickname, a middle name, a missing accent),
-when the person is not in your Contacts at all, or when Caixa cannot read your Contacts (Settings →
-Contacts shows how many people it could read). A contact needs no phone number or address for its name
-to count.
+**Who is named without being asked.**
+
+- **Contacts** (Settings → Contacts) name a phone number, an email address or an exact name.
+- **WhatsApp and Google Voice** show a sender by the name saved for them in your phone or in Google
+  Contacts. A sender shown by a name is taken as that person; a sender shown only by a phone number
+  waits for a name. On WhatsApp a name written after `~` is one people gave themselves, and is not
+  taken.
+- **Facebook friends** (and removed friends) are named by the name Facebook gives them.
+
+The same name from two sources is one person: "Ana Costa" in WhatsApp, in your Contacts and on Facebook
+all land on one page. A name that differs ("Jon Smith" here, "Jonathan Smith" there) makes two people,
+which you can merge in the People section. Caixa never guesses that two different names are one person.
+Everyone else (a number, an email address, an iPhone voicemail caller, a Messenger stranger in a group
+with a friend, a deactivated Facebook account) is listed under "Not yet named" until you name them.
 
 There are three ways to name people, and they combine:
 

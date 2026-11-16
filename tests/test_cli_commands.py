@@ -98,7 +98,8 @@ def test_an_import_reports_what_it_did(
         capsys, "import", "whatsapp", _whatsapp(fixture_family), "--box", str(box)
     )
     assert code == 0, err
-    assert "7 new" in out and "0 changed" in out and "Ana Costa" in out  # unnamed handle reported
+    assert "7 new" in out and "0 changed" in out
+    assert "Not yet named" not in out  # WhatsApp showed Ana by the name saved in the phone
     assert "rendering" in err  # progress goes to stderr, results to stdout
     assert len(_rows(box)) == 7
     code, out, _ = _run(capsys, "import", "whatsapp", _whatsapp(fixture_family), "--box", str(box))
@@ -201,8 +202,10 @@ def test_people_are_named_renamed_and_merged_from_the_command_line(
     _run(capsys, "import", "whatsapp", _whatsapp(fixture_family), "--box", b)
     _run(capsys, "import", "imessage", str(fixture_family.paths["imessage"]), "--box", b)
     code, out, _ = _run(capsys, "people", "unresolved", "--box", b)
-    assert code == 0 and "WhatsApp" in out and "Ana Costa" in out
-    code, out, err = _run(capsys, "people", "link", "WhatsApp", "Ana Costa", "Ana A", "--box", b)
+    assert code == 0 and "WhatsApp" not in out  # Ana is a person already, by her saved name
+    code, out, err = _run(
+        capsys, "people", "link", "WhatsApp", "Ana Costa", "Ana A", "--move", "--box", b
+    )
     assert code == 0, err
     assert (box / "People" / "Ana A" / "(2024) Ana A.html").is_file()
     assert not (box / "People" / "Ana Costa" / "(2024) Ana Costa.html").exists()

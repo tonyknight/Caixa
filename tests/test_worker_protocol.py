@@ -276,10 +276,14 @@ def test_people_changes_go_over_the_wire(worker: Client, tmp_path: Path, fixture
     _created(worker, tmp_path)
     job = worker.result("import.start", collector="whatsapp", source=_whatsapp(fixture_family))
     worker.wait_notification("job.finished", job=job["id"])
-    handles = worker.result("people.unresolved")["handles"]
-    assert [h["identifier"] for h in handles] == ["Ana Costa"]
+    # WhatsApp shows her by the name saved in the phone, so she is already a person
+    assert worker.result("people.unresolved")["handles"] == []
     linked = worker.result(
-        "people.link", service="WhatsApp", identifier="Ana Costa", person="Ana (daughter)"
+        "people.link",
+        service="WhatsApp",
+        identifier="Ana Costa",
+        person="Ana (daughter)",
+        move=True,
     )
     worker.wait_notification("job.finished", job=linked["job"]["id"])
     assert worker.result("people.unresolved")["handles"] == []

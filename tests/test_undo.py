@@ -128,8 +128,8 @@ def test_what_was_done_to_people_since_the_import_is_undone_too_and_said_so(
     after_first = _state(tmp_path)
     _import(service, "voicemail", _voicemail(tmp_path))
     # naming Ana moves her pages and files to a new folder
-    service.people_link("WhatsApp", family.ANA.name, "Ana A")
-    service.people_link("Voicemail", family.ANA.name, "Ana A")
+    service.people_link("WhatsApp", family.ANA.name, "Ana A", move=True)
+    service.people_link("Voicemail", family.ANA.name, "Ana A", move=True)
     _settle(service)
     assert (tmp_path / "Box" / "People" / "Ana A" / "Voicemail").is_dir()
     assert service.import_undo_info()["people_changes"] == 2

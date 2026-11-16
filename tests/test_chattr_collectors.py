@@ -169,8 +169,8 @@ def test_running_imports_into_the_box(six: dict[str, Collector], fixture_family,
     assert result.inserted == 7 and result.updated == 0
     status = box.status()
     assert status["items"] == 7
-    assert status["people"] == 1  # the owner: Ana is only a name until someone links her
-    assert result.unresolved == ["WhatsApp: Ana Costa"]
+    assert status["people"] == 2  # the owner, and Ana by the name saved in the phone
+    assert result.unresolved == []
     assert (box.root / "People" / family.ANA.name).is_dir()  # pages for Ana's chat
     pages = sorted((box.root / "People" / family.ANA.name).glob("(*) *.html"))
     assert pages and "Que lindo! Buy two." in pages[0].read_text(encoding="utf-8")
@@ -633,3 +633,45 @@ def test_a_google_voice_day_with_a_picture_and_a_voicemail_recording(
     page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(2019)*.html"))
     assert "<img" in page and "Lovely!" in page and "Call me later" in page
     assert "MMS Received" not in page.split("<script")[0]
+
+
+# --- A name that is a name ---------------------------------------------------------------------------
+
+
+def _whatsapp_chat(folder: Path, lines: list[str]) -> Path:
+    chat = folder / "WhatsApp Chat - Group" / "_chat.txt"
+    chat.parent.mkdir(parents=True)
+    chat.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return chat
+
+
+def test_whatsapp_senders_shown_by_name_are_named_and_numbers_are_not(
+    six: dict[str, Collector], box: Box, tmp_path: Path
+) -> None:
+    chat = _whatsapp_chat(
+        tmp_path,
+        [
+            "[01/03/2024, 14:05:09] Tia Lurdes: Olá a todos",
+            "[01/03/2024, 14:06:00] +351 912 345 678: Quem é?",
+            "[01/03/2024, 14:07:00] ~ Pushname Pedro: Sou eu",
+            f"[01/03/2024, 14:08:00] {family.OWNER.name}: Bem-vindos",
+        ],
+    )
+    result, _ = _run(six["whatsapp"], box, chat, {"owner": family.OWNER.name})
+    unnamed = " | ".join(result.unresolved)
+    assert "Tia Lurdes" not in unnamed  # a name from the phone's own contacts: a person
+    assert "912" in unnamed  # a number still waits for a name
+    assert "Pushname Pedro" in unnamed  # a name someone gave themselves (~): not trusted
+
+
+def test_a_name_that_matches_a_contact_exactly_becomes_one_person(
+    six: dict[str, Collector], fixture_family, box: Box
+) -> None:
+    from caixa import settings as box_settings
+
+    box_settings.save(box, {"contacts.file": str(fixture_family.paths["contacts"])})
+    _run(six["whatsapp"], box, _source(fixture_family, "whatsapp"))
+    _run(six["googlevoice"], box, _source(fixture_family, "googlevoice"))
+    with box.master() as master:
+        names = [p.name for p in master.people()]
+    assert names.count(family.ANA.name) == 1  # WhatsApp's name and Google Voice's number agree

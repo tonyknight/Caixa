@@ -38,7 +38,7 @@ from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
 from caixa.collectors.inputs import InputError
-from caixa.collectors.messages import sync_chattr
+from caixa.collectors.messages import alias_kind, sync_chattr
 from caixa.collectors.options import defaults
 
 #: Importers put the files they extract in a working folder inside `.caixa/` (one per kind).
@@ -71,6 +71,24 @@ _COMMON_OPTIONS: dict[str, Any] = {
         "description": "Who 'me' is. Leave empty to use the owner of this box.",
     },
 }
+
+
+#: Services that show a sender by the name the owner saved for them (in their phone, in Google
+#: Contacts), so a sender shown by a name is that person.
+SHOWN_BY_OWN_NAME = ("WhatsApp", "Google Voice")
+
+
+def own_name(value: Optional[str]) -> Optional[str]:
+    """`value` when it is a name a person was saved under; None for a phone number, an email
+    address, a name someone gave themselves (WhatsApp writes those after `~`) or a placeholder."""
+    text = " ".join((value or "").split())
+    if not text or "@" in text or text.startswith("~") or not any(c.isalpha() for c in text):
+        return None
+    if text.casefold() in ("unknown", "me", "you"):
+        return None
+    if alias_kind("", text)[0] == "phone":
+        return None
+    return text
 
 
 #: The key, in the options a source's `convert` is given, that holds the progress callback.
@@ -309,6 +327,14 @@ class _Chattr:
                 f"{error} (The contacts file is set in Settings, under Contacts, or in this "
                 "import's options.)"
             ) from error
+        # What is left unnamed on WhatsApp and Google Voice and is shown by a name (not a number)
+        # is a name from the owner's own phone or Google contacts: take it as the person. The
+        # same name as a contact (or anyone else) is the same person.
+        database = commands.central_database(settings)
+        if database.exists():
+            with DatabaseManager(database) as db:
+                for service in SHOWN_BY_OWN_NAME:
+                    db.name_handles(service, own_name)
 
     def _owner(self, options: Mapping[str, Any], box: Optional[Box]) -> Optional[str]:
         if options.get("owner"):
