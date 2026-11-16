@@ -24,7 +24,7 @@ const MAX_PAGE_BYTES = 20_000_000
 
 export const CSP = [
   "default-src 'none'", `script-src ${PAGE_SCRIPTS.map(hash => `'${hash}'`).join(' ')}`,
-  "img-src 'self' data:", "media-src 'self'", "style-src 'unsafe-inline'",
+  "connect-src 'self'", "img-src 'self' data:", "media-src 'self'", "style-src 'unsafe-inline'",
   "font-src 'self'", "frame-ancestors 'self'", "base-uri 'none'", "form-action 'none'",
 ].join('; ')
 

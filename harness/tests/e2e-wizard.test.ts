@@ -126,9 +126,11 @@ run('the import wizard, in a browser', () => {
     expect(fromBrowser.links).toBe(fromCommandLine.links)
     expect(fromBrowser.files).toEqual(fromCommandLine.files)
     expect(fromBrowser.files.some(file => file.startsWith('People/'))).toBe(true)
-    // (the pages themselves are compared by content: same text, same links)
+    // (the pages themselves are compared by content: same text, same links; the index is titled
+    // with the box's name, which differs)
     for (const file of fromBrowser.files.filter(f => f.endsWith('.html'))) {
-      expect(readFileSync(join(browserBox, file), 'utf8'), file).toBe(readFileSync(join(cliBox, file), 'utf8'))
+      const named = (text: string) => text.replaceAll('Browser box', '<box>').replaceAll('CLI box', '<box>')
+      expect(named(readFileSync(join(browserBox, file), 'utf8')), file).toBe(named(readFileSync(join(cliBox, file), 'utf8')))
     }
   }, 600_000)
 })

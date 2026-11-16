@@ -98,7 +98,12 @@ CREATE TRIGGER change_log_no_delete BEFORE DELETE ON change_log
 BEGIN SELECT RAISE(ABORT, 'change_log is append-only'); END;
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1)]
+# Version 2: the category a person is sorted into on the box's index page (NULL: not yet).
+MIGRATION_2 = """
+ALTER TABLE people ADD COLUMN category TEXT;
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2)]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 
 

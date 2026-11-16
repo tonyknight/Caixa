@@ -81,8 +81,8 @@ run('Browse and Settings, in a browser', () => {
       await index.getByRole('navigation', { name: 'Years' }).getByRole('link', { name: '2024' }).click()
       await index.getByText('Que lindo! Buy two.').waitFor({ timeout: 30_000 })
       // and back to everyone
-      await index.getByRole('link', { name: 'Everyone' }).click()
-      await index.getByRole('heading', { name: 'People' }).waitFor({ timeout: 30_000 })
+      await index.getByRole('link', { name: '← All people' }).click()
+      await index.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
 
       // Served under a policy that forbids scripts, and nothing outside the box can be asked for.
       const served = await page.context().request.get(`${running.base}/api/caixa/box?path=${encodeURIComponent('People/Ana Costa/Ana Costa.html')}`)

@@ -38,6 +38,7 @@ from caixa.collectors.inputs import InputError
 from caixa.collectors.messages import alias_kind
 from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
+from caixa.master import CATEGORIES
 from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
 from caixa.state import State
@@ -992,6 +993,40 @@ class Service:
             except ValueError as error:
                 raise ServiceError("conflict", str(error)) from None
             return self._after_people_change(master, who)
+
+    @method("people.categorize", write=True)
+    def people_categorize(
+        self, people: list[Union[int, str]], category: Optional[str]
+    ) -> dict[str, Any]:
+        """Sort people (by id or by name) into a category, or back to none (`category` null).
+        The pages are redrawn by one refresh job, shared by changes made while it waits."""
+        box = self._require_box()
+        if category is not None and category not in CATEGORIES:
+            raise ServiceError(
+                "invalid_params",
+                f"Unknown category '{category}'; use one of {', '.join(CATEGORIES)}.",
+            )
+        with box.master() as master:
+            ids = []
+            for who in people:
+                found = who if isinstance(who, int) else master.person_id(str(who))
+                if found is None or not any(p.id == found for p in master.people()):
+                    raise ServiceError("not_found", f"There is no person '{who}' in this box.")
+                ids.append(found)
+            changed = master.set_category(ids, category)
+            master.commit()
+        waiting = [
+            j
+            for j in self._jobs().list(limit=50)
+            if j["kind"] == "refresh" and j["status"] == "queued"
+        ]
+        if not self._people_aware():
+            job = None
+        elif waiting:
+            job = waiting[0]  # a redraw already waiting will draw this too
+        else:
+            job = self._enqueue("refresh", None, None, {})
+        return {"changed": changed, "category": category, "job": job}
 
     @method("people.merge", write=True)
     def people_merge(self, source: int, target: int) -> dict[str, Any]:

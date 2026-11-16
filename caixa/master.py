@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import TracebackType
-from typing import Optional, Union
+from typing import Iterable, Optional, Union
 
 from caixa.schema import CURRENT_VERSION, apply_migrations, current_version
 
@@ -38,11 +38,17 @@ def normalize_alias(value: str, kind: str) -> str:
     return re.sub(r"\s+", " ", text).casefold()
 
 
+#: The categories a person can be sorted into, in the order the index lists them. A person in none
+#: is "unassigned".
+CATEGORIES = ("family", "friends", "business", "acquaintance", "unrecognized")
+
+
 @dataclass(frozen=True)
 class Person:
     id: int
     name: str
     is_owner: bool
+    category: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -165,9 +171,34 @@ class Master:
 
     def people(self) -> list[Person]:
         return [
-            Person(r["id"], r["name"], bool(r["is_owner"]))
+            Person(r["id"], r["name"], bool(r["is_owner"]), r["category"])
             for r in self._db.execute("SELECT * FROM people ORDER BY name COLLATE NOCASE")
         ]
+
+    def category(self, person_id: int) -> Optional[str]:
+        row = self._db.execute("SELECT category FROM people WHERE id = ?", (person_id,)).fetchone()
+        return str(row[0]) if row and row[0] else None
+
+    def set_category(self, person_ids: Iterable[int], category: Optional[str]) -> int:
+        """Sort people into a category (None: back to unassigned); returns how many changed."""
+        if category is not None and category not in CATEGORIES:
+            raise ValueError(f"Unknown category '{category}'; use one of {', '.join(CATEGORIES)}.")
+        changed = 0
+        for person_id in person_ids:
+            changed += self._db.execute(
+                "UPDATE people SET category = ? WHERE id = ? AND category IS NOT ?",
+                (category, person_id, category),
+            ).rowcount
+        return changed
+
+    def categories(self) -> dict[str, str]:
+        """{person's name: their category}, for everyone who has one."""
+        return {
+            r[0]: r[1]
+            for r in self._db.execute(
+                "SELECT name, category FROM people WHERE category IS NOT NULL"
+            )
+        }
 
     def summary(self) -> list[dict[str, object]]:
         """Each person with how many aliases they have and how many items they appear in."""
@@ -178,9 +209,10 @@ class Master:
                 "is_owner": bool(r["is_owner"]),
                 "aliases": r["aliases"],
                 "items": r["items"],
+                "category": r["category"],
             }
             for r in self._db.execute(
-                "SELECT p.id, p.name, p.is_owner, "
+                "SELECT p.id, p.name, p.is_owner, p.category, "
                 "(SELECT COUNT(*) FROM aliases a WHERE a.person_id = p.id) AS aliases, "
                 "(SELECT COUNT(DISTINCT item_id) FROM item_people i WHERE i.person_id = p.id) "
                 "AS items FROM people p ORDER BY p.name COLLATE NOCASE"
@@ -234,6 +266,11 @@ class Master:
             (target_id, source_id),
         )
         self._db.execute("DELETE FROM item_people WHERE person_id = ?", (source_id,))
+        if source["category"]:  # the one who stays keeps theirs, or takes the other's
+            self._db.execute(
+                "UPDATE people SET category = ? WHERE id = ? AND category IS NULL",
+                (source["category"], target_id),
+            )
         if source["notes"]:
             self._db.execute(
                 "UPDATE people SET notes = CASE WHEN notes IS NULL OR notes = '' THEN ? "

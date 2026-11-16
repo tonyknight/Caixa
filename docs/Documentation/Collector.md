@@ -542,6 +542,36 @@ Naming (or renaming, or merging) re-draws the affected pages: they move to the p
 page is removed. The files already filed under the old name stay where they are and the new pages
 link to them there.
 
+## The box's index page
+
+`index.html` at the top of the box is where to start. All the box's pages share one look, the Nord
+colours (light or dark, following your computer), with Caixa's orange for dates and the calendar.
+
+- **On the left, the categories:** All, Family, Friends, Business, Acquaintances, Unrecognized and
+  Unassigned, each with how many people it holds, then Groups and Mail.
+- **On the right, the people as tiles:** each a square with their initials (their face, once photos are
+  imported), their name, how many items and which years. Hover over a tile to see how much came from
+  each source. Click it to open their page; every person's page has an **All people** button at the
+  top to come back.
+- **All** shows everyone except the unrecognized, with the box's numbers on top: items, people,
+  groups, mail, files and their size, and a table of each source (items, conversations, files, size,
+  first and last date). The numbers show only under All.
+- **Unrecognized** holds whoever is known only by a phone number, an address or an account that no
+  longer has a name ("Facebook user"); they move out when you name them. You can also put anyone there.
+- **The footer** says how many people the category holds, and in Unassigned how many are selected.
+
+**Sorting people.** Open **Unassigned**: everyone who has a name and no category yet. There a click
+selects a tile instead of opening it; click more to select more, or Shift-click to select a range.
+Drag the selection onto a category on the left, or use the **Move to** buttons in the footer. The
+people leave Unassigned at once; Caixa saves their category in the box and redraws the pages. Escape
+clears the selection.
+
+Sorting works when the index is opened in Caixa (Browse, **Open the box's index page**; **Open in a new
+tab** gives it the whole window). Opened straight from the folder, in any browser, the page shows the
+categories and works for browsing, but says that sorting needs Caixa. Categories are kept when you
+rename or merge someone, and when you reset the box (unless you ask for the names you gave to be
+forgotten).
+
 ## Group conversations
 
 The same rules apply to every group conversation, from every source (iMessage, WhatsApp, Messenger,
@@ -617,7 +647,7 @@ Everything is inside the box folder.
 ```
 Our Box/
   README.md                       plain-language note: what this folder is
-  index.html                      start here: every person, with their counts and years
+  index.html                      start here: everyone, sorted into categories, and the box's numbers
   People/
     Ana Costa/
       Ana Costa.html              everything from Ana on one page: every year, every source

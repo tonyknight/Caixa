@@ -12,8 +12,8 @@ It keeps:
 - the box itself: its name, its folder, its `README.md`, its `Inbox/` and anything in it;
 - its settings (`box.yaml`): contacts, translation, speech-to-text, privacy;
 - the owner, so the box is still for the same person;
-- unless asked not to, the names given by hand (a number linked to a person, a rename, a merge):
-  they apply again on the next import.
+- unless asked not to, the names given by hand (a number linked to a person, a rename, a merge)
+  and the categories people were sorted into: they apply again on the next import.
 
 Only files Caixa wrote are deleted: a file someone put in a person's folder stays, and is reported.
 Nothing here touches the exports a person imported from, or Caixa's own per-user folder (where the
@@ -78,10 +78,11 @@ def _written_files(box: Box) -> set[Path]:
     }
 
 
-def _hand_names(box: Box) -> tuple[str | None, list[dict[str, Any]]]:
-    """The owner's name, and every name given by hand (each with the person it names)."""
+def _hand_names(box: Box) -> tuple[str | None, list[dict[str, Any]], dict[str, str]]:
+    """The owner's name, every name given by hand (each with the person it names), and the
+    category each person was sorted into."""
     if not box.master_path.exists():
-        return None, []
+        return None, [], {}
     with box.master() as master:
         people = {p.id: p for p in master.people()}
         owner = next((p.name for p in people.values() if p.is_owner), None)
@@ -91,7 +92,8 @@ def _hand_names(box: Box) -> tuple[str | None, list[dict[str, Any]]]:
             for a in master.aliases()
             if a.source == "human" and a.person_id in people
         ]  # fmt: skip
-    return owner, names
+        categories = master.categories()
+    return owner, names, categories
 
 
 def reset_box(box: Box, forget_names: bool = False) -> Reset:
@@ -112,7 +114,7 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
             if not any(inner.iterdir()):
                 inner.rmdir()
 
-    owner, names = _hand_names(box)
+    owner, names, categories = _hand_names(box)
     for part in STATE:
         state = box.caixa_dir / part
         if state.is_dir():
@@ -134,5 +136,8 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
                 person = master.person_id(alias["person"]) or master.add_person(alias["person"])
                 master.add_alias(person, alias["value"], alias["kind"], service=alias["service"])
                 result.names_kept += 1
+            for name, category in categories.items():  # they apply again when the person returns
+                person = master.person_id(name) or master.add_person(name)
+                master.set_category([person], category)
         master.commit()
     return result

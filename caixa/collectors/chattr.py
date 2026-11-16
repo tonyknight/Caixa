@@ -600,6 +600,8 @@ class _Chattr:
             progress(Progress("filing", done, total, "Filing photos, audio and other files"))
 
         progress(Progress("filing", message="Filing photos, audio and other files"))
+        with box.master() as master:
+            categories = master.categories()
         published = commands.publish(
             settings,
             out=box.root,
@@ -607,6 +609,8 @@ class _Chattr:
             pages_list=box.caixa_dir / "pages.json",
             progress=filing,
             before_pages=lambda: progress(Progress("rendering", message="Writing the pages")),
+            categories=categories,
+            title=box.name,
         )
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         with DatabaseManager(commands.central_database(settings)) as db:
