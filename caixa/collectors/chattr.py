@@ -26,6 +26,7 @@ import chattr.commands as commands
 import chattr.preflight as preflight
 from chattr.config import Settings
 from chattr.database_manager import DatabaseManager
+from chattr.meta_friends import Friends, find_friend_files, load_friends
 from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
@@ -729,11 +730,82 @@ class WhatsApp(_Chattr):
         )
 
 
+#: Private keys in the options a Meta import passes to `convert`: the friends to keep threads
+#: with (None: keep every thread), and the list the threads left out are added to.
+FRIENDS, LEFT_OUT = "_friends", "_left_out"
+
+
 class _Meta(_Chattr):
-    """Messenger and Instagram: one Meta export can hold threads of both."""
+    """Messenger and Instagram: one Meta export can hold threads of both.
+
+    Messenger threads can be limited to people on the owner's Facebook friends lists (friends and
+    removed friends, read from the same export), which leaves out Marketplace buyers and sellers,
+    page bots and strangers; those friends are also named by the name Facebook gives them.
+    Instagram threads are not affected: Instagram has no friends list, only follows.
+    """
 
     services: tuple[str, ...] = ()
     attachments = MESSAGES
+
+    def _import_all(
+        self,
+        settings: Settings,
+        items: list[Path],
+        options: Mapping[str, Any],
+        owner: Optional[str],
+        aliases: Optional[Path],
+        attachments_dir: Optional[Path],
+        final: bool,
+        progress: Callable[[Progress], None],
+    ) -> list[str]:
+        notes: list[str] = []
+        friends: Optional[Friends] = None
+        messenger = [item for item in items if self._service(item) == "messenger"]
+        if messenger:
+            given = str(options.get("friends_list") or "").strip()
+            start = Path(given).expanduser() if given else messenger[0]
+            files = find_friend_files(start)
+            friends = load_friends(files) if files else None
+            if given and not friends:
+                raise InputError(
+                    f"No Facebook friends list could be read at {given}. Point it at the "
+                    "export's friends folder (connections/friends) or at your_friends.json."
+                )
+        only = bool(options.get("only_friends", True)) and bool(messenger)
+        if only and not friends:
+            notes.append(
+                "No Facebook friends list was found with these messages, so every Messenger "
+                "conversation was kept, Marketplace and strangers included. To keep only "
+                "friends, include 'Friends' (Connections) when downloading your information, "
+                "or point 'Facebook friends list' at the export's connections/friends folder."
+            )
+        left_out: list[list[str]] = []
+        chosen = {**options, FRIENDS: friends if only else None, LEFT_OUT: left_out}
+        notes += super()._import_all(
+            settings, items, chosen, owner, aliases, attachments_dir, final, progress
+        )
+        if friends:
+            with DatabaseManager(commands.central_database(settings)) as db:
+                db.name_handles("Messenger", friends.name_of)
+        if left_out:
+            # the owner is in every thread: their own name says nothing about who it was with
+            everyone = set.intersection(*(set(people) for people in left_out))
+            mine = everyone if len(left_out) > 1 else set()
+            mine |= {owner} if owner else set()
+            shown = [", ".join(p for p in people if p not in mine) or ", ".join(people)
+                     for people in left_out]  # fmt: skip
+            count = len(left_out)
+            notes.append(
+                f"{count:,} Messenger conversation{'s' if count != 1 else ''} with nobody from "
+                "your Facebook friends list (Marketplace, pages, strangers) "
+                f"{'were' if count != 1 else 'was'} left out."
+                + (" Their names are in the job's log." if final else "")
+            )
+            if final:
+                print(f"Left out, not on the friends lists ({count}):")
+                for name in sorted(shown, key=str.casefold):
+                    print(f"  {name}")
+        return notes
 
     def locate(self, source: Path, workdir: Path) -> list[Path]:
         def find(folder: Path) -> list[Path]:
@@ -767,16 +839,23 @@ class _Meta(_Chattr):
         service = self._service(item)
         if options.get("service") in ("messenger", "instagram"):
             service = str(options["service"])
-        commands.convert(
-            settings,
-            service,
-            item,
-            owner=owner,
-            aliases=aliases,
-            attachments_dir=attachments_dir,
-            contacts=options.get("contacts") or None,
-            resolve=False,
-        )
+        friends = options.get(FRIENDS) if service == "messenger" else None
+        try:
+            commands.convert(
+                settings,
+                service,
+                item,
+                owner=owner,
+                aliases=aliases,
+                attachments_dir=attachments_dir,
+                contacts=options.get("contacts") or None,
+                resolve=False,
+                keep=friends.in_conversation if friends else None,
+            )
+        except commands.LeftOut as left:
+            conversation = left.conversation
+            people = [p for p in conversation.participants if p]
+            options[LEFT_OUT].append(people or [conversation.name or conversation.source_id])
 
 
 class Messenger(_Meta):
@@ -799,7 +878,29 @@ class Messenger(_Meta):
                 "enum": ["auto", "messenger", "instagram"],
                 "title": "Service",
                 "description": "Which service the threads belong to; 'auto' decides from the folder names.",
-            }
+            },
+            only_friends={
+                "type": "boolean",
+                "default": True,
+                "title": "Only conversations with Facebook friends",
+                "description": (
+                    "Leave out Messenger conversations in which nobody is on your Facebook "
+                    "friends list or removed-friends list: Marketplace buyers and sellers, "
+                    "pages and strangers. The lists are read from the same export. "
+                    "Instagram conversations are not affected."
+                ),
+            },
+            friends_list={
+                "type": "string",
+                "default": "",
+                "title": "Facebook friends list",
+                "description": (
+                    "Only needed when Caixa cannot find the list beside the messages (it was "
+                    "downloaded separately): the export's connections/friends folder, or "
+                    "your_friends.json."
+                ),
+                "x-picker": "file",
+            },
         ),
     )
 

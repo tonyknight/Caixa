@@ -194,7 +194,26 @@ imports Messenger and Instagram threads together; a thread is called Instagram w
 Pointed at one `message_1.json` it reads that whole conversation, including `message_2.json` and the
 following files of a long thread.
 
+**Only friends.** A Messenger history is full of people the owner never knew: Marketplace buyers and
+sellers, pages, strangers. Caixa keeps only the Messenger conversations in which someone is on your
+**Facebook friends list or removed-friends list**, both read from the same export
+(`connections/friends/your_friends.json` and `removed_friends.json`; older exports keep them in
+`friends_and_followers/` or `friends/`). A group conversation is kept when at least one friend is in it.
+Those friends are also **named**, by the name Facebook gives them, so they do not appear under "Not yet
+named".
+
+- The import says how many conversations were left out, and the job's log (Jobs → the job → Log) lists
+  who they were with, so you can check nothing you wanted was dropped.
+- To get the lists, include **Friends** (under Connections) when you download your information. If they
+  came in a separate download, point **Facebook friends list** at that download's `connections/friends`
+  folder.
+- If no list is found, everything is kept and the import says so.
+- Untick **Only conversations with Facebook friends** (`--option only_friends=false`) to keep everything.
+- Instagram conversations are not affected: Instagram has follows, not friends.
+- A conversation imported before this was in place stays in the box; rebuild the box to drop them.
+
 **Options.** `service` (`auto`, `messenger` or `instagram`) overrides the guess; leave it on `auto`.
+`only_friends` (on) and `friends_list` (empty: found beside the messages) are described above.
 
 **What you get.** Pages per person and year, reactions, shared links, and the photos of the thread in the
 person's `Messenger` or `Instagram` folder.
@@ -423,6 +442,16 @@ Exports identify people by whatever the service uses: a phone number, an email a
 display name. Until a handle is **named**, its pages go in a folder called after the handle
 (`People/+15550101/…`). Naming a handle links it to a person, so **all of a person's messages, across
 every app, live together** under that person's name.
+
+**Why a recognizable name can still be "Not yet named".** A handle that is already a name (WhatsApp and
+Google Voice show the names from your phone's or Google's contacts; Messenger shows each person's own
+Facebook name) is named only when something confirms who it is: a contact with **exactly** that name
+(case and spacing aside), a Facebook friend, or you. Caixa does not guess that "Jon Smith" on Messenger
+is "Jonathan Smith" in your Contacts, or that two people called "John Smith" are one. So a name stays
+unnamed when it is spelled differently in your Contacts (a nickname, a middle name, a missing accent),
+when the person is not in your Contacts at all, or when Caixa cannot read your Contacts (Settings →
+Contacts shows how many people it could read). A contact needs no phone number or address for its name
+to count.
 
 There are three ways to name people, and they combine:
 
