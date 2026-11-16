@@ -180,7 +180,7 @@ def _import(collector: Collector, box: Box, source: Path):
 
 
 def _page(box: Box) -> str:
-    return "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(*.html"))
+    return "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("*.html"))
 
 
 def test_an_import_translates_nothing_while_translation_is_off(

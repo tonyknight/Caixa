@@ -90,7 +90,7 @@ def test_an_import_with_speech_to_text_shows_a_transcribing_stage(
     heard = [e for e in events if e.stage == "transcribing"]
     assert [e.current for e in heard if e.message.startswith("Listening")] == [0, 1, 2]
     assert heard[-1].current == heard[-1].total == 3 and "average" in heard[-1].message
-    page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(*.html"))
+    page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("*.html"))
     assert "words from (2019-01-01) 10 00 00" in page
 
 
@@ -190,7 +190,7 @@ def test_google_voice_voicemail_is_transcribed_when_ticked_also_on_a_second_impo
     collector = discover().get("googlevoice")
 
     def pages() -> str:
-        return "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(*.html"))
+        return "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("*.html"))
 
     plain = collector.run(box, source, validate(collector.info.options_schema, {}), lambda s: None)
     assert plain.inserted == 2 and clock == [0.0]  # not ticked: the model is not used
@@ -202,7 +202,7 @@ def test_google_voice_voicemail_is_transcribed_when_ticked_also_on_a_second_impo
     assert again.inserted == 0 and again.updated == 2  # the same voicemails, now with their text
     heard = [e for e in events if e.stage == "transcribing"]
     assert heard and heard[-1].current == heard[-1].total == 2
-    shown = pages().split("<script")[0]
+    shown = pages().split('id="chattr-data"')[0]
     assert shown.count("words from") == 2 and "what google heard" not in shown
 
 

@@ -33,9 +33,9 @@ README = """# {name}
 This folder is a box made with Caixa: a person's messages, mail and other records, kept in plain
 files that open without any special software.
 
-- `People/` has one folder per person: `index.html` (everything from them), a page for each year,
-  and a folder for each source (iMessage, WhatsApp, Voicemail, …) with the files it brought, named
-  by date.
+- `People/` has one folder per person: a page named after them with everything from them, every
+  year and every source, and a folder for each source (iMessage, WhatsApp, Voicemail, …) with the
+  files it brought, named by date.
 - `Groups/` is the same for group conversations.
 - `Mail/` has one page per mail conversation, by year, with its attachments.
 - `Inbox/` is where you drop an export (a .zip or a folder) for Caixa to import.

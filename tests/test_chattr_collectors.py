@@ -172,7 +172,7 @@ def test_running_imports_into_the_box(six: dict[str, Collector], fixture_family,
     assert status["people"] == 2  # the owner, and Ana by the name saved in the phone
     assert result.unresolved == []
     assert (box.root / "People" / family.ANA.name).is_dir()  # pages for Ana's chat
-    pages = sorted((box.root / "People" / family.ANA.name).glob("(*) *.html"))
+    pages = sorted((box.root / "People" / family.ANA.name).glob("*.html"))
     assert pages and "Que lindo! Buy two." in pages[0].read_text(encoding="utf-8")
     assert (box.root / "index.html").is_file()
     assert (box.work_dir("chattr") / "Database" / "chattr.sqlite").is_file()
@@ -218,8 +218,8 @@ def test_all_six_sources_make_one_box(six: dict[str, Collector], fixture_family,
     assert status["items"] == sum(EXPECTED_ITEMS.values())
     assert {"text", "call", "voicemail", "email", "media", "system"} <= set(status["by_type"])
     ana = box.root / "People" / family.ANA.name
-    years = {p.name for p in ana.glob("(*) *.html")}
-    assert {f"(2018) {family.ANA.name}.html", f"(2024) {family.ANA.name}.html"} <= years
+    years = {p.name for p in ana.glob("*.html")}
+    assert {f"{family.ANA.name}.html", f"{family.ANA.name}.html"} <= years
     assert list((box.root / "Mail").rglob("*.html"))
 
 
@@ -243,8 +243,8 @@ def test_mail_attachments_and_voicemail_audio_live_in_the_box(
     assert not (box.caixa_dir / "work" / "incoming").exists()  # the working copies are gone
     page = next((box.root / "Mail").rglob("(2019-11-02)*.html")).read_text(encoding="utf-8")
     assert "familia.png" in page and "file not in this archive" not in page
-    home = (box.root / "People" / ana / "index.html").read_text(encoding="utf-8")
-    assert "Voicemail" in home and "(2022)" in home
+    home = (box.root / "People" / ana / f"{ana}.html").read_text(encoding="utf-8")
+    assert "Voicemail" in home and 'id="y-2022"' in home
 
 
 def test_nothing_in_the_box_is_named_by_a_hash(
@@ -522,7 +522,7 @@ def test_imported_voicemail_is_filed_as_m4a_and_plays_in_a_browser(
     assert sorted(p.name for p in folder.iterdir()) == [f"{stem}.m4a"]  # only the .m4a is kept
     copy = (folder / f"{stem}.m4a").stat().st_size
     assert 0 < copy < 2 * len(_amr(4))  # about the size of the original
-    page = (box.root / "People" / family.ANA.name / f"(2018) {family.ANA.name}.html").read_text(
+    page = (box.root / "People" / family.ANA.name / f"{family.ANA.name}.html").read_text(
         encoding="utf-8"
     )
     assert "<audio" in page and f"{stem}.m4a".replace(" ", "%20") in page
@@ -630,9 +630,9 @@ def test_a_google_voice_day_with_a_picture_and_a_voicemail_recording(
     assert files[1].startswith(
         "(2021-01-06) "
     )  # the recording (left as .mp3: it is not real audio)
-    page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("(2019)*.html"))
+    page = "".join(p.read_text("utf-8") for p in (box.root / "People").rglob("*.html"))
     assert "<img" in page and "Lovely!" in page and "Call me later" in page
-    assert "MMS Received" not in page.split("<script")[0]
+    assert "MMS Received" not in page.split('id="chattr-data"')[0]
 
 
 # --- A name that is a name ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 // The People section in a real browser, in the real DeepSeek Harness, against the real worker:
 // name unnamed handles, rename and merge, and watch the generated pages follow on disk.
-import { existsSync, readdirSync, mkdtempSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -10,7 +10,7 @@ const run = canRun && playwright() ? describe : describe.skip
 
 const pages = (box: string, person: string) => {
   const folder = join(box, 'People', person)
-  return existsSync(folder) ? readdirSync(folder).filter(name => /^\(\d{4}\) .*\.html$/.test(name)).sort() : []
+  return existsSync(folder) ? readdirSync(folder).filter(name => name.endsWith('.html')).sort() : []
 }
 
 run('the People section, in a browser', () => {
@@ -55,7 +55,7 @@ run('the People section, in a browser', () => {
 
       // WhatsApp showed Ana by the name saved in the phone, so she is a person already.
       await page.getByRole('heading', { name: 'People (2)' }).waitFor({ timeout: 30_000 })
-      expect(pages(box, 'Ana Costa')).toEqual(['(2024) Ana Costa.html'])
+      expect(pages(box, 'Ana Costa')).toEqual(['Ana Costa.html'])
       expect((await running.rpc('people.unresolved')).result.handles.map((h: { service: string }) => h.service)).not.toContain('WhatsApp')
 
       // Rename her: the page moves to the new name's folder and the old one goes.
@@ -63,7 +63,7 @@ run('the People section, in a browser', () => {
       await page.getByLabel('New name for Ana Costa').fill('Ana A')
       await page.getByRole('button', { name: 'Save' }).click()
       await upToDate('Renamed to Ana A.')
-      expect(pages(box, 'Ana A')).toEqual(['(2024) Ana A.html'])
+      expect(pages(box, 'Ana A')).toEqual(['Ana A.html'])
       expect(pages(box, 'Ana Costa')).toEqual([])
 
       // Name an iMessage handle for a second person.
@@ -83,11 +83,10 @@ run('the People section, in a browser', () => {
       await page.getByLabel('New name for Ana A').fill('Ana Cruz')
       await page.getByRole('button', { name: 'Save' }).click()
       await upToDate('Renamed to Ana Cruz.')
-      expect(pages(box, 'Ana Cruz')).toEqual(['(2024) Ana Cruz.html'])
+      expect(pages(box, 'Ana Cruz')).toEqual(['Ana Cruz.html'])
       expect(pages(box, 'Ana A')).toEqual([])
 
       // Merge the second into the first, after the page says what will happen.
-      const bYears = pages(box, 'Ana B').map(name => name.slice(0, 6))
       await page.getByRole('button', { name: 'Merge… Ana B' }).click()
       await page.getByLabel('Merge Ana B into').selectOption({ label: 'Ana Cruz' })
       await page.getByRole('button', { name: 'Merge…', exact: true }).click()
@@ -97,8 +96,11 @@ run('the People section, in a browser', () => {
       const merged = (await running.rpc('people.list')).result.people.map((p: { name: string }) => p.name)
       expect(merged).not.toContain('Ana B')
       expect(pages(box, 'Ana B')).toEqual([])
-      const cruz = pages(box, 'Ana Cruz').map(name => name.slice(0, 6))
-      expect(cruz).toEqual(expect.arrayContaining(['(2024)', ...bYears]))
+      // one page: her WhatsApp and the iMessage that was Ana B's, together
+      expect(pages(box, 'Ana Cruz')).toEqual(['Ana Cruz.html'])
+      const cruz = readFileSync(join(box, 'People', 'Ana Cruz', 'Ana Cruz.html'), 'utf8')
+      expect(cruz).toContain('>WhatsApp</span>')
+      expect(cruz).toContain('>iMessage</span>')
 
       // Nothing was lost: every item still links to a person who is in the box.
       const status = (await running.rpc('box.status')).result

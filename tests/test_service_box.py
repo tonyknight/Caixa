@@ -145,21 +145,21 @@ def _page(tmp_path: Path, relative: str, text: str = "<p>hello</p>") -> None:
 def test_browse_lists_the_generated_files_and_hides_caixas_own(
     made: Service, tmp_path: Path
 ) -> None:
-    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/Ana Costa.html")
     top = {e["name"]: e for e in made.browse_list("")["entries"]}
     assert "People" in top and ".caixa" not in top
     assert top["People"]["kind"] == "directory"
     inner = made.browse_list("People/Ana Costa")["entries"]
-    assert [e["name"] for e in inner] == ["(2024) Ana Costa.html"]
-    assert inner[0]["path"] == "People/Ana Costa/(2024) Ana Costa.html"
+    assert [e["name"] for e in inner] == ["Ana Costa.html"]
+    assert inner[0]["path"] == "People/Ana Costa/Ana Costa.html"
     assert inner[0]["kind"] == "file" and inner[0]["size"] > 0
 
 
 def test_browse_file_gives_a_page_and_where_it_is(made: Service, tmp_path: Path) -> None:
-    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html", "<p>olá</p>")
-    info = made.browse_file("People/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/Ana Costa.html", "<p>olá</p>")
+    info = made.browse_file("People/Ana Costa/Ana Costa.html")
     assert info["mime"] == "text/html" and info["content"] == "<p>olá</p>"
-    assert info["absolute"].endswith("(2024) Ana Costa.html")
+    assert info["absolute"].endswith("Ana Costa.html")
 
 
 def test_binary_files_are_described_not_embedded(made: Service, tmp_path: Path) -> None:
@@ -242,7 +242,7 @@ def test_an_older_box_gets_its_inbox_when_asked(made: Service, tmp_path: Path) -
 
 
 def test_read_only_reads_everything_and_changes_nothing(made: Service, tmp_path: Path) -> None:
-    _page(tmp_path, "People/Ana Costa/(2024) Ana Costa.html")
+    _page(tmp_path, "People/Ana Costa/Ana Costa.html")
     before = _snapshot(tmp_path / "Box")
     viewer = Service(read_only=True, roots=[tmp_path])
     assert viewer.box_open(str(tmp_path / "Box"))["owner"] == "Maria Costa"

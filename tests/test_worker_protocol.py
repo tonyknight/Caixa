@@ -268,7 +268,7 @@ def test_an_import_is_followed_by_notifications(
     assert worker.result("jobs.get", job=job["id"])["status"] == "done"
     assert [j["id"] for j in worker.result("jobs.list")] == [job["id"]]
     assert worker.result("box.status")["items"] == 7
-    page = worker.result("browse.file", path="People/Ana Costa/(2024) Ana Costa.html")
+    page = worker.result("browse.file", path="People/Ana Costa/Ana Costa.html")
     assert "Que lindo! Buy two." in page["content"]
 
 

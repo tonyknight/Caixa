@@ -42,7 +42,7 @@ def _imessage(service: Service, fixture_family) -> None:
 
 def _pages(tmp_path: Path, person: str) -> list[str]:
     folder = tmp_path / "Box" / "People" / person
-    return sorted(p.name for p in folder.glob("(*) *.html")) if folder.is_dir() else []
+    return sorted(p.name for p in folder.glob("*.html")) if folder.is_dir() else []
 
 
 def _links(service: Service, person: str) -> int:
@@ -93,20 +93,20 @@ def test_linking_a_handle_names_it_and_moves_its_pages(
     service: Service, fixture_family, tmp_path: Path
 ) -> None:
     _whatsapp(service, fixture_family)
-    assert _pages(tmp_path, "Ana Costa") == ["(2024) Ana Costa.html"]
+    assert _pages(tmp_path, "Ana Costa") == ["Ana Costa.html"]
     before = _change_count(service, "link")
     linked = service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)
     assert linked["person"]["name"] == "Ana (daughter)" and linked["job"]["kind"] == "refresh"
     assert service.wait(linked["job"]["id"], 60)["status"] == "done"
-    assert _pages(tmp_path, "Ana (daughter)") == ["(2024) Ana (daughter).html"]
+    assert _pages(tmp_path, "Ana (daughter)") == ["Ana (daughter).html"]
     assert _pages(tmp_path, "Ana Costa") == []  # the stale page is gone
     assert _links(service, "Ana (daughter)") > 0
     assert _change_count(service, "link") > before
     assert service.people_unresolved()["handles"] == []
     # (WhatsApp showed her by the name in the phone, so she was a person before; linking moved her)
-    page = (
-        tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
-    ).read_text(encoding="utf-8")
+    page = (tmp_path / "Box" / "People" / "Ana (daughter)" / "Ana (daughter).html").read_text(
+        encoding="utf-8"
+    )
     assert "Que lindo! Buy two." in page
 
 
@@ -117,9 +117,9 @@ def test_the_pages_still_link_their_photos_after_a_move(
     service.wait(
         service.people_link("WhatsApp", "Ana Costa", "Ana (daughter)", move=True)["job"]["id"], 60
     )
-    page = (
-        tmp_path / "Box" / "People" / "Ana (daughter)" / "(2024) Ana (daughter).html"
-    ).read_text(encoding="utf-8")
+    page = (tmp_path / "Box" / "People" / "Ana (daughter)" / "Ana (daughter).html").read_text(
+        encoding="utf-8"
+    )
     assert "file not in this archive" not in page
 
 
@@ -175,7 +175,7 @@ def test_renaming_moves_the_pages_and_keeps_the_aliases(
     renamed = service.people_rename(first["person"]["id"], "Ana Cruz")
     assert renamed["person"]["name"] == "Ana Cruz"
     service.wait(renamed["job"]["id"], 60)
-    assert _pages(tmp_path, "Ana Cruz") == ["(2024) Ana Cruz.html"]
+    assert _pages(tmp_path, "Ana Cruz") == ["Ana Cruz.html"]
     assert _pages(tmp_path, "Ana (daughter)") == []
     assert _links(service, "Ana Cruz") > 0
     with service._require_box().master() as master:
@@ -225,7 +225,9 @@ def test_merging_joins_two_people_and_their_pages(
         assert master.find_person(family.ANA.phones[0]) == master.person_id("Ana A")
     assert _links(service, "Ana A") >= both - 1  # nothing was lost (a shared item is counted once)
     assert _pages(tmp_path, "Ana B") == []
-    assert len(_pages(tmp_path, "Ana A")) >= 2  # WhatsApp 2024 and iMessage's years together
+    assert _pages(tmp_path, "Ana A") == ["Ana A.html"]  # one page: WhatsApp and iMessage together
+    page = (tmp_path / "Box" / "People" / "Ana A" / "Ana A.html").read_text(encoding="utf-8")
+    assert ">WhatsApp</span>" in page and ">iMessage</span>" in page
 
 
 def test_the_owner_cannot_be_merged_away(service: Service) -> None:

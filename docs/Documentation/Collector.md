@@ -106,8 +106,8 @@ caixa import whatsapp ~/Downloads/all-my-chats/ --box ~/Our\ Box    # a folder h
 A folder is searched for every `_chat.txt` (and every `WhatsApp Chat….txt`), so you can unzip many chats
 into one folder and import them together.
 
-**What you get.** One page per year for each person (`People/Ana Costa/(2024) Ana Costa.html`) and
-their `index.html`, a group's pages under `Groups/<group name>/`, and the chat's photos, videos and voice
+**What you get.** One page for each person (`People/Ana Costa/Ana Costa.html`), a group's page under
+`Groups/<group name>/`, and the chat's photos, videos and voice
 notes in the person's `WhatsApp` folder ([details](#attachments-in-detail)).
 
 **Good to know.** A WhatsApp export carries no time zone and sometimes an ambiguous date format (is
@@ -549,11 +549,10 @@ Everything is inside the box folder.
 ```
 Our Box/
   README.md                       plain-language note: what this folder is
-  index.html                      start here: every person, with their years and counts
+  index.html                      start here: every person, with their counts and years
   People/
     Ana Costa/
-      index.html                  everything from Ana: by year, by source, her groups, her mail
-      (2024) Ana Costa.html       one page per year, all sources together
+      Ana Costa.html              everything from Ana on one page: every year, every source
       WhatsApp/
         (2024-03-01) 14-05-09 Ana Costa.png
       Voicemail/
@@ -563,7 +562,7 @@ Our Box/
     +15550101/                    a number nobody has named yet (it moves when you name it)
   Groups/
     Costa Family/
-      index.html, (2024) Costa Family.html, WhatsApp/…
+      Costa Family.html, WhatsApp/…
   Mail/
     2019/(2019-11-02) João Costa — Fotos de São Martinho.html
     2019/Attachments/(2019-11-02) 16-00-00 João Costa — familia.png
@@ -571,8 +570,18 @@ Our Box/
   .caixa/                         Caixa's own working files (below)
 ```
 
-The top level is **people**. Each person's folder has their `index.html`, a page per year that brings
-every source together in time order, and one folder per source holding the files that source brought.
+The top level is **people**. Each person's folder has **one page**, named after them, that brings every
+source and every year together in time order, and one folder per source holding the files that source
+brought.
+
+**One page, however long.** The page starts with a summary (how much, from when to when, from which
+sources, the groups they are in and the mail they sent), then a bar of years that stays at the top while
+you read. Each year begins with its calendar; a coloured day goes to that day, and a date's heading goes
+back to the top. A page for someone you wrote to every day for years can hold a hundred thousand
+messages; it still opens at once: the browser shows the top while the rest arrives, lays out only the
+days on screen, and loads pictures, video and audio only when you scroll to them. (Measured on a page of
+100,000 messages, 84 MB: the first messages show in about 0.2 seconds and the whole page has arrived in
+about 2.5 seconds.) The page runs no script, so it looks the same in any browser and inside Caixa.
 Every file is named for its date, time and sender; nothing you can see is named by a code. You can also
 keep your own notes or files in a person's folder: Caixa only ever removes pages it wrote itself.
 
@@ -610,8 +619,8 @@ Every collector follows the same steps:
    the text, so the same message always gets the same ID.
 4. **Match people**: handles are matched against the box's names and the contacts file; your own messages
    are marked as yours.
-5. **Draw the pages**: `People/<Person>/index.html` and `(YYYY) <Person>.html`, `Groups/…`, `Mail/<year>/…`,
-   plus the box's `index.html`.
+5. **Draw the pages**: `People/<Person>/<Person>.html`, `Groups/…`, `Mail/<year>/…`, plus the box's
+   `index.html`.
 6. **Update the master database**, recording which page shows each item.
 
 What follows from that:

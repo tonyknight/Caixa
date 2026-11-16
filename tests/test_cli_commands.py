@@ -207,8 +207,8 @@ def test_people_are_named_renamed_and_merged_from_the_command_line(
         capsys, "people", "link", "WhatsApp", "Ana Costa", "Ana A", "--move", "--box", b
     )
     assert code == 0, err
-    assert (box / "People" / "Ana A" / "(2024) Ana A.html").is_file()
-    assert not (box / "People" / "Ana Costa" / "(2024) Ana Costa.html").exists()
+    assert (box / "People" / "Ana A" / "Ana A.html").is_file()
+    assert not (box / "People" / "Ana Costa" / "Ana Costa.html").exists()
     _run(capsys, "people", "link", "iMessage", family.ANA.phones[0], "Ana B", "--box", b)
     code, out, _ = _run(capsys, "people", "list", "--box", b, "--json")
     ids = {p["name"]: p["id"] for p in json.loads(out)["people"]}
@@ -219,7 +219,7 @@ def test_people_are_named_renamed_and_merged_from_the_command_line(
     code, _, err = _run(capsys, "people", "rename", str(ids["Ana A"]), "Ana B", "--box", b)
     assert code == 1 and "merge" in err
     assert _run(capsys, "people", "rename", str(ids["Ana A"]), "Ana Cruz", "--box", b)[0] == 0
-    assert (box / "People" / "Ana Cruz" / "(2024) Ana Cruz.html").is_file()
+    assert (box / "People" / "Ana Cruz" / "Ana Cruz.html").is_file()
     code, out, err = _run(
         capsys, "people", "merge", str(ids["Ana B"]), str(ids["Ana A"]), "--box", b
     )

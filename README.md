@@ -115,8 +115,8 @@ attachment of their own database, never by writing into each other.
 ```
 <Box name>/
   README.md        plain language: what this folder is
-  index.html       start here: every person and year
-  People/          <Person>/index.html, (YYYY) <Person>.html, <Source>/(date) time sender.ext
+  index.html       start here: every person
+  People/          <Person>/<Person>.html (everything, one page), <Source>/(date) time sender.ext
   Groups/          <Group>/  the same, for group conversations
   Mail/            <YYYY>/(YYYY-MM-DD) Sender — Subject.html  +  Attachments/
   Inbox/           drop exports here
