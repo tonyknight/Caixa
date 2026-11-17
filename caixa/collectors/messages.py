@@ -55,6 +55,7 @@ class SyncResult:
     people: int = 0  # people newly created
     aliases: int = 0  # aliases newly learned
     conflicts: list[str] = field(default_factory=list)  # aliases that already name someone else
+    deleted: int = 0  # items that left the box because Chattr no longer holds them
     unresolved: list[UnresolvedHandle] = field(default_factory=list)
 
 
@@ -221,6 +222,17 @@ def _sync(
             _set_links(db, item_id, links, current[item_id])
             master.log_change(item_id, "link", row["version"], result.import_id)
             result.linked += 1
+
+    # What Chattr no longer holds (a group left out, a person removed) leaves the box too.
+    gone = [
+        r[0]
+        for r in db.execute(
+            "SELECT id FROM main.items WHERE collector = ? "
+            "AND id NOT IN (SELECT id FROM chattr.messages)",
+            (COLLECTOR,),
+        )
+    ]
+    result.deleted = master.delete_items(gone, result.import_id)
 
     result.unresolved = [
         UnresolvedHandle(r["service"], r["identifier"], r["display_name"], r["messages"])

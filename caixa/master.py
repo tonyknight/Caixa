@@ -20,7 +20,7 @@ from caixa.schema import CURRENT_VERSION, apply_migrations, current_version
 
 PathLike = Union[str, Path]
 ALIAS_KINDS = ("phone", "email", "username", "name")
-OPERATIONS = ("insert", "update", "link")
+OPERATIONS = ("insert", "update", "link", "delete")
 
 
 def _now() -> str:
@@ -281,6 +281,37 @@ class Master:
         for item_id, version in items:
             self.log_change(item_id, "link", version, None)
         return len(items)
+
+    def delete_items(self, item_ids: Iterable[str], import_id: Optional[int] = None) -> int:
+        """Take items out of the box (their links to people too); each gets a `delete` row in the
+        change log. Returns how many went."""
+        gone = 0
+        for item_id in item_ids:
+            row = self._db.execute("SELECT version FROM items WHERE id = ?", (item_id,)).fetchone()
+            if row is None:
+                continue
+            self._db.execute("DELETE FROM item_people WHERE item_id = ?", (item_id,))
+            self._db.execute("DELETE FROM items WHERE id = ?", (item_id,))
+            self.log_change(item_id, "delete", int(row[0]), import_id)
+            gone += 1
+        return gone
+
+    def delete_person(self, person_id: int) -> None:
+        """Forget a person: their aliases and their links to items. The items themselves stay
+        (they go when what they came from goes). The owner is never forgotten."""
+        row = self._db.execute("SELECT is_owner FROM people WHERE id = ?", (person_id,)).fetchone()
+        if row is None:
+            raise KeyError("No such person.")
+        if row[0]:
+            raise ValueError("The owner of the box can't be removed from it.")
+        self._db.execute("DELETE FROM aliases WHERE person_id = ?", (person_id,))
+        self._db.execute("DELETE FROM item_people WHERE person_id = ?", (person_id,))
+        self._db.execute("DELETE FROM people WHERE id = ?", (person_id,))
+
+    def mark_by_hand(self, person_id: int) -> None:
+        """Every alias of this person becomes one given by hand (they were renamed or merged:
+        someone decided these identifiers are this person), so it is kept across a reset."""
+        self._db.execute("UPDATE aliases SET source = 'human' WHERE person_id = ?", (person_id,))
 
     # --- Aliases ----------------------------------------------------------------------------
 

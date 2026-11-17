@@ -103,7 +103,27 @@ MIGRATION_2 = """
 ALTER TABLE people ADD COLUMN category TEXT;
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2)]
+# Version 3: items can be deleted (their owner took someone out of the box), and the change log
+# says so. The log's CHECK names the operations, so the table is made again with the old rows.
+MIGRATION_3 = """
+CREATE TABLE change_log_3 (
+    change INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL,
+    operation TEXT NOT NULL CHECK (operation IN ('insert', 'update', 'link', 'delete')),
+    version INTEGER NOT NULL,
+    import_id INTEGER REFERENCES imports (id),
+    at TEXT NOT NULL
+);
+INSERT INTO change_log_3 SELECT change, item_id, operation, version, import_id, at FROM change_log;
+DROP TABLE change_log;
+ALTER TABLE change_log_3 RENAME TO change_log;
+CREATE TRIGGER change_log_no_update BEFORE UPDATE ON change_log
+BEGIN SELECT RAISE(ABORT, 'change_log is append-only'); END;
+CREATE TRIGGER change_log_no_delete BEFORE DELETE ON change_log
+BEGIN SELECT RAISE(ABORT, 'change_log is append-only'); END;
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3)]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 
 

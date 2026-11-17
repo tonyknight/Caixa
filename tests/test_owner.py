@@ -1,0 +1,163 @@
+"""The owner's preference file (`.caixa/owner.json`): names given by hand, categories and the
+people removed from the box. It outlives a reset and applies again at the next import."""
+
+from __future__ import annotations
+
+import json
+import stat
+from pathlib import Path
+from typing import Iterator
+
+import pytest
+from fixtures import family
+
+from caixa import owner
+from caixa.service import Service, ServiceError
+
+
+@pytest.fixture
+def service(tmp_path: Path) -> Iterator[Service]:
+    made = Service(roots=[tmp_path])
+    made.box_create(str(tmp_path / "Box"), name="Our box", owner=family.OWNER.name)
+    yield made
+    made.close()
+
+
+def _import(service: Service, fixture_family) -> None:
+    source = fixture_family.paths["whatsapp"] / "WhatsApp Chat - Ana Costa" / "_chat.txt"
+    job = service.import_start("whatsapp", str(source))
+    assert service.wait(job["id"], 120)["status"] == "done"
+
+
+def _file(service: Service) -> dict:
+    assert service.box is not None
+    return json.loads(owner.path(service.box).read_text(encoding="utf-8"))
+
+
+def test_a_missing_file_reads_as_empty_and_a_damaged_one_is_set_aside(service: Service) -> None:
+    box = service.box
+    assert box is not None
+    assert owner.load(box) == {"schema": 1, "names": [], "categories": {}, "removed": []}
+    owner.path(box).write_text("{not json", encoding="utf-8")
+    assert owner.load(box)["names"] == []
+    assert (box.caixa_dir / "owner.json.damaged").read_text(encoding="utf-8") == "{not json"
+
+
+def test_the_file_lives_in_dot_caixa_and_only_its_owner_can_read_it(
+    service: Service, fixture_family
+) -> None:
+    _import(service, fixture_family)
+    service.people_categorize([family.ANA.name], "family")
+    box = service.box
+    assert box is not None
+    assert owner.path(box) == box.root / ".caixa" / "owner.json"
+    assert stat.S_IMODE(owner.path(box).stat().st_mode) == 0o600
+    assert _file(service)["categories"] == {family.ANA.name: "family"}
+
+
+def test_a_name_given_by_hand_is_written_and_a_rename_keeps_the_identifiers(
+    service: Service, fixture_family
+) -> None:
+    _import(service, fixture_family)
+    done = service.people_link("WhatsApp", "+1 555 010 7777", "Rosa Lima")
+    service.wait(done["job"]["id"], 120)
+    names = _file(service)["names"]
+    assert {"identifier": "+1 555 010 7777", "kind": "phone", "service": None,
+            "person": "Rosa Lima"} in names  # fmt: skip
+    ana = next(p for p in service.people_list()["people"] if p["name"] == family.ANA.name)
+    renamed = service.people_rename(ana["id"], "Ana C. Costa")
+    service.wait(renamed["job"]["id"], 120)
+    assert "Ana C. Costa" in {n["person"] for n in _file(service)["names"]}
+
+
+def test_names_and_categories_typed_into_the_file_are_taken_up_when_the_box_opens(
+    service: Service, tmp_path: Path
+) -> None:
+    box = service.box
+    assert box is not None
+    owner.path(box).write_text(
+        json.dumps(
+            {
+                "names": [{"identifier": "+15550109999", "kind": "phone", "person": "Tia Nena"}],
+                "categories": {"Tia Nena": "family"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    service.box_open(str(box.root))
+    people = {p["name"]: p for p in service.people_list()["people"]}
+    assert people["Tia Nena"]["category"] == "family"
+    with box.master() as master:
+        assert [a.source for a in master.aliases() if a.value == "+15550109999"] == ["human"]
+
+
+def test_a_reset_keeps_the_file_and_forgetting_names_keeps_who_was_removed(
+    service: Service, fixture_family
+) -> None:
+    _import(service, fixture_family)
+    service.people_categorize([family.ANA.name], "friends")
+    service.wait(service.people_delete(handles=[{"service": "SMS", "identifier": "+15550100000"}])["job"]["id"], 120)  # fmt: skip
+    done = service.box_reset()
+    assert done["names_kept"] >= 0
+    assert _file(service)["categories"] == {family.ANA.name: "friends"}
+    assert {p["name"]: p["category"] for p in service.people_list()["people"]}[
+        family.ANA.name
+    ] == "friends"
+    service.box_reset(forget_names=True)
+    kept = _file(service)
+    assert kept["names"] == [] and kept["categories"] == {}
+    assert [r["identifier"] for r in kept["removed"]] == ["+15550100000"]
+
+
+def test_deleting_a_person_removes_their_conversation_their_files_and_their_page(
+    service: Service, fixture_family
+) -> None:
+    _import(service, fixture_family)
+    box = service.box
+    assert box is not None
+    folder = box.root / "People" / family.ANA.name
+    assert (folder / f"{family.ANA.name}.html").is_file()
+    before = service.box_status()["items"]
+    assert before > 0
+    done = service.people_delete(people=[family.ANA.name])
+    assert done["removed"] == 1 and done["job"]["kind"] == "refresh"
+    assert service.wait(done["job"]["id"], 120)["status"] == "done"
+    assert family.ANA.name not in {p["name"] for p in service.people_list()["people"]}
+    assert not folder.exists()  # the page, the pictures, the folder
+    assert service.box_status()["items"] < before
+    assert _file(service)["removed"][0]["person"] == family.ANA.name
+    assert family.ANA.name not in (box.root / "index.html").read_text(encoding="utf-8")
+
+    _import(service, fixture_family)  # the same export again: she stays out
+    assert family.ANA.name not in {p["name"] for p in service.people_list()["people"]}
+    assert not folder.exists()
+
+    service.box_reset()  # and after starting again
+    _import(service, fixture_family)
+    assert family.ANA.name not in {p["name"] for p in service.people_list()["people"]}
+    assert not (folder / f"{family.ANA.name}.html").exists()
+
+
+def test_the_owner_cannot_be_deleted_and_nobody_is_an_error(
+    service: Service, fixture_family
+) -> None:
+    _import(service, fixture_family)
+    with pytest.raises(ServiceError, match="owner"):
+        service.people_delete(people=[family.OWNER.name])
+    with pytest.raises(ServiceError, match="Nobody"):
+        service.people_delete()
+    with pytest.raises(ServiceError, match="no person"):
+        service.people_delete(people=["Nobody Atall"])
+
+
+def test_a_removed_list_matches_numbers_however_they_are_written() -> None:
+    match = owner.removed_matcher(
+        [{"identifier": "+1 (555) 010-1234"}, {"identifier": "x@y.pt", "service": "Mail"},
+         {"person": "Rui Lima"}]
+    )  # fmt: skip
+    assert match is not None
+    assert match("SMS", "+15550101234", None) and match("WhatsApp", "15550101234", None) is not None
+    assert match("Mail", "x@y.pt", None) and not match("iMessage", "x@y.pt", None)
+    assert match("Messenger", "rui.lima.3", "rui lima")
+    assert not match("SMS", "+15550109999", "Ana")
+    assert owner.removed_matcher([]) is None

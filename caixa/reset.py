@@ -12,8 +12,10 @@ It keeps:
 - the box itself: its name, its folder, its `README.md`, its `Inbox/` and anything in it;
 - its settings (`box.yaml`): contacts, translation, speech-to-text, privacy;
 - the owner, so the box is still for the same person;
-- unless asked not to, the names given by hand (a number linked to a person, a rename, a merge)
-  and the categories people were sorted into: they apply again on the next import.
+- the owner's preference file (`owner.json`, see `caixa.owner`): the names given by hand (a
+  number linked to a person, a rename, a merge) and the categories people were sorted into, which
+  apply again on the next import, and the list of people removed from the box, who stay out.
+  Asked to forget the names, the names and categories are dropped from it; the removed list stays.
 
 Only files Caixa wrote are deleted: a file someone put in a person's folder stays, and is reported.
 Nothing here touches the exports a person imported from, or Caixa's own per-user folder (where the
@@ -32,6 +34,7 @@ from typing import Any
 
 from chattr.filing import playable_copy
 
+from caixa import owner as owner_file
 from caixa.box import Box
 
 #: The folders Caixa writes into above `.caixa/`.
@@ -78,22 +81,15 @@ def _written_files(box: Box) -> set[Path]:
     }
 
 
-def _hand_names(box: Box) -> tuple[str | None, list[dict[str, Any]], dict[str, str]]:
-    """The owner's name, every name given by hand (each with the person it names), and the
-    category each person was sorted into."""
+def _keep_names(box: Box) -> str | None:
+    """Write the names given by hand and the categories to the owner's preference file; returns
+    the owner's name."""
     if not box.master_path.exists():
-        return None, [], {}
+        return None
     with box.master() as master:
-        people = {p.id: p for p in master.people()}
-        owner = next((p.name for p in people.values() if p.is_owner), None)
-        names = [
-            {"person": people[a.person_id].name, "value": a.value, "kind": a.kind,
-             "service": a.service}
-            for a in master.aliases()
-            if a.source == "human" and a.person_id in people
-        ]  # fmt: skip
-        categories = master.categories()
-    return owner, names, categories
+        owner_file.apply(box, master)
+        owner_file.save(box, master)
+        return next((p.name for p in master.people() if p.is_owner), None)
 
 
 def reset_box(box: Box, forget_names: bool = False) -> Reset:
@@ -114,7 +110,9 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
             if not any(inner.iterdir()):
                 inner.rmdir()
 
-    owner, names, categories = _hand_names(box)
+    owner = _keep_names(box)
+    if forget_names:
+        owner_file.forget_names(box)
     for part in STATE:
         state = box.caixa_dir / part
         if state.is_dir():
@@ -131,13 +129,7 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
     with box.master() as master:
         if owner:
             master.add_person(owner, is_owner=True)
-        if not forget_names:
-            for alias in names:
-                person = master.person_id(alias["person"]) or master.add_person(alias["person"])
-                master.add_alias(person, alias["value"], alias["kind"], service=alias["service"])
-                result.names_kept += 1
-            for name, category in categories.items():  # they apply again when the person returns
-                person = master.person_id(name) or master.add_person(name)
-                master.set_category([person], category)
+        owner_file.apply(box, master)  # they apply again when the people return
+        result.names_kept = len(owner_file.load(box)["names"])
         master.commit()
     return result

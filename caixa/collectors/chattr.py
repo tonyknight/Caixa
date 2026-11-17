@@ -26,12 +26,14 @@ import chattr.commands as commands
 import chattr.preflight as preflight
 from chattr.config import Settings
 from chattr.database_manager import DatabaseManager, unresolved_rows
+from chattr.filing import playable_copy
 from chattr.meta_friends import Friends, find_friend_files, find_profile_name, load_friends
 from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
 from chattr.translation import TranslationError, translate_archive
 
+from caixa import owner as owner_file
 from caixa import settings as box_settings
 from caixa import translation
 from caixa.box import Box
@@ -90,6 +92,31 @@ def own_name(value: Optional[str]) -> Optional[str]:
     if alias_kind("", text)[0] == "phone":
         return None
     return text
+
+
+#: Keys, in the options, for what the owner removed from the box and where the box is.
+REMOVED, BOX_ROOT = "_removed", "_box_root"
+
+
+def _delete_files(root: Path, relative_paths: list[str]) -> int:
+    """Delete files of the box by their path inside it (never outside it, never in `.caixa`),
+    with a playable copy an older version made beside one, and folders that leave empty."""
+    base = root.resolve()
+    gone = 0
+    for relative in relative_paths:
+        file = (base / relative).resolve()
+        inside = file.is_relative_to(base) and ".caixa" not in file.relative_to(base).parts
+        if not inside:
+            continue
+        for candidate in (file, playable_copy(file)):
+            if candidate is not None and candidate.is_file():
+                candidate.unlink()
+                gone += 1
+        folder = file.parent
+        while folder != base and folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
+            folder = folder.parent
+    return gone
 
 
 #: The key, in the options a source's `convert` is given, that holds the progress callback.
@@ -304,6 +331,9 @@ class _Chattr:
         merged.setdefault("mac_contacts", bool(saved.get("contacts.mac", False)))
         if not merged.get("region"):
             merged["region"] = saved.get("contacts.region") or ""
+        # What the owner removed from the box stays out (see caixa.owner), and its files go.
+        merged[REMOVED] = owner_file.load(box)["removed"] if box is not None else []
+        merged[BOX_ROOT] = str(box.root) if box is not None else ""
         return merged
 
     @staticmethod
@@ -337,10 +367,22 @@ class _Chattr:
         notes: list[str] = []
         database = commands.central_database(settings)
         if database.exists():
+            match = owner_file.removed_matcher(
+                options.get(REMOVED) or [], str(options.get("region") or "US")
+            )
             with DatabaseManager(database) as db:
                 tidy = db.tidy_groups()
                 for service in SHOWN_BY_OWN_NAME:
                     db.name_handles(service, own_name)
+                taken = db.remove_people(match) if match else None
+            if taken and taken.conversations:
+                count = taken.conversations
+                notes.append(
+                    f"{count:,} conversation{'s' if count != 1 else ''} with people you removed "
+                    f"from this box {'were' if count != 1 else 'was'} left out."
+                )
+            if taken and options.get(BOX_ROOT):
+                _delete_files(Path(str(options[BOX_ROOT])), taken.files)
             count = len(tidy.groups_removed)
             if count:
                 notes.append(
@@ -371,6 +413,7 @@ class _Chattr:
         if box is None or not box.master_path.exists():
             return None
         with box.master() as master:
+            owner_file.apply(box, master)  # names in the owner's preference file come first
             master.export_aliases(target)
         return target
 

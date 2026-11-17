@@ -31,6 +31,7 @@ from urllib.parse import urlparse
 from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import is_local_endpoint
 
+from caixa import owner as owner_file
 from caixa import settings, translation, undo
 from caixa.box import Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
@@ -293,6 +294,9 @@ class Service:
             self._finished.clear()
             self._cancelled.clear()
         self.box = box
+        if not self.read_only and box.master_path.exists():
+            with box.master() as master:  # what was typed into the owner's file while closed
+                owner_file.apply(box, master)
         if self.state is not None:
             self.state.remember_box(str(box.root), box.name)
         path = box.caixa_dir / "jobs.sqlite"
@@ -959,9 +963,60 @@ class Service:
         """The person as it now stands, plus the job that redraws the pages."""
         summary = next(p for p in master.summary() if p["id"] == person)
         master.commit()
+        owner_file.save(self._require_box(), master)
         undo.note_people_change(self._require_box())  # undoing the newest import would undo this
-        job = self._enqueue("refresh", None, None, {}) if self._people_aware() else None
-        return {"person": summary, "job": job}
+        return {"person": summary, "job": self._redraw()}
+
+    def _redraw(self) -> Optional[dict[str, Any]]:
+        """The job that redraws the pages: one already waiting will draw this change too."""
+        if not self._people_aware():
+            return None
+        for job in self._jobs().list(limit=50):
+            if job["kind"] == "refresh" and job["status"] == "queued":
+                return dict(job)
+        return self._enqueue("refresh", None, None, {})
+
+    @method("people.delete", write=True)
+    def people_delete(
+        self,
+        people: Optional[list[Union[int, str]]] = None,
+        handles: Optional[list[dict[str, str]]] = None,
+    ) -> dict[str, Any]:
+        """Take people out of the box for good: `people` by id or name, `handles` (each a
+        `service` and an `identifier`) for numbers and addresses nobody is named for. Their
+        one-to-one conversations and the files in them are deleted by the redraw job; what they
+        wrote in a group stays. The owner's preference file remembers them, so a later import
+        does not bring them back (see `caixa.owner`)."""
+        box = self._require_box()
+        gone: list[dict[str, Any]] = []
+        for handle in handles or []:
+            if not isinstance(handle, dict) or not str(handle.get("identifier") or "").strip():
+                raise ServiceError("invalid_params", "A handle needs a service and an identifier.")
+            gone.append(
+                {"identifier": str(handle["identifier"]), "service": handle.get("service") or None}
+            )
+        with box.master() as master:
+            known = {p.id: p for p in master.people()}
+            ids: list[int] = []
+            for who in people or []:
+                found = who if isinstance(who, int) else master.person_id(str(who))
+                if found is None or found not in known:
+                    raise ServiceError("not_found", f"There is no person '{who}' in this box.")
+                if known[found].is_owner:
+                    raise ServiceError(
+                        "invalid_params", "The owner of the box can't be removed from it."
+                    )
+                ids.append(found)
+            if not ids and not gone:
+                raise ServiceError("invalid_params", "Nobody was chosen to remove.")
+            for found in dict.fromkeys(ids):
+                gone.append({"person": known[found].name})
+                master.delete_person(found)
+            master.commit()
+            added = owner_file.add_removed(box, gone)
+            owner_file.save(box, master)
+        undo.note_people_change(box)
+        return {"removed": len(gone), "remembered": added, "job": self._redraw()}
 
     @method("people.link", write=True)
     def people_link(
@@ -992,6 +1047,7 @@ class Service:
                 master.rename_person(who, name)
             except ValueError as error:
                 raise ServiceError("conflict", str(error)) from None
+            master.mark_by_hand(who)
             return self._after_people_change(master, who)
 
     @method("people.categorize", write=True)
@@ -1015,18 +1071,8 @@ class Service:
                 ids.append(found)
             changed = master.set_category(ids, category)
             master.commit()
-        waiting = [
-            j
-            for j in self._jobs().list(limit=50)
-            if j["kind"] == "refresh" and j["status"] == "queued"
-        ]
-        if not self._people_aware():
-            job = None
-        elif waiting:
-            job = waiting[0]  # a redraw already waiting will draw this too
-        else:
-            job = self._enqueue("refresh", None, None, {})
-        return {"changed": changed, "category": category, "job": job}
+            owner_file.save(box, master)
+        return {"changed": changed, "category": category, "job": self._redraw()}
 
     @method("people.merge", write=True)
     def people_merge(self, source: int, target: int) -> dict[str, Any]:
@@ -1041,4 +1087,5 @@ class Service:
                 master.merge_people(source, target)
             except ValueError as error:
                 raise ServiceError("conflict", str(error)) from None
+            master.mark_by_hand(who)
             return self._after_people_change(master, who)
