@@ -1,0 +1,24 @@
+/* Caixa's own window: the Nord colours the box's pages use (light or dark, following the computer),
+   with Caixa's orange as the accent. The pages' own styles (caixa.module.css) read these. */
+:root {
+  color-scheme: light dark;
+  --nord-bg: #eceff4; --nord-panel: #e5e9f0; --nord-card: #ffffff; --nord-fg: #2e3440; --nord-muted: #4c566a;
+  --nord-line: #d8dee9; --nord-accent: #d08770; --nord-on-accent: #ffffff; --nord-strong: #2e3440; --nord-on-strong: #eceff4;
+  --nord-error: #bf616a;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --nord-bg: #2e3440; --nord-panel: #3b4252; --nord-card: #3b4252; --nord-fg: #eceff4; --nord-muted: #d8dee9;
+    --nord-line: #4c566a; --nord-accent: #d08770; --nord-on-accent: #2e3440; --nord-strong: #88c0d0; --nord-on-strong: #2e3440;
+    --nord-error: #bf616a;
+  }
+}
+html, body, #caixa { height: 100%; margin: 0; }
+body {
+  background: var(--nord-bg); color: var(--nord-fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+#caixa { display: flex; flex-direction: column; }
+#caixa > main { margin: 0 auto; width: 100%; max-width: 68rem; }
+a { color: inherit; }
+::selection { background: var(--nord-accent); color: var(--nord-on-accent); }

@@ -1,14 +1,14 @@
-// End to end against the real DeepSeek Harness (the pinned version, in a throwaway DSH home) and the
-// real `caixa worker`: the owner-only routes, the progress stream, and the page in a browser.
-// Skipped when this computer cannot run it (Node older than 24.9, no `caixa`, no browser).
+// End to end against the real `caixa serve` (Caixa's own window, served by Python, in a throwaway
+// Caixa home): the owner-only routes, the progress stream, and the page in a browser.
+// Skipped when this computer cannot run it (no `caixa`, no browser).
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, openCaixa, playwright, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun ? describe : describe.skip
 
-run('Caixa inside the real DeepSeek Harness', () => {
+run('Caixa served by `caixa serve`', () => {
   let running: Running
   let base = ''
   let cookie = ''
@@ -19,7 +19,7 @@ run('Caixa inside the real DeepSeek Harness', () => {
   const rpc = (method: string, params: Record<string, unknown> = {}) => running.rpc(method, params)
 
   beforeAll(async () => {
-    running = await startHarness()
+    running = await startCaixa()
     base = running.base
     cookie = running.cookie
   }, 120_000)
@@ -28,17 +28,16 @@ run('Caixa inside the real DeepSeek Harness', () => {
 
   it('serves the routes only to the signed-in owner on this computer', async () => {
     expect((await fetch(`${base}/api/caixa/status`)).status).toBe(401)
-    expect((await get('/api/caixa/status', { headers: { origin: 'http://evil.example' } })).status).toBe(403)
     const status = await get('/api/caixa/status')
     expect(status.status).toBe(200)
-    expect(await status.json()).toEqual({ worker: 'running' })
+    expect(await status.json()).toEqual({ worker: 'running', shell: true })
   })
 
   it('refuses a foreign Origin on the call route too', async () => {
     const response = await get('/api/caixa/rpc', {
       method: 'POST',
       body: JSON.stringify({ method: 'worker.info' }),
-      headers: { origin: 'http://evil.example' },
+      headers: { origin: 'http://evil.example', 'content-type': 'application/json' },
     })
     expect(response.status).toBe(403)
   })

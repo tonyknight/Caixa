@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, openCaixa, playwright, shot, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -27,7 +27,7 @@ run('sorting people on the index page, in a browser', () => {
     ((await running.rpc('people.list')).result.people as { name: string; category: string | null }[]).map(p => [p.name, p.category]))
 
   beforeAll(async () => {
-    running = await startHarness()
+    running = await startCaixa()
     box = join(running.work, 'Box')
     expect((await running.rpc('box.create', { path: box, name: 'Sorting box', owner: 'Maria Costa' })).ok).toBe(true)
     const archive = join(mkdtempSync(join(tmpdir(), 'caixa-vm-')), 'Voicemail.zip')

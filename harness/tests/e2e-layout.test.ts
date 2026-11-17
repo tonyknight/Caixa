@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, playwright, shot, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -20,7 +20,7 @@ run('the Caixa page in a short window', () => {
   let page: any
 
   beforeAll(async () => {
-    running = await startHarness({ caixaPatch: true })
+    running = await startCaixa()
     const box = join(running.work, 'Box')
     expect((await running.rpc('box.create', { path: box, name: 'Our box', owner: 'Maria Costa' })).ok).toBe(true)
     // an export with many people in it, so the preview is long
@@ -33,14 +33,7 @@ run('the Caixa page in a short window', () => {
     ].join('\n')
     execFileSync('python', ['-c', code, archive])
     browser = await playwright()!.chromium.launch()
-    page = await browser.newPage({ viewport: { width: 1100, height: 560 } })
-    await page.context().addCookies(running.cookie.split('; ').map(pair => {
-      const [name, ...value] = pair.split('=')
-      return { name, value: value.join('='), url: running.base }
-    }))
-    await page.goto(running.base, { waitUntil: 'networkidle' })
-    await page.locator('[aria-label="Caixa"]').first().click({ timeout: 15_000 })
-    await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 15_000 })
+    page = await openCaixa(browser, running, { width: 1100, height: 560 })
   }, 180_000)
 
   afterAll(async () => { await browser?.close(); await running?.stop() })

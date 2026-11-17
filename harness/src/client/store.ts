@@ -68,6 +68,7 @@ export class Store {
   private listeners = new Set<() => void>()
   private stopFollowing: (() => void) | undefined
   private nextToast = 1
+  private jobsAsked = 0
   private loadingNames: Promise<void> | undefined
   /** What is waiting to be saved (the section and/or the draft), and the timer that will save it. */
   private pending: { view?: string | null; draft?: ImportDraft | null } = {}
@@ -173,8 +174,11 @@ export class Store {
   }
 
   async refreshJobs(): Promise<void> {
+    // Several can be in flight (a job ending, a reply arriving); their answers can come back in any
+    // order, and an older one must not overwrite a newer: only the latest asked for counts.
+    const asked = ++this.jobsAsked
     const reply = await this.api.jobs()
-    if (!reply.ok) return
+    if (asked !== this.jobsAsked || !reply.ok) return
     // The list may have been asked for before a job finished and answered after the stream said so:
     // an answer that is older than what was already heard must not bring a finished job back to life.
     const heard = new Map(this.state.jobs.filter(job => FINISHED.has(job.status)).map(job => [job.id, job]))

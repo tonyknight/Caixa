@@ -1,4 +1,21 @@
-# Caixa's plugin for DeepSeek Harness
+# Caixa's browser interface
+
+Since 2026-11-17 Caixa serves its own window: `caixa serve` runs the service layer and a web server
+in one Python process (`caixa/web.py`), and the pages in `src/client/` are mounted on a page of their
+own by `src/app/main.tsx`, in the Nord colours (`src/app/app.css`). That build is committed in
+`caixa/data/web/`, so running Caixa needs no Node.js. After changing anything under `src/client/` or
+`src/app/`, rebuild it (Node 24.9 or newer):
+
+```bash
+pnpm install          # once
+pnpm run build:app    # writes ../caixa/data/web/ (a Python test fails until you do)
+pnpm exec vitest run  # unit tests, and the end-to-end tests against the real `caixa serve`
+```
+
+The rest of this file describes the DeepSeek Harness plugin that served these pages before. It is
+kept, and its own tests still run, but nothing starts it; whether to remove it is open.
+
+## The DeepSeek Harness plugin (no longer launched)
 
 The browser interface for Caixa is a plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
 (`dsh web`, MIT). All the work on your archive happens in Python (`caixa worker`); this plugin

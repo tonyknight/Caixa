@@ -10,7 +10,6 @@ import pytest
 from chattr.transcription import Transcript
 from fixtures import family
 
-from caixa import serve
 from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.collectors.chattr import TimedTranscriber
@@ -108,10 +107,6 @@ def test_the_terminal_hears_each_stage_and_each_recording_but_not_every_step() -
         f"{TERMINAL_MARK}job 7: transcribing 0/2 - Listening to 1.amr",
         f"{TERMINAL_MARK}job 7: transcribing 1/2 - 1.amr: 2.0 s; average 2.0 s each",
     ]
-
-
-def test_the_mark_is_the_one_caixa_serve_listens_for() -> None:
-    assert serve.TERMINAL_MARK == TERMINAL_MARK
 
 
 class Batch(Slow):

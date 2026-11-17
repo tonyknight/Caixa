@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildFixtures, canRun, openCaixa, playwright, startHarness, type Running } from './e2e-support.ts'
+import { buildFixtures, canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -31,7 +31,7 @@ run('the People section, in a browser', () => {
   }
 
   beforeAll(async () => {
-    running = await startHarness()
+    running = await startCaixa()
     fixtures = buildFixtures(mkdtempSync(join(tmpdir(), 'caixa-fixtures-')))
     box = join(running.work, 'Box')
     expect((await running.rpc('box.create', { path: box, name: 'People box', owner: 'Maria Costa' })).ok).toBe(true)

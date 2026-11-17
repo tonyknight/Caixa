@@ -1,8 +1,7 @@
-// What a person sees the first time `caixa serve` opens: the Caixa page, with none of DeepSeek's own
-// first-run messages in the way and none of its name. Runs the real harness with the same patch
-// `caixa serve` writes. Skipped when this computer cannot run it (Node older than 24.9, no browser).
+// What a person sees the first time `caixa serve` opens: Caixa's own window, with nothing of DeepSeek
+// Harness in it, and nothing to see without the link `caixa serve` printed.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, playwright, shot, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
 const pw = playwright()
 const run = canRun && pw ? describe : describe.skip
@@ -13,45 +12,37 @@ run('the first run, as `caixa serve` starts it', () => {
   let page: any
 
   beforeAll(async () => {
-    running = await startHarness({ caixaPatch: true })
+    running = await startCaixa()
     browser = await pw!.chromium.launch()
-    page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-    await page.context().addCookies(running.cookie.split('; ').map(pair => {
-      const [name, ...value] = pair.split('=')
-      return { name, value: value.join('='), url: running.base }
-    }))
-    await page.goto(running.base, { waitUntil: 'networkidle' })
-    await page.waitForTimeout(4000) // DSH's own dialogs come a moment after the page, when they come
+    page = await openCaixa(browser, running, { width: 1280, height: 900 })
   }, 120_000)
 
   afterAll(async () => { await browser?.close(); await running?.stop() })
 
-  it('shows no preview notice, sign-in prompt or other dialog', async () => {
-    expect(await page.locator('[role="presentation"] [role="dialog"], [role="dialog"]').count()).toBe(0)
-    const text = await page.locator('body').innerText()
-    expect(text).not.toMatch(/Preview Notice|Get started|Sign in to your DeepSeek/)
-  })
-
-  it('leaves Caixa one click away, with nothing covering it', async () => {
-    await page.locator('[aria-label="Caixa"]').first().click({ timeout: 10_000 })
-    await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 15_000 })
-  })
-
-  it('opens on the Caixa page, with nothing to click first', async () => {
-    await page.goto(running.base, { waitUntil: 'networkidle' }) // a fresh load: no panel has been chosen
+  it('opens on the Caixa page, with nothing to click first and no dialog in the way', async () => {
+    await page.goto(running.base, { waitUntil: 'networkidle' })
     await page.locator('[data-testid="caixa-page"]').waitFor({ timeout: 20_000 })
+    expect(await page.locator('[role="dialog"]').count()).toBe(0)
     await shot(page, 'shell-first')
   })
 
-  it('is called Caixa: in the sidebar and in the window title', async () => {
-    await expect.poll(() => page.title(), { timeout: 10_000 }).toContain('Caixa')
-    expect(await page.title()).not.toMatch(/DeepSeek/i)
+  it('is called Caixa, and carries no DeepSeek name anywhere', async () => {
+    expect(await page.title()).toBe('Caixa')
     const text = await page.locator('body').innerText()
-    expect(text).not.toMatch(/DSH Local Build|DeepSeek/i)
+    expect(text).not.toMatch(/DeepSeek|DSH|harness/i)
+    expect(await page.getByRole('heading', { level: 1 }).textContent()).toBe('Caixa')
   })
 
-  it('does not carry the DeepSeek name in the sidebar', async () => {
-    const sidebar = await page.locator('body').innerText()
-    expect(sidebar).not.toMatch(/deepseek harness/i)
+  it('uses the Nord colours', async () => {
+    const background = await page.evaluate(() => getComputedStyle(document.body).backgroundColor)
+    expect(['rgb(236, 239, 244)', 'rgb(46, 52, 64)']).toContain(background)
+  })
+
+  it('shows nothing to a browser that did not use the link', async () => {
+    const stranger = await browser.newPage()
+    const answer = await stranger.goto(running.base)
+    expect(answer.status()).toBe(401)
+    expect(await stranger.locator('body').innerText()).toContain('caixa serve')
+    await stranger.close()
   })
 })

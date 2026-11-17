@@ -7,8 +7,8 @@ tags:
 hierarchy:
 - Istanbul
 - Phase1-Collector
-last_reviewed: 2026-11-02
-focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
+last_reviewed: 2026-11-17
+focus: "APPROVED 2026-11-01 (rev 3), amended 2026-11-17 (own window; removing people). Execution in progress."
 ---
 
 
@@ -26,6 +26,27 @@ focus: "APPROVED 2026-11-01 (rev 3). Tickets created; execution in progress."
 > **Decision 2026-11-02 (command name):** Chattr's terminal command is **`chattr-cli`**, not
 > `chattr`, which is a standard Linux command (e2fsprogs) that a console script would shadow.
 > The package and import name stay `chattr`, and `python -m chattr` also works.
+>
+> **Amendment 2026-11-17 (Caixa's own window; the collector leaves DeepSeek Harness):** the
+> maintainer found DeepSeek Harness a poor harness for collecting and authoring, and decided to move
+> the collector out of it into a service of its own, served with Python, in the Nord theme, able to
+> open the authoring view (the box's pages). `caixa serve` now runs the service layer and a small
+> web server in one Python process (`caixa/web.py`), on 127.0.0.1 only, with a sign-in link, a
+> session cookie and Host/Origin checks. The React pages are kept and built into the package
+> (`caixa/data/web/`, committed), so running Caixa needs neither Node.js nor DeepSeek Harness. The
+> box's pages are served at their own addresses (`/box/…`). The harness plugin stays in `harness/`
+> unlaunched until its removal is decided. Caixa has three modes: **collection and authoring**
+> (this read-write service), **presentation** (a separate read-only service on its own port,
+> possibly in Docker; later) and **static** (the box's plain files). Stage 2 (the personal model)
+> and Stage 3 (the harness glue, DeepSeek for now) come after Phase 1 and a Stage 1.5 of
+> requirements for photos, home videos, Obsidian vaults, PDFs and quieter mail. "Application: how
+> people run Caixa" below describes the design as first approved; this amendment replaces its
+> launcher and plugin parts. Ticket `20261117-04`.
+>
+> **Amendment 2026-11-17 (removing people; the owner's preference file):** instead of a pruning
+> rule, imports stay as they are and the owner removes people by hand, in the People section and on
+> the index page. What the owner decides about people (names given by hand, categories, who was
+> removed) is kept in `.caixa/owner.json`, which outlives a reset. Tickets `20261117-01` to `-03`.
 >
 > This file records the architecture agreed in design discussion.
 > Revision 2 recast Chattr from its full history, including the previously uncommitted v2 work

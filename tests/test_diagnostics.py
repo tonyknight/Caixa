@@ -41,7 +41,7 @@ def test_the_report_names_the_install_and_what_is_missing(service: Service) -> N
     for heading in ("Caixa", "Programs", "Interface", "Box"):
         assert f"\n== {heading} ==" in "\n" + text
     assert "caixa 0.1.0" in text and "python" in text.lower()
-    for program in ("node", "ffmpeg", "whisper-cli", "exiftool"):
+    for program in ("ffmpeg", "whisper-cli", "exiftool"):
         assert program in text
     assert "no box is open" in text.lower()
 

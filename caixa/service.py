@@ -157,8 +157,8 @@ class _Pace:
             self.emit(held)
 
 
-#: A line the worker writes to its error stream with this mark is shown, by `caixa serve`, in the
-#: terminal Caixa was started from (see `caixa.serve`); everything else there goes to a log file.
+#: How a job is getting on, written to the terminal Caixa was started from (`caixa serve` runs the
+#: service in its own process, so its error stream is that terminal) with this mark in front.
 TERMINAL_MARK = "[caixa] "
 
 

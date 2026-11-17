@@ -6,7 +6,7 @@ import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, openCaixa, playwright, shot, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -43,7 +43,7 @@ run('translation settings, in a browser', () => {
     })
     await new Promise<void>(resolve => model.listen(0, '127.0.0.1', resolve))
     endpoint = `http://127.0.0.1:${(model.address() as AddressInfo).port}/v1`
-    running = await startHarness()
+    running = await startCaixa()
     box = join(running.work, 'Translation box')
     const made = await running.rpc('box.create', { path: box, name: 'Translation box', owner: 'Maria Costa' })
     expect(made.ok, JSON.stringify(made)).toBe(true)

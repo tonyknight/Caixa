@@ -9,5 +9,5 @@
  */
 export const PAGE_SCRIPTS: readonly string[] = [
   'sha256-USdE6WO3aXb2/ZFcN/hasOy2FqqhtEhakS5FFGDQOMs=', // lightbox.js
-  'sha256-kuCExLzFJvkNnkkp9YXxKYIpCCVFJH+njgEjZYlA0SE=', // index.js
+  'sha256-YA5elmkR/UU7RVSdmHvfntjV72rDuW6PP83R+zhWeOk=', // index.js
 ]

@@ -209,6 +209,27 @@ describe('a reply that is older than what the event stream already said', () => 
     expect(store.job(9)?.status).toBe('done') // the older answer did not win
   })
 
+  it('keeps the newest of two lists that come back in the wrong order', async () => {
+    const { api, store } = make()
+    await store.start()
+    // An undo: the first list is asked for before the undone import is marked, the second after;
+    // the first answers last.
+    const answers: (() => void)[] = []
+    let calls = 0
+    api.jobs = async () => {
+      const marked = ++calls === 2
+      const list = [job({ id: 2, kind: 'undo', status: 'done' }), job({ id: 1, status: 'done', result: marked ? { inserted: 3, updated: 0, unchanged: 0, pages: 1, unresolved: [], warnings: [], undone: true } : { inserted: 3, updated: 0, unchanged: 0, pages: 1, unresolved: [], warnings: [] } })]
+      await new Promise<void>((resolve) => { answers.push(resolve) })
+      return ok(list)
+    }
+    const older = store.refreshJobs()
+    const newer = store.refreshJobs()
+    await settle()
+    answers[1]!(); await newer
+    answers[0]!(); await older
+    expect(store.job(1)?.result?.undone).toBe(true)
+  })
+
   it('still takes news about jobs it has not finished, and jobs it did not know', async () => {
     const { api, store } = make()
     api.jobList = [job({ id: 1, status: 'running', result: null })]

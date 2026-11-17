@@ -162,23 +162,24 @@ Most people who will use a box are not technical: the person building it, and ab
 inherits it years later. The interface has to be a **web browser**, ask as little of the computer as
 possible, and keep working for years while its parts change.
 
-**Built on an open harness.** Caixa's interface is a plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness)
-(`dsh web`, MIT-licensed): an open agent harness with a web interface and a plugin system. Using it means
-we write the Caixa pages and the data code, not a web application and an agent runtime from scratch, and
-it is also where the personal model is meant to run.
+**Caixa's own window.** `caixa serve` starts one Python process that holds the data code and a
+small web server, and opens the browser on it. Nothing else needs to be installed or running.
 
 ```
- browser ──► DeepSeek Harness ──► Caixa plugin ──► caixa worker ──► collectors, master database, box
-           (sign-in, Host/Origin  /api/caixa/*     (Python; JSON-RPC
-            checks, loopback only) owner-only       over stdio, no
-                                                    network listener)
+ browser ──► caixa serve (Python, 127.0.0.1 only) ──► service layer ──► collectors, master database, box
+           sign-in link, session cookie,            the same calls the command line and
+           Host and Origin checks                   `caixa worker` use
 ```
 
-All data work stays in Python (`caixa worker`); the plugin only runs it and exposes owner-only routes to
-the pages. The worker is never reachable except through the harness's own authentication.
+The window is the Caixa page: create or open a box, then Import, Jobs, People, Browse and Settings,
+in the Nord colours the box's own pages use. The box's pages are served at their own addresses
+(`/box/…`), so their links work unchanged. Caixa used to run inside DeepSeek Harness; that proved a
+poor fit for collecting and editing, and the window is now Caixa's own (see the Phase 1
+Requirements, amendment of 2026-11-17). The plugin is kept in [`harness/`](harness/) for now, but
+nothing starts it.
 
 **Platform independent.** There is no native app. The interface is a browser page served from your own
-computer (`127.0.0.1` only), so it looks and behaves the same wherever Python and Node run: developed and
+computer (`127.0.0.1` only), so it looks and behaves the same wherever Python runs: developed and
 tested on Linux, with macOS as the target (it has to be, for iMessage), and other systems to follow. The
 box itself is a folder: copy it to a drive, a NAS or a USB stick and it is still complete. A Docker image
 is planned.
@@ -188,19 +189,18 @@ is planned.
 - **The worker's protocol is the seam.** The command line and the browser both go through one service
   layer, and the browser reaches it only through a small, documented JSON-RPC protocol. The interface can
   be rebuilt or upgraded without touching the data code, and the data code without touching the interface.
-- **The harness version is pinned.** DeepSeek Harness is a young project whose plugin interfaces still
-  change. Caixa pins one exact version and the plugin declares which it supports; upgrading is a deliberate
-  step that follows the harness's upgrade guide, checked by tests that run the real pinned harness in a
-  real browser. Caixa keeps its own copy in its own folder and never touches yours.
+- **The window comes built.** Its code (React, in `harness/src`) is built into the Python package
+  (`caixa/data/web/`) and committed, so running Caixa needs no Node.js. Only someone changing the
+  interface builds it, and a test fails if the sources change without a rebuild.
 - **New sources need no interface work.** A collector installed as a package appears in the import wizard
   with its form and its "how to export" card.
 - **Updating a box is just importing.** Importing a newer export adds only what is new, and the pages are
   redrawn; there is no "upgrade the archive" step.
 
-**Privacy of the harness itself.** Its session logging and telemetry are switched off in Caixa's copy,
-the sign-in link carries a one-time token that is never printed or logged, and a read-only mode
-(`caixa worker --read-only`) already exists as the groundwork for an **heir mode**: a box opened for
-reading and asking, in which nothing can be changed.
+**Privacy of the window.** It listens on this computer only; the sign-in link carries a secret
+ticket, shown only in the terminal (and in Caixa's own folder, readable only by you); requests are not
+logged. A read-only mode (`caixa worker --read-only`) already exists as the groundwork for a
+**presentation mode**: a box opened for reading, on a port of its own, in which nothing can be changed.
 
 ## Where the project is
 
@@ -211,7 +211,7 @@ Caixa is in early development. This is what exists today, and what does not.
 | **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; not yet verified against real exports |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
-| **Browser interface**: create a box, import wizard, jobs, people, browse, settings | Built, and tested in a real browser against the real harness |
+| **Browser interface**: create a box, import wizard, jobs, people, browse, settings | Built, and tested in a real browser against the real `caixa serve` |
 | **Chattr's own browser page** (`chattr-cli serve`) | Built |
 | **Search index, personal model, the heirs' "Ask" experience** | Planned |
 | **Heir mode, Docker image** | Planned (read-only worker exists) |
@@ -239,7 +239,6 @@ macOS is the target for iMessage. Windows is untested (and `caixa serve` does no
 | **A local speech model** | optional | To transcribe voicemail: whisper.cpp's `whisper-cli` and a model file, or the `faster-whisper` package and a model folder. Caixa never downloads a model. |
 | **A translation model** | optional | Any OpenAI-compatible service: one on your own computer (for example Ollama at `http://localhost:11434/v1`) or a paid one (OpenRouter, DeepSeek) with your API key. Off until you turn it on; set it up and test it in Settings. |
 | **macOS "Full Disk Access"** | iMessage only | macOS lets a program read `~/Library/Messages/chat.db` only after you allow it in System Settings, Privacy & Security. Caixa opens the database read-only. |
-| **Node.js 24.9 or newer, and pnpm** | the browser interface only | `caixa serve` runs DeepSeek Harness, which needs Node 24.9+. `pnpm` is installed with `npm install -g pnpm` (or `corepack enable`). The first run downloads the pinned DeepSeek Harness once. |
 
 The command-line collectors need only Python. Everything in the table marked optional can be added
 later.
@@ -266,29 +265,15 @@ caixa --version         # caixa 0.1.0
 caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
 ```
 
-For the browser interface, install what the plugin is built with once, then start it:
+Then start the browser interface:
 
 ```bash
-pnpm --dir harness install
 caixa serve --box ~/Our\ Box
 ```
 
-`caixa serve` builds the interface when it starts, and builds it again whenever its source has changed
-(after a `git pull`), so the browser never shows an older interface than the code you have. Settings
-shows when the interface was built, and which version and commit of Caixa is running. A running Caixa
-keeps the code it started with: after an update, stop it and start it again (Settings and `caixa serve`
-both say so when the code on disk is newer than what is running).
-
-To work on Caixa itself, add the development tools and run the tests:
-
-```bash
-pip install -e "tools/chattr[dev]" -e ".[dev]"
-python -m pytest -q          # tests use only synthetic, fictional data
-python -m black --check . && python -m mypy caixa tools/chattr/src
-```
-
-**Next:** [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md) explains how to use each
-collector, where the data goes, and how to tell that an import worked.
+Settings shows which version and commit of Caixa is running. A running Caixa keeps the code it
+started with: after an update, stop it and start it again (Settings and `caixa serve` both say so when
+the code on disk is newer than what is running).
 
 ## Using Caixa from the command line
 
@@ -316,30 +301,25 @@ refused, and nothing is written.
 
 ## The browser interface
 
-The browser interface is a plugin for DeepSeek Harness, kept in [`harness/`](harness/). It runs
-`caixa worker` and adds the Caixa pages to `dsh web`. See [`harness/README.md`](harness/README.md)
-for how it fits together, the pinned DeepSeek Harness version and how to develop it. It needs Node
-24.9 or newer; everything else, including `chattr-cli serve`, needs only Python.
-
 ```bash
-pnpm --dir harness install       # once, from a checkout (caixa serve builds the interface itself)
-caixa serve --box ~/Our\ Box     # starts everything and opens your browser
-caixa serve --stop               # stops it
+caixa serve --box ~/Our\ Box     # starts Caixa and opens your browser
+caixa serve --no-browser         # prints the link instead
+caixa serve --stop               # stops it (from any terminal; Control-C works too)
 ```
 
-`caixa serve` checks Node first and says plainly what is missing. It keeps DeepSeek Harness in Caixa's
-own folder (`~/.local/share/caixa`, or `~/Library/Application Support/Caixa` on a Mac; never your own
-`~/.dsh`), installs the pinned version there on first run (that needs the network once), turns off
-its session logs and telemetry, and listens on `127.0.0.1` only. The link it opens carries a sign-in
-token; it is never printed (unless you pass `--no-browser`) or logged. If you close the terminal
-abruptly, the next `caixa serve` finds the running instance again instead of starting another.
+`caixa serve` listens on `127.0.0.1` only, on any free port unless you give `--port`. It opens the
+browser with a sign-in link; a browser without it sees only a page saying to use the link. Run
+`caixa serve` again while it runs and it opens the same window instead of starting another; it
+remembers what is running in its own folder (`~/.local/share/caixa`, or `~/Library/Application
+Support/Caixa` on a Mac). Progress of each import is shown in the terminal as it goes.
 
-**What you should see.** The browser opens straight onto the Caixa page, in a window called Caixa:
-create or open a box, then Import, Jobs, People, Browse and Settings. There is no sign-in prompt and no
-welcome notice. Caixa runs inside DeepSeek Harness, and two of the harness's own controls are still in
-the left-hand column, **New Session** and the **Workspaces** list (its chat); they cannot be switched off
-yet without breaking it. They are not needed for anything Caixa does today. The harness's plugin browser
-and automation list are switched off.
+The window's code is in [`harness/src`](harness/src) (React). After changing it, rebuild it with
+Node.js 24.9 or newer:
+
+```bash
+pnpm --dir harness install       # once
+pnpm --dir harness run build:app # writes caixa/data/web/, which is committed
+```
 
 **Picking up where you left off.** Caixa remembers the box you had open, the section you were in and
 an import you had set up but not started, in its own folder (never inside a box). Stop it and start it
@@ -348,12 +328,6 @@ again and you land where you were; `caixa serve` reopens your last box (or pass 
 wanted, and `caixa doctor` (or **Create a report** in the browser) makes a report you can paste, with
 no names, numbers or messages in it. Details are in
 [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#when-something-does-not-work).
-
-**If an earlier `caixa serve` showed a "Preview Notice" you could not dismiss** ("The
-acknowledgement could not be saved"), update Caixa and run `caixa serve --stop`, then `caixa serve`
-again. The first run after updating replaces the harness with the exact build Caixa is tested with
-(about a minute, with the network). The cause and how it is pinned are in
-[`caixa/data/dsh/README.md`](caixa/data/dsh/README.md).
 
 ## Chattr and its mirror
 

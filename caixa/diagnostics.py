@@ -26,7 +26,6 @@ if TYPE_CHECKING:
 
 #: Programs Caixa can use, and what each one is for.
 PROGRAMS = (
-    ("node", "the browser interface (needs 24.9 or newer)"),
     ("ffmpeg", "voicemail transcription"),
     ("whisper-cli", "voicemail transcription"),
     ("exiftool", "photo and video dates (optional)"),
@@ -59,27 +58,13 @@ def _programs() -> list[str]:
     return lines
 
 
-def _package_version(package: Path) -> str:
-    try:
-        import json
-
-        return str(json.loads((package / "package.json").read_text(encoding="utf-8"))["version"])
-    except (OSError, ValueError, KeyError):
-        return "not installed"
-
-
 def _interface() -> list[str]:
     home = caixa_home()
-    harness = home / "dsh"
     lines = [f"Caixa's folder: {home}"]
-    modules = harness / "node_modules" / "@deepseek-ai"
-    lines.append(f"harness: {_package_version(modules / 'dsh')} (wanted {serve.DSH_VERSION})")
-    lines.append(f"harness cordis: {_package_version(modules / 'cordis')}")
-    try:
-        current = serve._install_is_current(harness)
-    except OSError:
-        current = False
-    lines.append(f"harness installed from Caixa's lockfile: {'yes' if current else 'no'}")
+    running = serve.read_state(home, check=False)
+    lines.append(f"window: running on port {running['port']}" if running else "window: not running")
+    built = Path(__file__).resolve().parent / "data" / "web" / "app.js"
+    lines.append(f"window built in: {'yes' if built.is_file() else 'no'}")
     lines.append(f"remembered state: {'yes' if (home / 'state.json').is_file() else 'none yet'}")
     return lines
 

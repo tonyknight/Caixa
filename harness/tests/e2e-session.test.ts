@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { canRun, openCaixa, playwright, startHarness, type Running } from './e2e-support.ts'
+import { canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -18,7 +18,7 @@ run('stopping and starting Caixa again', () => {
   beforeAll(async () => {
     remembered = mkdtempSync(join(tmpdir(), 'caixa-remembered-'))
     box = join(remembered, 'Our Box')
-    first = await startHarness({ caixaHome: join(remembered, 'home') })
+    first = await startCaixa({ caixaHome: join(remembered, 'home') })
     const made = await first.rpc('box.create', { path: box, name: 'Our box', owner: 'Maria Costa' })
     expect(made.ok, JSON.stringify(made)).toBe(true)
     const kept = await first.rpc('session.set', { values: {
@@ -28,7 +28,7 @@ run('stopping and starting Caixa again', () => {
     expect(kept.ok, JSON.stringify(kept)).toBe(true)
     await first.stop() // Caixa is stopped: nothing but the folder of remembered things survives
     first = undefined
-    second = await startHarness({ caixaHome: join(remembered, 'home') })
+    second = await startCaixa({ caixaHome: join(remembered, 'home') })
   }, 240_000)
 
   afterAll(async () => {

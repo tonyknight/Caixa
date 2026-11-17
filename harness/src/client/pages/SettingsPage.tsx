@@ -226,7 +226,8 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
           {t('settings.version', { version: worker.version, commit: worker.commit || t('settings.built.unknown'), when: worker.started ? new Date(worker.started).toLocaleString() : t('settings.built.unknown') })}
         </p>
       )}
-      <p className={css.muted} data-testid="caixa-built">{t('settings.built', { when: BUILT ? new Date(BUILT).toLocaleString() : t('settings.built.unknown') })}</p>
+      {/* (only the DeepSeek Harness plugin is built on this computer; Caixa's own window comes with Caixa) */}
+      {BUILT && <p className={css.muted} data-testid="caixa-built">{t('settings.built', { when: new Date(BUILT).toLocaleString() })}</p>}
     </div>
   )
 }

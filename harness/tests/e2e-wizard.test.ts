@@ -6,7 +6,7 @@ import { readdirSync, statSync, readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { join, relative } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildFixtures, canRun, openCaixa, playwright, startHarness, type Running } from './e2e-support.ts'
+import { buildFixtures, canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 
@@ -45,7 +45,7 @@ run('the import wizard, in a browser', () => {
   let browserBox: string
 
   beforeAll(async () => {
-    running = await startHarness()
+    running = await startCaixa()
     fixtures = buildFixtures(mkdtempSync(join(tmpdir(), 'caixa-fixtures-')))
     browserBox = join(running.work, 'Browser box')
     cliBox = join(running.work, 'CLI box')

@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildFixtures, canRun, dismissDialogs, openCaixa, playwright, startHarness, type Running } from './e2e-support.ts'
+import { buildFixtures, canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -26,7 +26,7 @@ run('Browse and Settings, in a browser', () => {
   }
 
   beforeAll(async () => {
-    running = await startHarness()
+    running = await startCaixa()
     const fixtures = buildFixtures(mkdtempSync(join(tmpdir(), 'caixa-fixtures-')))
     box = join(running.work, 'Box')
     expect((await running.rpc('box.create', { path: box, name: 'Browse box', owner: 'Maria Costa' })).ok).toBe(true)
@@ -48,7 +48,7 @@ run('Browse and Settings, in a browser', () => {
       const frame = page.frameLocator('iframe[title^="The page"]')
       await frame.getByText('Que lindo! Buy two.').waitFor({ timeout: 30_000 })
 
-      // Its photo comes through the box route (relative links were rewritten).
+      // Its photo comes from the box at its own address (the page's relative links work as they are).
       // (go to its year first: only the days on screen are laid out, the rest wait until scrolled to)
       await frame.getByRole('navigation', { name: 'Years' }).getByRole('link', { name: '2024' }).click()
       // (pictures load when scrolled to)
@@ -56,7 +56,8 @@ run('Browse and Settings, in a browser', () => {
       await photo.waitFor({ state: 'attached' })
       await photo.evaluate((image: HTMLElement) => image.scrollIntoView({ block: 'center' }))
       await expect.poll(() => photo.evaluate((image: HTMLImageElement) => image.naturalWidth), { timeout: 30_000 }).toBeGreaterThan(0)
-      expect(await photo.getAttribute('src')).toMatch(/^\/api\/caixa\/box\?path=People%2FAna%20Costa%2FWhatsApp/)
+      expect(await photo.getAttribute('src')).toMatch(/^WhatsApp\//)
+      expect(await photo.evaluate((image: HTMLImageElement) => image.src)).toMatch(/^http.*\/box\/People\/Ana%20Costa\/WhatsApp\//)
 
       // Clicking it shows it full size over the page (the one script Caixa lets a page run), and
       // Escape closes it.
@@ -65,7 +66,7 @@ run('Browse and Settings, in a browser', () => {
       await photo.click()
       const lightbox = frame.getByRole('dialog', { name: 'Picture' })
       await lightbox.waitFor({ timeout: 15_000 })
-      expect(await lightbox.locator('img').getAttribute('src')).toMatch(/^http.*\/api\/caixa\/box\?path=People%2FAna%20Costa%2FWhatsApp/)
+      expect(await lightbox.locator('img').getAttribute('src')).toMatch(/^http.*\/box\/People\/Ana%20Costa\/WhatsApp\//)
       await page.keyboard.press('Escape')
       await lightbox.waitFor({ state: 'hidden', timeout: 15_000 })
       expect(errors.filter(text => /Content Security Policy|Refused to execute/i.test(text))).toEqual([])
@@ -85,7 +86,7 @@ run('Browse and Settings, in a browser', () => {
       await index.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
 
       // Served under a policy that forbids scripts, and nothing outside the box can be asked for.
-      const served = await page.context().request.get(`${running.base}/api/caixa/box?path=${encodeURIComponent('People/Ana Costa/Ana Costa.html')}`)
+      const served = await page.context().request.get(`${running.base}/box/People/Ana%20Costa/Ana%20Costa.html`)
       expect(served.status()).toBe(200)
       expect(served.headers()['content-security-policy']).toContain("default-src 'none'")
       expect(served.headers()['x-content-type-options']).toBe('nosniff')
@@ -93,7 +94,7 @@ run('Browse and Settings, in a browser', () => {
         const refused = await page.context().request.get(`${running.base}/api/caixa/box?path=${encodeURIComponent(path)}`)
         expect([403, 404], path).toContain(refused.status())
       }
-      const noCookie = await fetch(`${running.base}/api/caixa/box?path=index.html`)
+      const noCookie = await fetch(`${running.base}/box/index.html`)
       expect(noCookie.status).toBe(401) // owner-only, like every Caixa route
     } finally {
       await browser.close()
@@ -113,8 +114,7 @@ run('Browse and Settings, in a browser', () => {
       expect((await running.rpc('settings.get')).result.values['privacy.default']).toBe('family')
 
       await page.reload({ waitUntil: 'networkidle' })
-      await dismissDialogs(page)
-      await page.locator('[aria-label="Caixa"]').first().click()
+      await page.locator('[data-testid="caixa-page"]').waitFor()
       await page.getByRole('navigation').getByRole('button', { name: 'Settings' }).click()
       await expect.poll(() => page.getByLabel('Who can see new items').inputValue()).toBe('family')
     } finally {
