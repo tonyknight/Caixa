@@ -946,6 +946,11 @@ class Service:
         """Handles (a number, an address, a name) that no person is known for, busiest first."""
         box = self._require_box()
         handles = [h for aware in self._people_aware() for h in aware.unresolved(box)]
+        removed = owner_file.removed_matcher(
+            owner_file.load(box)["removed"], str(settings.load(box).get("contacts.region") or "US")
+        )
+        if removed is not None:  # removed already, gone once the redraw job has run
+            handles = [h for h in handles if not removed(h["service"], h["identifier"], None)]
         handles.sort(key=lambda h: (-h["messages"], h["service"], h["identifier"]))
         return {"handles": handles}
 

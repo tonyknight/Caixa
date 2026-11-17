@@ -1,6 +1,6 @@
 import type {
   TranslationTest, ContactsCheck, ResetResult,
-  Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
+  Api, BoxStatus, BrowseListing, SettingsReply, Handle, Person, PersonChange, Removal, WorkerInfo, CaixaResult, CollectorDescription, FilesListing, InboxListing, Job, JobLog,
   PreviewResult, SessionInfo, ImportDraft, UndoInfo,
 } from '../src/client/api.ts'
 
@@ -154,6 +154,9 @@ export class FakeApi implements Api {
   async link(service: string, identifier: string, person: number | string, move?: boolean) { this.record('link', service, identifier, person, move); return this.changeReply('link', [service, identifier, person, move]) }
   async rename(person: number, name: string) { this.record('rename', person, name); return this.changeReply('rename', [person, name]) }
   async merge(source: number, target: number) { this.record('merge', source, target); return this.changeReply('merge', [source, target]) }
+  /** Reply to the next removal; replace to script failures. */
+  removeReply: (people: unknown[], handles: unknown[]) => CaixaResult<Removal> = (people, handles) => ok({ removed: people.length + handles.length, remembered: people.length + handles.length, job: job({ id: 9, kind: 'refresh', collector: null, source: null, status: 'queued', stage: null, result: null }) })
+  async remove(people: (number | string)[], handles: { service: string; identifier: string }[]) { this.record('remove', people, handles); return this.removeReply(people, handles) }
   async inbox() { this.record('inbox'); return this.inboxReply }
   async call<T = unknown>(method: string, params: Record<string, unknown> = {}) {
     this.record('call', method, params)

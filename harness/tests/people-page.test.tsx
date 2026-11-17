@@ -188,3 +188,52 @@ describe('a read-only box', () => {
     expect((screen.getByRole('button', { name: 'Merge… Rui Pereira' }) as HTMLButtonElement).disabled).toBe(true)
   })
 })
+
+describe('deleting records not yet named', () => {
+  it('shows a box on every record once the box at the top is ticked, then deletes the chosen after asking', async () => {
+    const view = await page()
+    expect(screen.queryByLabelText('Choose Ana Costa')).toBeNull()
+    expect(screen.queryByRole('button', { name: /Delete/ })).toBeNull()
+    fireEvent.click(screen.getByLabelText('Choose records to delete'))
+    const rows = screen.getAllByRole('row').slice(1)
+    expect(within(rows[0]!).getByLabelText('Choose Ana Costa')).toBeTruthy()
+    expect(within(rows[1]!).getByLabelText('Choose +1 555 0102')).toBeTruthy()
+    const remove = screen.getByRole('button', { name: 'Delete (0)' }) as HTMLButtonElement
+    expect(remove.disabled).toBe(true)
+    fireEvent.click(screen.getByLabelText('Choose +1 555 0102'))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete (1)' }))
+    const ask = screen.getByRole('alertdialog')
+    expect(ask.textContent).toContain('What they wrote in group conversations stays.')
+    expect(view.api.calls.some(call => call[0] === 'remove')).toBe(false)  // nothing until confirmed
+    view.api.handleList = view.api.handleList.slice(0, 1)  // what Caixa lists once they are removed
+    fireEvent.click(within(ask).getByRole('button', { name: 'Delete' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['remove', [], [{ service: 'iMessage', identifier: '+1 555 0102' }]])
+    expect(screen.getByRole('status').textContent).toContain('Deleted the records chosen (1).')
+    expect(screen.getByRole('heading', { name: 'Not yet named (1)' })).toBeTruthy()
+    expect(screen.queryByLabelText('Choose Ana Costa')).toBeNull()  // the boxes go away again
+  })
+
+  it('chooses all with the top box once the boxes show, and cancels without deleting', async () => {
+    const view = await page()
+    const top = screen.getByLabelText('Choose records to delete')
+    fireEvent.click(top)
+    fireEvent.click(screen.getByLabelText('Choose all'))
+    expect(screen.getByRole('button', { name: 'Delete (2)' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByLabelText('Choose Ana Costa')).toBeNull()
+    expect(view.api.calls.some(call => call[0] === 'remove')).toBe(false)
+  })
+
+  it('says why when Caixa refuses', async () => {
+    const view = await page()
+    view.api.removeReply = () => fail('busy', 'Wait for the import that is running to finish.')
+    fireEvent.click(screen.getByLabelText('Choose records to delete'))
+    fireEvent.click(screen.getByLabelText('Choose Ana Costa'))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete (1)' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Delete' }))
+    await view.flush()
+    expect(screen.getByRole('alert').textContent).toBe('Wait for the import that is running to finish.')
+    expect(screen.getByRole('heading', { name: 'Not yet named (2)' })).toBeTruthy()
+  })
+})

@@ -229,6 +229,13 @@ export interface Handle {
   readonly collector: string
 }
 
+/** What removing people returns: how many went, and the job that deletes their data and redraws. */
+export interface Removal {
+  readonly removed: number
+  readonly remembered: number
+  readonly job: Job | null
+}
+
 /** What a change to people returns: the person as they now are, and the job that redraws pages. */
 export interface PersonChange {
   readonly person: Person
@@ -350,6 +357,8 @@ export interface Api {
   link(service: string, identifier: string, person: number | string, move?: boolean): Promise<CaixaResult<PersonChange>>
   rename(person: number, name: string): Promise<CaixaResult<PersonChange>>
   merge(source: number, target: number): Promise<CaixaResult<PersonChange>>
+  /** Take people (by id or name) and unnamed handles out of the box, with their conversations. */
+  remove(people: (number | string)[], handles: { service: string; identifier: string }[]): Promise<CaixaResult<Removal>>
   /** Any worker method, for the pages that need one the wrappers above do not cover. */
   call<T = unknown>(method: string, params?: Record<string, unknown>): Promise<CaixaResult<T>>
   /** Follow the worker's notifications; returns the function that stops following. */
@@ -391,6 +400,7 @@ export function makeApi(fetcher: typeof fetch = fetch, makeSource?: (url: string
     link: (service, identifier, person, move = false) => run('people.link', { service, identifier, person, move }),
     rename: (person, name) => run('people.rename', { person, name }),
     merge: (source, target) => run('people.merge', { source, target }),
+    remove: (people, handles) => run('people.delete', { people, handles }),
     call: run,
     follow: onEvent => follow(onEvent, makeSource),
   }

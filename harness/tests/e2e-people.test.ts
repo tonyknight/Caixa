@@ -105,6 +105,19 @@ run('the People section, in a browser', () => {
       // Nothing was lost: every item still links to a person who is in the box.
       const status = (await running.rpc('box.status')).result
       expect(status.items).toBe(14)
+
+      // Delete a record not yet named: tick the box at the top, choose it, Delete, confirm.
+      const left = (await running.rpc('people.unresolved')).result.handles as { service: string; identifier: string }[]
+      expect(left.length).toBeGreaterThan(0)
+      const gone = left[0]!
+      await page.getByLabel('Choose records to delete').click()  // it stays empty: it shows the boxes
+      await page.getByLabel(`Choose ${gone.identifier}`).check()
+      await page.getByRole('button', { name: 'Delete (1)' }).click()
+      await page.getByRole('alertdialog').getByRole('button', { name: 'Delete', exact: true }).click()
+      await upToDate('Deleted the records chosen (1).')
+      const after = (await running.rpc('people.unresolved')).result.handles as { service: string; identifier: string }[]
+      expect(after.map(h => h.identifier)).not.toContain(gone.identifier)
+      expect((await running.rpc('box.status')).result.items).toBeLessThan(14)
     } finally {
       await browser.close()
     }

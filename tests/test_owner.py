@@ -138,6 +138,23 @@ def test_deleting_a_person_removes_their_conversation_their_files_and_their_page
     assert not (folder / f"{family.ANA.name}.html").exists()
 
 
+def test_a_removed_number_leaves_the_list_to_be_named_at_once(
+    service: Service, fixture_family
+) -> None:
+    job = service.import_start("imessage", str(fixture_family.paths["imessage"]))
+    assert service.wait(job["id"], 120)["status"] == "done"
+    listed = service.people_unresolved()["handles"]
+    assert listed
+    first = listed[0]
+    service.people_delete(
+        handles=[{"service": first["service"], "identifier": first["identifier"]}]
+    )
+    left = service.people_unresolved()["handles"]  # before the redraw job has run
+    assert (first["service"], first["identifier"]) not in {
+        (h["service"], h["identifier"]) for h in left
+    }
+
+
 def test_the_owner_cannot_be_deleted_and_nobody_is_an_error(
     service: Service, fixture_family
 ) -> None:

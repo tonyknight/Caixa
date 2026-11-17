@@ -17,6 +17,10 @@ export function PeoplePage() {
   const [failure, setFailure] = useState<string | undefined>()
   const [renaming, setRenaming] = useState<number | undefined>()
   const [merging, setMerging] = useState<number | undefined>()
+  // Removing records not yet named: the box at the top of the list shows a box on every record.
+  const [choosing, setChoosing] = useState(false)
+  const [chosen, setChosen] = useState<Set<string>>(new Set())
+  const [confirming, setConfirming] = useState(false)
 
   useEffect(() => {
     let current = true
@@ -47,6 +51,26 @@ export function PeoplePage() {
     return true
   }
 
+  const key = (handle: Handle) => `${handle.service}|${handle.identifier}`
+  const toggle = (handle: Handle) => setChosen(previous => {
+    const next = new Set(previous)
+    if (next.has(key(handle))) next.delete(key(handle)); else next.add(key(handle))
+    return next
+  })
+  const stopChoosing = () => { setChoosing(false); setChosen(new Set()); setConfirming(false) }
+  const remove = async () => {
+    setFailure(undefined)
+    const picked = handles.filter(handle => chosen.has(key(handle)))
+    const reply = await store.api.remove([], picked.map(handle => ({ service: handle.service, identifier: handle.identifier })))
+    setConfirming(false)
+    if (!reply.ok) { setFailure(reply.error.message); return }
+    setHandles(previous => previous.filter(handle => !chosen.has(key(handle))))
+    setOutcome({ message: t('people.removed', { count: picked.length }), jobId: reply.result.job?.id ?? null })
+    stopChoosing()
+    void store.refreshJobs()
+    store.touch()
+  }
+
   return (
     <div className={css.section}>
       <h2>{t('people.heading')}</h2>
@@ -69,15 +93,41 @@ export function PeoplePage() {
       {loaded && handles.length === 0 && <p className={css.muted}>{t('people.unresolved.none')}</p>}
       {handles.length > 0 && (
         <table className={css.table}>
-          <thead><tr><th>{t('people.service')}</th><th>{t('people.identifier')}</th><th>{t('people.messages')}</th><th /></tr></thead>
+          <thead><tr>
+            <th style={{ width: '1.5rem' }}>
+              <input type="checkbox" disabled={readOnly} aria-label={choosing ? t('people.chooseAll') : t('people.choose')}
+                     checked={choosing && chosen.size === handles.length}
+                     onChange={() => {
+                       if (!choosing) { setChoosing(true); return }
+                       setChosen(chosen.size === handles.length ? new Set() : new Set(handles.map(key)))
+                     }} />
+            </th>
+            <th>{t('people.service')}</th><th>{t('people.identifier')}</th><th>{t('people.messages')}</th><th /></tr></thead>
           <tbody>
             {handles.map(handle => (
-              <HandleRow key={`${handle.service}|${handle.identifier}`} handle={handle} people={people} disabled={readOnly}
+              <HandleRow key={key(handle)} handle={handle} people={people} disabled={readOnly}
+                         choosing={choosing} chosen={chosen.has(key(handle))} onChoose={() => toggle(handle)}
                          onLink={(who, move) => change(() => store.api.link(handle.service, handle.identifier, who, move), person => t('people.linked', { identifier: handle.identifier, name: person.name }))}
                          conflict={failure} />
             ))}
           </tbody>
         </table>
+      )}
+      {choosing && handles.length > 0 && (
+        <div style={{ marginTop: '0.6rem' }}>
+          <button type="button" className={css.button} disabled={chosen.size === 0} onClick={() => setConfirming(true)}>
+            {t('people.delete', { count: chosen.size })}
+          </button>
+          {' '}<button type="button" className={css.button} onClick={stopChoosing}>{t('people.cancel')}</button>
+          {confirming && (
+            <div className={css.banner} role="alertdialog" aria-label={t('people.deleteConfirm', { count: chosen.size })} style={{ marginTop: '0.6rem' }}>
+              <p>{t('people.deleteConfirm', { count: chosen.size })}</p>
+              <p className={css.muted}>{t('people.deleteExplain')}</p>
+              <button type="button" className={`${css.button} ${css.primary}`} onClick={() => void remove()}>{t('people.deleteDo')}</button>
+              {' '}<button type="button" className={css.button} onClick={() => setConfirming(false)}>{t('people.cancel')}</button>
+            </div>
+          )}
+        </div>
       )}
 
       <h3>{t('people.people', { count: people.length })}</h3>
@@ -99,8 +149,9 @@ export function PeoplePage() {
   )
 }
 
-function HandleRow({ handle, people, disabled, onLink, conflict }: {
+function HandleRow({ handle, people, disabled, onLink, conflict, choosing, chosen, onChoose }: {
   handle: Handle; people: Person[]; disabled: boolean; conflict: string | undefined
+  choosing: boolean; chosen: boolean; onChoose: () => void
   onLink: (person: number | string, move: boolean) => Promise<boolean>
 }) {
   const t = useT()
@@ -117,6 +168,7 @@ function HandleRow({ handle, people, disabled, onLink, conflict }: {
   }
   return (
     <tr>
+      <td>{choosing && <input type="checkbox" checked={chosen} onChange={onChoose} aria-label={t('people.chooseOne', { identifier: handle.identifier })} />}</td>
       <td>{handle.service}</td>
       <td>{handle.identifier}{handle.display_name && handle.display_name !== handle.identifier ? <><br /><span className={css.muted}>{handle.display_name}</span></> : null}</td>
       <td>{handle.messages}</td>
