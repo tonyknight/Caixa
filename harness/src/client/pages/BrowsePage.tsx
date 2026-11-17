@@ -103,10 +103,10 @@ function Viewer({ name, path }: { name: string; path: string }) {
   const kind = kindOf(name)
   const link = <p><a href={url} target="_blank" rel="noopener noreferrer">{t('browse.newTab')}</a></p>
   if (kind === 'page' || kind === 'text') {
-    // No scripts run in the frame (the file is served under a policy that forbids them), and its
-    // sandbox lets it keep its own address so its links to other pages work, and run scripts, of which
-    // the page's Content-Security-Policy admits exactly one: the pages' own lightbox, by its hash.
-    return <>{link}<iframe className={css.frame} title={t('browse.frame', { name })} src={url} sandbox="allow-same-origin allow-scripts" /></>
+    // The frame's sandbox lets the page keep its own address so its links to other pages work, open
+    // a page in a new window (the index does, keeping its selection), and run scripts, of which the
+    // page's Content-Security-Policy admits only the pages' own, by their hashes.
+    return <>{link}<iframe className={css.frame} title={t('browse.frame', { name })} src={url} sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox" /></>
   }
   if (kind === 'image') return <>{link}<img className={css.media} src={url} alt={name} /></>
   if (kind === 'audio') return <>{link}<audio className={css.progress} controls src={url} aria-label={name} /></>

@@ -90,6 +90,49 @@ run('sorting people on the index page, in a browser', () => {
       await index.getByText('1 person moved to Friends.').waitFor({ timeout: 30_000 })
       expect((await categories())['Sara Lima']).toBe('friends')
 
+      // in a category, the close box on hover sends someone back to Unassigned
+      await index.locator('.sidebar a[data-view="friends"]').click()
+      const sara = index.locator('#people .cell:visible').first()
+      await sara.hover()
+      await sara.getByRole('button', { name: 'Move Sara Lima back to Unassigned' }).click()
+      await index.getByText('Sara Lima moved back to Unassigned.').waitFor({ timeout: 30_000 })
+      expect((await categories())['Sara Lima']).toBe(null)
+      expect(await index.locator('#people .tile:visible').count()).toBe(0)
+
+      // Unrecognized: the number nobody named gets a name, and is kept as a person
+      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await index.getByRole('heading', { name: 'Unrecognized' }).waitFor()
+      const unknown = index.locator('#people .cell:visible').first()
+      await unknown.getByRole('textbox', { name: 'Name for this person' }).fill('Tio Rui')
+      await unknown.getByRole('button', { name: 'Apply' }).click()
+      await index.getByText('Tio Rui is kept as a person, in Unassigned.').waitFor({ timeout: 30_000 }).catch(async (error: Error) => {
+        throw new Error(`footer said: ${await index.locator('#said').textContent()} / ${await unknown.locator('.tile').getAttribute('data-handles')}\n${error.message}`)
+      })
+      expect(Object.keys(await categories())).toContain('Tio Rui')
+
+      // Unassigned: the open-in-a-new-window button keeps the selection; Delete asks, then removes
+      await index.locator('.sidebar a[data-view="unassigned"]').click()
+      const rui = index.locator('#people .cell:visible', { hasText: 'Tio Rui' })
+      await rui.locator('.tile').click()
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('1 selected')
+      await rui.hover()
+      const [opened] = await Promise.all([
+        page.context().waitForEvent('page'),
+        rui.getByRole('button', { name: 'Open Tio Rui in a new window' }).click(),
+      ])
+      await opened.waitForLoadState()
+      expect(decodeURIComponent(opened.url())).toContain('People/')  // (the page from before the redraw)
+      await opened.close()
+      expect(await index.locator('#picked').textContent()).toBe('1 selected')
+      await rui.locator('.tile').press('Delete')
+      const ask = index.getByRole('dialog', { name: 'Delete 1 person from this box?' })
+      await ask.waitFor()
+      await shot(page, 'categories-delete')
+      await ask.getByRole('button', { name: 'Delete' }).click()
+      await index.getByText('1 person deleted. The pages are being redrawn.').waitFor({ timeout: 30_000 })
+      expect(Object.keys(await categories())).not.toContain('Tio Rui')
+      expect(await index.locator('#people .tile', { hasText: 'Tio Rui' }).count()).toBe(0)
+
       // in a category, a click opens the person's page
       await index.locator('.sidebar a[data-view="family"]').click()
       await index.locator('#people .tile:visible').first().click()
@@ -105,6 +148,8 @@ run('sorting people on the index page, in a browser', () => {
     }
     const html = readFileSync(join(box, 'index.html'), 'utf8')
     expect(html).toContain('data-category="family" data-name="Pedro Dias"')
-    expect(html).toContain('data-category="friends" data-name="Sara Lima"')
+    expect(html).toContain('data-category="" data-name="Sara Lima"')
+    expect(html).not.toContain('Tio Rui')
+    expect(html).not.toContain('+15550000123')  // removed, not just renamed
   }, 240_000)
 })

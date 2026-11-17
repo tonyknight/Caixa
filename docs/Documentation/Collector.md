@@ -450,8 +450,10 @@ of imports and their undo copies. It keeps:
 
 - the box's settings (Contacts, translation, speech-to-text, privacy) and its name and owner;
 - its `README.md`, its `Inbox/` and anything waiting there;
-- the **names you gave people** (a number linked to a person, a rename, a merge), which apply again on
-  the next import, unless you ask for them to go too;
+- the **owner's preference file**, `.caixa/owner.json` (see [Removing people and the preference
+  file](#removing-people-and-the-preference-file)): the names you gave people (a number linked to a
+  person, a rename, a merge) and their categories, which apply again on the next import unless you ask
+  for them to go too, and the people you removed, who stay out either way;
 - the translation key, which is not kept in the box anyway.
 
 Only files Caixa wrote are deleted. A file you put in a person's folder yourself stays where it is, and
@@ -571,6 +573,45 @@ tab** gives it the whole window). Opened straight from the folder, in any browse
 categories and works for browsing, but says that sorting needs Caixa. Categories are kept when you
 rename or merge someone, and when you reset the box (unless you ask for the names you gave to be
 forgotten).
+
+**Back to Unassigned.** In Family, Friends, Business or Acquaintances, hover over a tile and choose
+the **×** in its corner: the person goes back to Unassigned.
+
+**Naming someone unrecognized.** In **Unrecognized**, each tile has a **Name** field under it. Type
+the person's name and choose **Apply** (or press Enter): the number or address is linked to that
+name, the person moves to Unassigned, and the name is kept in the preference file.
+
+**Removing people.** In **Unassigned** or **Unrecognized**, select people and press **Delete** (or
+Backspace). Caixa asks first; then their one-to-one conversations with you, and the photos, recordings
+and files in them, are deleted from the box, and their pages go. What they wrote in group conversations
+you took part in stays. Removed people stay out of later imports. It cannot be undone.
+
+**Opening a page without losing the selection.** In Unassigned and Unrecognized a click selects, so
+hover over a tile and choose the **↗** in its corner to open that person's page in a new window; the
+selection stays as it was.
+
+## Removing people and the preference file
+
+Imports bring in everyone an export holds. Two places take out the ones you do not want, with
+everything that came only from them:
+
+- the index page, in Unassigned or Unrecognized: select, then Delete (see above);
+- the **People** section, under "Not yet named": the box at the top left of the first entry shows a
+  box beside every entry; tick the ones to remove and choose **Delete** at the bottom of the list.
+
+What you decide about people is kept in the **owner's preference file**, `.caixa/owner.json` in the
+box. It survives a reset, and every import reads it first:
+
+- `names`: who a number, an address or a name is (what you linked, renamed or merged). These come
+  before Contacts and before the names a source gives;
+- `categories`: the category each person is in;
+- `removed`: the people and numbers you removed. Their conversations are not imported again.
+
+Caixa writes the file whenever one of these changes. It is plain JSON, readable only by you (it holds
+real names and numbers: keep it out of anything you share). You may edit it while Caixa is not
+running: names and categories added there are taken up when the box is next opened, and deleting an
+entry from `removed` lets that person be imported again. The box's settings are a different file,
+`box.yaml`, beside it.
 
 ## Group conversations
 
