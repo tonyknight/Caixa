@@ -575,12 +575,15 @@ categories and works for browsing, but says that sorting needs Caixa. Categories
 rename or merge someone, and when you reset the box (unless you ask for the names you gave to be
 forgotten).
 
-**Back to Unassigned.** In Family, Friends, Business or Acquaintances, hover over a tile and choose
-the **×** in its corner: the person goes back to Unassigned.
+**Back to Unassigned.** In Family, Friends, Business or Acquaintances, hover over a tile: a **×**
+shows in its upper right corner. Choose it and the person goes back to Unassigned. Nothing shows on
+a tile until the pointer is over it.
 
-**Naming someone unrecognized.** In **Unrecognized**, each tile has a **Name** field under it. Type
-the person's name and choose **Apply** (or press Enter): the number or address is linked to that
-name, the person moves to Unassigned, and the name is kept in the preference file.
+**Naming someone unrecognized.** In **Unrecognized**, hover over a tile and a **Name** field shows
+under it. As you type, it offers the people already in the box: pick one (click it, or the arrow keys
+and Enter) and the number or address joins that person, whose page is redrawn with everything from
+it. Or type a new name. **Apply** shows beside the field once something is typed (Enter does the
+same). A new name moves the person to Unassigned. Either way the name is kept in the preference file.
 
 **Removing people.** In **Unassigned** or **Unrecognized**, select people and press **Delete** (or
 Backspace). Caixa asks first; then their one-to-one conversations with you, and the photos, recordings
@@ -588,8 +591,8 @@ and files in them, are deleted from the box, and their pages go. What they wrote
 you took part in stays. Removed people stay out of later imports. It cannot be undone.
 
 **Opening a page without losing the selection.** In Unassigned and Unrecognized a click selects, so
-hover over a tile and choose the **↗** in its corner to open that person's page in a new window; the
-selection stays as it was.
+hover over a tile and choose the **↗** in its upper right corner to open that person's page in a new
+window; the selection stays as it was.
 
 ## Removing people and the preference file
 

@@ -36,6 +36,7 @@ run('sorting people on the index page, in a browser', () => {
       'z = zipfile.ZipFile(sys.argv[1], "w")',
       'for n, who in enumerate(["Pedro Dias", "Luisa Gomes", "Sara Lima"]): z.writestr(f"vm/(2019-01-0{n + 1}) 10 00 00 - {who}.amr", "a")',
       'z.writestr("vm/(2019-02-01) 10 00 00 - +15550000123.amr", "a")',
+      'z.writestr("vm/(2019-02-02) 10 00 00 - +15550000456.amr", "a")',
       'z.close()',
     ].join('\n')
     execFileSync('python', ['-c', code, archive])
@@ -102,7 +103,16 @@ run('sorting people on the index page, in a browser', () => {
       // in a category, the close box on hover sends someone back to Unassigned
       await index.locator('.sidebar a[data-view="friends"]').click()
       const sara = index.locator('#people .cell:visible').first()
+      // its buttons show only on hover: a close box in the corner, and nothing else
+      await index.mouse.move(5, 5)
+      const close = sara.getByRole('button', { name: 'Move Sara Lima back to Unassigned' })
+      expect(await close.evaluate((b: HTMLElement) => getComputedStyle(b).opacity)).toBe('0')
       await sara.hover()
+      await expect.poll(() => close.evaluate((b: HTMLElement) => getComputedStyle(b).opacity)).toBe('1')
+      expect(await sara.getByRole('button', { name: /new window/ }).isVisible()).toBe(false)
+      const corner = await close.boundingBox(), tileBox = await sara.locator('.tile').boundingBox()
+      expect(corner!.x + corner!.width).toBeGreaterThan(tileBox!.x + tileBox!.width - 30)  // the upper right
+      expect(corner!.y).toBeLessThan(tileBox!.y + 30)
       await sara.getByRole('button', { name: 'Move Sara Lima back to Unassigned' }).click()
       await index.getByText('Sara Lima moved back to Unassigned.').waitFor({ timeout: 30_000 })
       expect((await categories())['Sara Lima']).toBe(null)
@@ -112,12 +122,42 @@ run('sorting people on the index page, in a browser', () => {
       await index.locator('.sidebar a[data-view="unrecognized"]').click()
       await index.getByRole('heading', { name: 'Unrecognized' }).waitFor()
       const unknown = index.locator('#people .cell:visible').first()
-      await unknown.getByRole('textbox', { name: 'Name for this person' }).fill('Tio Rui')
+      const field = unknown.locator('.naming input')  // (hidden from everyone, even screen readers, until hovered)
+      // nothing shows until the pointer is over the tile: then the name field, and the open button
+      await index.mouse.move(5, 5)
+      expect(await field.evaluate((f: HTMLElement) => getComputedStyle(f.parentElement!).visibility)).toBe('hidden')
+      await unknown.hover()
+      await expect.poll(() => field.evaluate((f: HTMLElement) => getComputedStyle(f.parentElement!).visibility)).toBe('visible')
+      expect(await unknown.getByRole('button', { name: /back to Unassigned/ }).isVisible()).toBe(false)
+      expect(await unknown.getByRole('button', { name: 'Apply' }).isVisible()).toBe(false)  // not before a name is typed
+      // typing offers the people already in the box
+      await field.fill('lu')
+      await unknown.getByRole('option', { name: /Luisa Gomes/ }).waitFor()
+      expect(await unknown.getByRole('button', { name: 'Apply' }).isVisible()).toBe(true)
+      await shot(index, 'categories-naming')
+      await field.press('Escape')
+      expect(await unknown.getByRole('listbox').isVisible()).toBe(false)
+      // a name nobody has: a new person
+      await field.fill('Tio Rui')
+      expect(await unknown.getByRole('option').count()).toBe(0)
       await unknown.getByRole('button', { name: 'Apply' }).click()
       await index.getByText('Tio Rui is kept as a person, in Unassigned.').waitFor({ timeout: 30_000 }).catch(async (error: Error) => {
         throw new Error(`footer said: ${await index.locator('#said').textContent()} / ${await unknown.locator('.tile').getAttribute('data-handles')}\n${error.message}`)
       })
       expect(Object.keys(await categories())).toContain('Tio Rui')
+
+      // the other number joins someone already in the box, picked from the suggestions
+      const other = index.locator('#people .cell:visible').first()
+      await other.hover()
+      const otherField = other.getByRole('combobox', { name: 'Name for this person' })
+      await otherField.fill('sara')
+      await other.getByRole('option', { name: /Sara Lima/ }).click()
+      expect(await otherField.inputValue()).toBe('Sara Lima')
+      await otherField.press('Enter')
+      await index.getByText('Linked to Sara Lima.', { exact: false }).waitFor({ timeout: 30_000 })
+      expect(await index.locator('#people .tile:visible').count()).toBe(0)  // its tile joined hers
+      const people = (await running.rpc('people.list')).result.people as { name: string }[]
+      expect(people.filter(p => p.name === 'Sara Lima')).toHaveLength(1)
 
       // Unassigned: the open-in-a-new-window button keeps the selection; Delete asks, then removes
       await index.locator('.sidebar a[data-view="unassigned"]').click()
