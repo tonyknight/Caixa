@@ -71,20 +71,52 @@ APP_CSP = "; ".join(
 )  # fmt: skip
 
 
-def page_script_hashes() -> list[str]:
-    """The SHA-256 of each script the box's pages carry (Chattr's lightbox and index scripts),
-    in the form a Content-Security-Policy takes. The pages hold them inline."""
+#: The scripts the box's pages carry inline (Chattr's templates), and how each begins: its first
+#: words have not changed between versions, so a page drawn with an older one is recognised.
+PAGE_SCRIPTS = (("lightbox.js", b"/* Pictures, full size"), ("index.js", b"/* The box's index:"))
+#: The scripts sit at the end of a page; only this much of its end is looked at.
+SCRIPT_TAIL = 512 * 1024
+
+
+def page_scripts() -> list[tuple[bytes, bytes]]:
+    """(how it begins, its current text) for each page script, as the pages hold it: as Jinja
+    includes it, without its last newline."""
     import chattr
 
     templates = Path(chattr.__file__).resolve().parent / "templates"
-    hashes = []
-    for name in ("lightbox.js", "index.js"):
+    found = []
+    for name, start in PAGE_SCRIPTS:
         text = (templates / name).read_bytes()
-        if text.endswith(b"\n"):  # the pages include it as Jinja does: without its last newline
-            text = text[:-1]
-        digest = hashlib.sha256(text).digest()
-        hashes.append("sha256-" + base64.b64encode(digest).decode())
-    return hashes
+        found.append((start, text[:-1] if text.endswith(b"\n") else text))
+    return found
+
+
+def page_script_hashes() -> list[str]:
+    """The SHA-256 of each script the box's pages carry (Chattr's lightbox and index scripts),
+    in the form a Content-Security-Policy takes."""
+    return [
+        "sha256-" + base64.b64encode(hashlib.sha256(text).digest()).decode()
+        for _, text in page_scripts()
+    ]
+
+
+def current_scripts(tail: bytes, scripts: list[tuple[bytes, bytes]]) -> bytes:
+    """The end of a page with each of Caixa's scripts in it replaced by its current text.
+
+    Pages are drawn at import, and Caixa's scripts change with Caixa: a page drawn with an older
+    script would be refused by the policy (it lists only the current scripts' hashes), and its
+    categories, sorting and pictures would stop working until the pages were drawn again. Only a
+    `<script>` whose text begins as one of Caixa's does is replaced; a message's own text cannot
+    hold one, since everything a message says is escaped."""
+
+    def swap(match: "re.Match[bytes]") -> bytes:
+        body = match.group(1)
+        for start, text in scripts:
+            if body.startswith(start):
+                return b"<script>" + text + b"</script>"
+        return match.group(0)
+
+    return re.sub(rb"<script>(.*?)</script>", swap, tail, flags=re.S)
 
 
 def box_csp() -> str:
@@ -426,6 +458,8 @@ class _Handler(BaseHTTPRequestHandler):
                 str(info["name"])
             )
         kind = f"{mime}; charset=utf-8" if mime.startswith("text/") else mime
+        if mime == "text/html":
+            return self._box_page(file, size, kind, extra)
         wanted = self.headers.get("Range")
         chosen = parse_range(wanted, size) if wanted else None
         if chosen == "unsatisfiable":
@@ -449,3 +483,31 @@ class _Handler(BaseHTTPRequestHandler):
                     left -= len(piece)
         except (BrokenPipeError, ConnectionResetError):
             self.close_connection = True
+
+    def _box_page(self, file: Path, size: int, kind: str, extra: dict[str, str]) -> None:
+        """A page of the box, whole (no ranges), with its scripts brought up to date (see
+        `current_scripts`). Only its end is read into memory: the rest is sent as it is."""
+        extra = {**extra, "Accept-Ranges": "none"}
+        cut = max(0, size - SCRIPT_TAIL)
+        with open(file, "rb") as handle:
+            handle.seek(cut)
+            tail = handle.read()
+            start = tail.find(b"<")  # never begin in the middle of a tag
+            if cut and start > 0:
+                cut, tail = cut + start, tail[start:]
+            tail = current_scripts(tail, page_scripts())
+            self._headers(200, kind, cut + len(tail), extra)
+            if self.command == "HEAD":
+                return
+            try:
+                handle.seek(0)
+                left = cut
+                while left > 0:
+                    piece = handle.read(min(CHUNK, left))
+                    if not piece:
+                        break
+                    self.wfile.write(piece)
+                    left -= len(piece)
+                self.wfile.write(tail)
+            except (BrokenPipeError, ConnectionResetError):
+                self.close_connection = True

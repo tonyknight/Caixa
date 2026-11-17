@@ -261,3 +261,40 @@ def test_the_built_window_is_up_to_date_with_its_sources() -> None:
     assert (
         built["sources"] == digest.hexdigest()
     ), "rebuild Caixa's window: cd web && pnpm run build"
+
+
+def test_a_page_drawn_with_an_older_script_gets_the_current_one(running, tmp_path: Path) -> None:
+    """Pages are drawn at import; Caixa's scripts change with Caixa. An index page drawn with an
+    earlier index script (whose hash the policy no longer lists, so the browser would not run it)
+    is served with the current one, so its categories, sorting and naming keep working."""
+    import base64
+    import hashlib
+    import re
+
+    import chattr
+
+    _, browser, _ = running
+    current = (Path(chattr.__file__).resolve().parent / "templates" / "index.js").read_text(
+        encoding="utf-8"
+    )
+    older = '/* The box\'s index: a category at a time, and sorting people into categories. */\n(function () { var CAIXA = location.pathname === "/api/caixa/box"; })();'
+    words = "x" * 600_000  # a long page: the script is near its end
+    (tmp_path / "Box" / "index.html").write_text(
+        f"<!DOCTYPE html><html><body><p>{words}</p><p>&lt;script&gt;not a script&lt;/script&gt;</p>"
+        f"<script>{older}</script></body></html>",
+        encoding="utf-8",
+    )
+    status, headers, page = browser.ask("GET", "/box/index.html")
+    assert status == 200
+    text = page.decode("utf-8")
+    (script,) = re.findall(r"<script>(.*?)</script>", text, re.S)
+    assert script == current.removesuffix("\n")
+    digest = base64.b64encode(hashlib.sha256(script.encode()).digest()).decode()
+    assert f"'sha256-{digest}'" in headers["content-security-policy"]
+    assert int(headers["content-length"]) == len(page)
+    assert words in text and "&lt;script&gt;not a script&lt;/script&gt;" in text
+    # a page with no script, or a script that is not one of Caixa's, is sent as it is
+    (tmp_path / "Box" / "plain.html").write_text(
+        "<p>hi</p><script>alert(1)</script>", encoding="utf-8"
+    )
+    assert browser.ask("GET", "/box/plain.html")[2] == b"<p>hi</p><script>alert(1)</script>"
