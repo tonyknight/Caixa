@@ -181,11 +181,6 @@ def test_box_files_are_served_at_their_own_address(running, tmp_path: Path) -> N
     # anything else is a download
     _, headers, _ = browser.ask("GET", "/box/notes.bin")
     assert headers["content-disposition"].startswith("attachment;")
-    # the old address of the harness plugin leads here
-    status, headers, _ = browser.ask(
-        "GET", "/api/caixa/box?path=People/Ana%20Costa/Ana%20Costa.html"
-    )
-    assert status == 302 and headers["location"] == "/box/People/Ana%20Costa/Ana%20Costa.html"
 
 
 def test_the_box_files_never_reach_caixas_own_data_or_outside_the_box(
@@ -200,15 +195,19 @@ def test_the_box_files_never_reach_caixas_own_data_or_outside_the_box(
         assert b"no" != body
 
 
-def test_page_script_hashes_match_the_scripts_the_pages_carry() -> None:
-    """The same hashes the render tests check against the pages themselves (they keep the harness
-    plugin's list, page-scripts.ts, in step with the rendered pages)."""
-    import re
+def test_page_script_hashes_are_those_of_the_templates_the_pages_carry() -> None:
+    """Chattr's tests check that each page carries its template unchanged but for the last newline;
+    the policy's hashes are of exactly that text."""
+    import base64
+    import hashlib
 
-    listed = Path(__file__).resolve().parents[1] / "harness" / "src" / "host" / "page-scripts.ts"
-    if not listed.is_file():
-        pytest.skip("not a checkout")
-    assert web.page_script_hashes() == re.findall(r"'(sha256-[^']+)'", listed.read_text())
+    import chattr
+
+    templates = Path(chattr.__file__).resolve().parent / "templates"
+    for name, listed in zip(("lightbox.js", "index.js"), web.page_script_hashes()):
+        text = (templates / name).read_text(encoding="utf-8").removesuffix("\n")
+        digest = base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
+        assert listed == f"sha256-{digest}"
 
 
 def test_notifications_reach_an_open_event_stream(running) -> None:
@@ -237,12 +236,12 @@ def test_notifications_reach_an_open_event_stream(running) -> None:
 
 
 def test_the_built_window_is_up_to_date_with_its_sources() -> None:
-    """`harness/scripts/build-app.mjs` records the digest of the sources it built from; change the
-    interface without rebuilding it and this fails (run `pnpm run build:app` in harness/)."""
+    """`web/scripts/build-app.mjs` records the digest of the sources it built from; change the
+    interface without rebuilding it and this fails (run `pnpm run build` in web/)."""
     import hashlib
 
-    harness = Path(__file__).resolve().parents[1] / "harness"
-    if not harness.is_dir():
+    sources = Path(__file__).resolve().parents[1] / "web"
+    if not sources.is_dir():
         pytest.skip("not a checkout")
     digest = hashlib.sha256()
 
@@ -251,14 +250,14 @@ def test_the_built_window_is_up_to_date_with_its_sources() -> None:
             if path.is_dir():
                 walk(path)
             else:
-                digest.update(path.relative_to(harness).as_posix().encode())
+                digest.update(path.relative_to(sources).as_posix().encode())
                 digest.update(b"\0")
                 digest.update(path.read_bytes())
                 digest.update(b"\0")
 
-    walk(harness / "src" / "app")
-    walk(harness / "src" / "client")
+    walk(sources / "src" / "app")
+    walk(sources / "src" / "client")
     built = json.loads((web.APP / "build.json").read_text(encoding="utf-8"))
     assert (
         built["sources"] == digest.hexdigest()
-    ), "rebuild Caixa's window: cd harness && pnpm run build:app"
+    ), "rebuild Caixa's window: cd web && pnpm run build"

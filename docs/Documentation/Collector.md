@@ -407,8 +407,8 @@ caixa doctor --box ~/Our\ Box                             # and the box, its rec
 caixa doctor --collector voicemail --source ~/Desktop/"iPhone Voicemail.zip"   # and why a source will not import
 ```
 
-The report lists Caixa's version, Python and your system, whether `node`, `ffmpeg`, `whisper-cli` and
-`exiftool` are found, which harness is installed and whether it came from Caixa's lockfile, the open
+The report lists Caixa's version, Python and your system, whether `ffmpeg`, `whisper-cli` and
+`exiftool` are found, whether Caixa's window is running and was installed with it, the open
 box's size, whether a speech model is set and its file is there, the last few imports with their
 errors, and, for a source, what Caixa sees in it. It never contains a name, a number or message text,
 and your home folder is shown as `~`. It changes nothing, and works with a box open read-only. Paste
@@ -568,8 +568,9 @@ Drag the selection onto a category on the left, or use the **Move to** buttons i
 people leave Unassigned at once; Caixa saves their category in the box and redraws the pages. Escape
 clears the selection.
 
-Sorting works when the index is opened in Caixa (Browse, **Open the box's index page**; **Open in a new
-tab** gives it the whole window). Opened straight from the folder, in any browser, the page shows the
+Sorting works when the index is opened in Caixa: Browse, **Open the box's index page**. It opens in
+a window of its own beside Caixa's (allow pop-ups for Caixa if your browser asks), and every page
+of the box you open from Browse goes to that same window. Opened straight from the folder, in any browser, the page shows the
 categories and works for browsing, but says that sorting needs Caixa. Categories are kept when you
 rename or merge someone, and when you reset the box (unless you ask for the names you gave to be
 forgotten).
@@ -1031,7 +1032,7 @@ export before and after (`shasum -a 256 chat.zip`).
 - Open `index.html` in a web browser: every person and year should be there, with message counts.
 - Open a page you know: the first and last messages, a photo (it should display, not show "file not in
   this archive"), a voicemail (it should play), a mail with an attachment (the link should open).
-- In the browser interface, the **Browse** section shows the same pages inside Caixa.
+- In the browser interface, the **Browse** section lists the box's files and opens its pages in a window of their own.
 - **How many people are still just numbers?** `caixa people unresolved` lists them. A good result is
   *only* handles you do not care about (a short code, an unknown number). Import with `contacts=` and name
   the rest until the list is short.

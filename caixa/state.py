@@ -7,7 +7,7 @@
 It is a convenience, never a requirement: a file that is missing, damaged or cannot be written is
 quietly set aside or skipped, and nothing here ever stops Caixa working. The file holds folder paths
 and the draft's choices (not messages), and is readable only by its owner. It is separate from the
-`serve.json` that `caixa serve` keeps about the running harness.
+`serve.json` that `caixa serve` keeps about the running window.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ def caixa_home(
     platform_name: Optional[str] = None,
     home: Optional[Path] = None,
 ) -> Path:
-    """Caixa's per-user folder for the harness and its state (`$CAIXA_HOME` overrides)."""
+    """Caixa's per-user folder for what it remembers (`$CAIXA_HOME` overrides)."""
     env = os.environ if environ is None else environ
     platform = platform_name or sys.platform
     user = home or Path.home()

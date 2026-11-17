@@ -34,8 +34,9 @@ focus: "APPROVED 2026-11-01 (rev 3), amended 2026-11-17 (own window; removing pe
 > web server in one Python process (`caixa/web.py`), on 127.0.0.1 only, with a sign-in link, a
 > session cookie and Host/Origin checks. The React pages are kept and built into the package
 > (`caixa/data/web/`, committed), so running Caixa needs neither Node.js nor DeepSeek Harness. The
-> box's pages are served at their own addresses (`/box/…`). The harness plugin stays in `harness/`
-> unlaunched until its removal is decided. Caixa has three modes: **collection and authoring**
+> box's pages are served at their own addresses (`/box/…`) and open in a window of their own. On
+> the maintainer's word the DeepSeek Harness plugin was then removed and `harness/` renamed `web/`
+> (ticket `20261117-05`). Caixa has three modes: **collection and authoring**
 > (this read-write service), **presentation** (a separate read-only service on its own port,
 > possibly in Docker; later) and **static** (the box's plain files). Stage 2 (the personal model)
 > and Stage 3 (the harness glue, DeepSeek for now) come after Phase 1 and a Stage 1.5 of

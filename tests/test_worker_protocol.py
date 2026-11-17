@@ -60,7 +60,7 @@ ALL_METHODS = {
 
 
 class Client:
-    """Talks to a worker process the way the harness does: one JSON object per line."""
+    """Talks to a worker process as a parent program does: one JSON object per line."""
 
     def __init__(self, *args: str, cwd: Path) -> None:
         self.process = subprocess.Popen(

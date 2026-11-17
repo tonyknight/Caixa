@@ -1,0 +1,30 @@
+{
+  "name": "caixa-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Caixa's browser window: the React pages `caixa serve` serves, built into caixa/data/web.",
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">=24.9.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "vitest": "^3.2.0",
+    "typescript": "^5.8.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@types/node": "^24.0.0",
+    "jsdom": "^26.1.0",
+    "@testing-library/react": "^16.3.0",
+    "lightningcss": "^1.30.0"
+  },
+  "scripts": {
+    "build": "node scripts/build-app.mjs",
+    "build:app": "node scripts/build-app.mjs",
+    "check-types": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}

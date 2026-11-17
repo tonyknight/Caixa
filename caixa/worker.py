@@ -14,8 +14,8 @@ invalid request, -32601 unknown method, -32602 invalid params, -32603 internal) 
 "the request was understood but could not be done"; `error.data.kind` says why in a word
 (`read_only`, `not_found`, `input`, `conflict`, `no_box`, `outside_roots`, …).
 
-The worker is never exposed to a browser directly; the harness plugin reaches it through its own
-authenticated routes.
+The worker has no network listener. Caixa's own window (`caixa serve`, see `caixa.web`) calls the
+same service in-process; this protocol is for other programs that run Caixa as a child process.
 """
 
 from __future__ import annotations

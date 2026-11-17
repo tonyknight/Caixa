@@ -173,10 +173,10 @@ small web server, and opens the browser on it. Nothing else needs to be installe
 
 The window is the Caixa page: create or open a box, then Import, Jobs, People, Browse and Settings,
 in the Nord colours the box's own pages use. The box's pages are served at their own addresses
-(`/box/…`), so their links work unchanged. Caixa used to run inside DeepSeek Harness; that proved a
-poor fit for collecting and editing, and the window is now Caixa's own (see the Phase 1
-Requirements, amendment of 2026-11-17). The plugin is kept in [`harness/`](harness/) for now, but
-nothing starts it.
+(`/box/…`), so their links work unchanged, and they open in a window of their own beside Caixa's,
+where the index page's sorting, naming and removing have the whole screen. Caixa used to run inside
+DeepSeek Harness; that proved a poor fit for collecting and editing, and the window is now Caixa's
+own (see the Phase 1 Requirements, amendment of 2026-11-17). Its code is in [`web/`](web/).
 
 **Platform independent.** There is no native app. The interface is a browser page served from your own
 computer (`127.0.0.1` only), so it looks and behaves the same wherever Python runs: developed and
@@ -189,7 +189,7 @@ is planned.
 - **The worker's protocol is the seam.** The command line and the browser both go through one service
   layer, and the browser reaches it only through a small, documented JSON-RPC protocol. The interface can
   be rebuilt or upgraded without touching the data code, and the data code without touching the interface.
-- **The window comes built.** Its code (React, in `harness/src`) is built into the Python package
+- **The window comes built.** Its code (React, in `web/src`) is built into the Python package
   (`caixa/data/web/`) and committed, so running Caixa needs no Node.js. Only someone changing the
   interface builds it, and a test fails if the sources change without a rebuild.
 - **New sources need no interface work.** A collector installed as a package appears in the import wizard
@@ -313,12 +313,12 @@ browser with a sign-in link; a browser without it sees only a page saying to use
 remembers what is running in its own folder (`~/.local/share/caixa`, or `~/Library/Application
 Support/Caixa` on a Mac). Progress of each import is shown in the terminal as it goes.
 
-The window's code is in [`harness/src`](harness/src) (React). After changing it, rebuild it with
-Node.js 24.9 or newer:
+The window's code is in [`web/src`](web/src) (React). After changing it, rebuild it with
+Node.js 24.9 or newer (only to change the window; running Caixa never needs it):
 
 ```bash
-pnpm --dir harness install       # once
-pnpm --dir harness run build:app # writes caixa/data/web/, which is committed
+pnpm --dir web install           # once
+pnpm --dir web run build         # writes caixa/data/web/, which is committed
 ```
 
 **Picking up where you left off.** Caixa remembers the box you had open, the section you were in and

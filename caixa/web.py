@@ -6,14 +6,14 @@ Harness. It serves:
 
 - `GET  /sign-in?ticket=…`   the link `caixa serve` prints and opens: sets the session cookie, then
                               goes to `/`. Nothing else answers without that cookie;
-- `GET  /`, `/app/…`         Caixa's window (built from `harness/src/app` into `caixa/data/web`);
+- `GET  /`, `/app/…`         Caixa's window (built from `web/src` into `caixa/data/web`);
 - `POST /api/caixa/rpc`      `{"method": "box.status", "params": {}}` → `{"ok": true, "result": …}`
                               or `{"ok": false, "error": {"code", "message", "kind", "data"}}`;
 - `GET  /api/caixa/events`   the service's notifications as server-sent events;
 - `GET  /api/caixa/status`   `{"worker": "running", "shell": true}`;
 - `GET|HEAD /box/<path>`     a file of the open box at its own address, so the box's pages and their
                               relative links work unchanged (`.caixa/` and anything outside the box
-                              are refused). `/api/caixa/box?path=…` redirects here.
+                              are refused).
 
 Protection: it listens on 127.0.0.1 only; a request must name this computer and port in its Host
 header (against DNS rebinding); everything but the sign-in link needs the session cookie (HttpOnly,
@@ -49,7 +49,7 @@ from urllib.parse import parse_qs, quote, unquote, urlsplit
 from caixa.service import Service, ServiceError
 from caixa.worker import INTERNAL, INVALID_PARAMS, REFUSED, UNKNOWN_METHOD, Worker
 
-#: Caixa's window, as built by `harness/scripts/build-app.mjs`.
+#: Caixa's window, as built by `web/scripts/build-app.mjs`.
 APP = Path(__file__).resolve().parent / "data" / "web"
 APP_FILES = {"app.js": "text/javascript", "app.css": "text/css"}
 COOKIE = "caixa_session"
@@ -320,12 +320,6 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json({"worker": "running", "shell": True})
         if url.path == "/api/caixa/events":
             return self._events()
-        if url.path == "/api/caixa/box":  # the address the harness plugin used
-            wanted = parse_qs(url.query).get("path", [""])[0]
-            fragment = f"#{url.fragment}" if url.fragment else ""
-            return self._send(
-                302, b"", "text/plain", {"Location": "/box/" + quote(wanted) + fragment}
-            )
         if url.path == "/box" or url.path.startswith("/box/"):
             return self._box_file(unquote(url.path[5:]) or "index.html")
         self._text(404, "Not found.")
