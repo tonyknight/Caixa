@@ -559,7 +559,8 @@ colours (light or dark, following your computer), with Caixa's orange for dates 
   groups, mail, files and their size, and a table of each source (items, conversations, files, size,
   first and last date). The numbers show only under All.
 - **Unrecognized** holds whoever is known only by a phone number, an address or an account that no
-  longer has a name ("Facebook user"); they move out when you name them. You can also put anyone there.
+  longer has a name ("Facebook user"); they move out when you name them. They are listed busiest first, the
+  most items on top, so the ones that matter most come first; every other category is in name order. You can also put anyone there.
 - **The footer** says how many people the category holds, and in Unassigned how many are selected.
 
 **Sorting people.** Open **Unassigned**: everyone who has a name and no category yet. There a click

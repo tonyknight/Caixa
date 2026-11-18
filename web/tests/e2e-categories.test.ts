@@ -37,6 +37,7 @@ run('sorting people on the index page, in a browser', () => {
       'for n, who in enumerate(["Pedro Dias", "Luisa Gomes", "Sara Lima"]): z.writestr(f"vm/(2019-01-0{n + 1}) 10 00 00 - {who}.amr", "a")',
       'z.writestr("vm/(2019-02-01) 10 00 00 - +15550000123.amr", "a")',
       'z.writestr("vm/(2019-02-02) 10 00 00 - +15550000456.amr", "a")',
+      'z.writestr("vm/(2019-02-03) 10 00 00 - +15550000456.amr", "b")',  // the busier number: two calls
       'z.close()',
     ].join('\n')
     execFileSync('python', ['-c', code, archive])
@@ -121,6 +122,8 @@ run('sorting people on the index page, in a browser', () => {
       // Unrecognized: the number nobody named gets a name, and is kept as a person
       await index.locator('.sidebar a[data-view="unrecognized"]').click()
       await index.getByRole('heading', { name: 'Unrecognized' }).waitFor()
+      // busiest first: the number with two calls comes before the one with one, though it sorts after it
+      expect(await index.locator('#people .cell:visible .name').allTextContents()).toEqual(['+15550000456', '+15550000123'])
       const unknown = index.locator('#people .cell:visible').first()
       const field = unknown.locator('.naming input')  // (hidden from everyone, even screen readers, until hovered)
       // nothing shows until the pointer is over the tile: then the name field, and the open button
@@ -161,6 +164,9 @@ run('sorting people on the index page, in a browser', () => {
 
       // Unassigned: the open-in-a-new-window button keeps the selection; Delete asks, then removes
       await index.locator('.sidebar a[data-view="unassigned"]').click()
+      // back in name order outside Unrecognized
+      const names = await index.locator('#people .cell:visible .name').allTextContents()
+      expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)))
       const rui = index.locator('#people .cell:visible', { hasText: 'Tio Rui' })
       await rui.locator('.tile').click()
       await expect.poll(() => index.locator('#picked').textContent()).toBe('1 selected')
@@ -203,9 +209,9 @@ run('sorting people on the index page, in a browser', () => {
       await new Promise(resolve => setTimeout(resolve, 200))
     }
     const html = readFileSync(join(box, 'index.html'), 'utf8')
-    expect(html).toContain('data-category="family" data-name="Pedro Dias"')
-    expect(html).toContain('data-category="" data-name="Sara Lima"')
+    expect(html).toMatch(/data-category="family" data-items="\d+" data-name="Pedro Dias"/)
+    expect(html).toMatch(/data-category="" data-items="2" data-name="Sara Lima"/)  // her call and the number that joined her
     expect(html).not.toContain('Tio Rui')
-    expect(html).not.toContain('+15550000123')  // removed, not just renamed
+    expect(html).not.toContain('+15550000456')  // removed, not just renamed
   }, 240_000)
 })
