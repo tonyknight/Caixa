@@ -375,6 +375,17 @@ class _Chattr:
                 for service in SHOWN_BY_OWN_NAME:
                     db.name_handles(service, own_name)
                 taken = db.remove_people(match) if match else None
+                region = str(options.get("region") or "US")
+                forwarded = db.drop_forwarded_copies(region)  # Google Voice's, kept by Messages
+            if forwarded.messages:
+                count = forwarded.messages
+                notes.append(
+                    f"{count:,} text{'s' if count != 1 else ''} that Google Voice forwarded to "
+                    f"your phone {'were' if count != 1 else 'was'} also in Messages; the Google "
+                    "Voice record, with both sides of the conversation, is kept."
+                )
+            if forwarded.files and options.get(BOX_ROOT):
+                _delete_files(Path(str(options[BOX_ROOT])), forwarded.files)
             if taken and taken.conversations:
                 count = taken.conversations
                 notes.append(

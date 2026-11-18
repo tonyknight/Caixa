@@ -155,6 +155,13 @@ not recorded**, listed with the group conversations. Events of a group that no l
 left) are left out. Earlier versions put all of these into one conversation called "(no chat)"; import
 the same `chat.db` again and it is replaced.
 
+**Texts Google Voice forwarded to your phone.** Google Voice can forward the texts people send you to
+your phone as ordinary SMS, and Messages keeps them: the other person's side only (your replies went
+through Google Voice), often with no conversation left in Messages. Once both iMessage and Google
+Voice are imported, a message in Messages that Google Voice also has (the same number, the same
+words, within ten minutes) is taken out, and the Google Voice record, with both sides, stays. The
+import says how many it found.
+
 **Import.**
 
 ```bash

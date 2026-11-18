@@ -178,3 +178,40 @@ def test_a_removed_list_matches_numbers_however_they_are_written() -> None:
     assert match("Messenger", "rui.lima.3", "rui lima")
     assert not match("SMS", "+15550109999", "Ana")
     assert owner.removed_matcher([]) is None
+
+
+def test_texts_google_voice_forwarded_to_messages_are_kept_once(
+    service: Service, fixture_family
+) -> None:
+    """The copy Messages kept of a text Google Voice forwarded goes when the box is redrawn."""
+    from datetime import datetime, timezone
+
+    from chattr.database_manager import DatabaseManager
+    from chattr.records import ConversationRecord, MessageRecord
+
+    _import(service, fixture_family)
+    box = service.box
+    assert box is not None
+    database = box.work_dir("chattr") / "Database" / "chattr.sqlite"
+    at = datetime(2024, 3, 1, 10, 0, tzinfo=timezone.utc)
+    with DatabaseManager(database) as db:
+        db.upsert(
+            ConversationRecord("Google Voice", "gv-rui", participants=("+15550109876",)),
+            [MessageRecord(timestamp=at, sender="+15550109876", body="Dinner at 8?")],
+        )
+        db.upsert(
+            ConversationRecord("iMessage", "no-chat:+15550109876", participants=("+15550109876",)),
+            [MessageRecord(timestamp=at, sender="+15550109876", body="Dinner at 8?")],
+        )
+        db.commit()
+    done = service._redraw()
+    assert done is not None and service.wait(done["id"], 120)["status"] == "done"
+    with DatabaseManager(database) as db:
+        services = [
+            r[0]
+            for r in db.connection.execute(
+                "SELECT c.service FROM messages m JOIN conversations c ON c.id = m.conversation_id "
+                "WHERE m.body = 'Dinner at 8?'"
+            )
+        ]
+    assert services == ["Google Voice"]
