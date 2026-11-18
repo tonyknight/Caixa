@@ -145,6 +145,14 @@ Messages itself ties together, addresses on one Contacts card) and imports a spl
 Naming one of a person's addresses names the others. The schema is read as it is: Caixa looks at which
 columns your macOS version has and uses those (`chattr-cli doctor chat.db` lists what it found).
 
+**Messages without a conversation.** Messages keeps some messages that belong to no conversation any
+more: their conversation was deleted, but the messages were not. Each goes back to the person it was
+with, into their conversation if they still have one, or a conversation of its own with them if not.
+Messages you sent that record no recipient are kept together under **Sent, recipient not recorded**,
+listed with the group conversations. Events of a group that no longer exists (someone joined or
+left) are left out. Earlier versions put all of these into one conversation called "(no chat)"; import
+the same `chat.db` again and it is replaced.
+
 **Import.**
 
 ```bash

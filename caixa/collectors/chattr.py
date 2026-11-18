@@ -1357,6 +1357,9 @@ class IMessage(_Chattr):
             owner=owner,
             aliases=aliases,
         )
+        if final and result.dropped_files and options.get(BOX_ROOT):
+            # files of the conversation an earlier version mixed everyone into
+            _delete_files(Path(str(options[BOX_ROOT])), result.dropped_files)
         if not result.missing_attachments:
             return None
         if final:
