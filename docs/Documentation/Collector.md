@@ -148,8 +148,10 @@ columns your macOS version has and uses those (`chattr-cli doctor chat.db` lists
 **Messages without a conversation.** Messages keeps some messages that belong to no conversation any
 more: their conversation was deleted, but the messages were not. Each goes back to the person it was
 with, into their conversation if they still have one, or a conversation of its own with them if not.
-Messages you sent that record no recipient are kept together under **Sent, recipient not recorded**,
-listed with the group conversations. Events of a group that no longer exists (someone joined or
+A message you sent often records no recipient there; Messages does keep, for each message, the one
+it came after, so such a reply goes into the conversation of the message it answered (and a run of
+replies follows along). Only those with nothing to follow are kept together under **Sent, recipient
+not recorded**, listed with the group conversations. Events of a group that no longer exists (someone joined or
 left) are left out. Earlier versions put all of these into one conversation called "(no chat)"; import
 the same `chat.db` again and it is replaced.
 
