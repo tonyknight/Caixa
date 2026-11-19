@@ -1,6 +1,6 @@
 {
   "name": "caixa-web",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "description": "Caixa's browser window: the React pages `caixa serve` serves, built into caixa/data/web.",

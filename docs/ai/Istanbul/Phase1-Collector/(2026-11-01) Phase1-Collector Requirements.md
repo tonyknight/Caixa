@@ -7,8 +7,8 @@ tags:
 hierarchy:
 - Istanbul
 - Phase1-Collector
-last_reviewed: 2026-11-17
-focus: "APPROVED 2026-11-01 (rev 3), amended 2026-11-17 (own window; removing people). Execution in progress."
+last_reviewed: 2026-11-19
+focus: "APPROVED 2026-11-01 (rev 3), amended 2026-11-17. COMPLETE 2026-11-19, released as v0.5.0."
 ---
 
 

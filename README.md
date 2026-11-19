@@ -204,19 +204,19 @@ logged. A read-only mode (`caixa worker --read-only`) already exists as the grou
 
 ## Where the project is
 
-Caixa is in early development. This is what exists today, and what does not.
+Caixa is in early development; version 0.5.0 closes its first project (Phase 1, the collectors). This is what exists today, and what does not.
 
 | | Status |
 | --- | --- |
-| **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; not yet verified against real exports |
+| **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice and iPhone voicemail also tried by the maintainer on real exports; mail not yet |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
 | **Browser interface**: create a box, import wizard, jobs, people, browse, settings | Built, and tested in a real browser against the real `caixa serve` |
 | **Chattr's own browser page** (`chattr-cli serve`) | Built |
 | **Search index, personal model, the heirs' "Ask" experience** | Planned |
-| **Heir mode, Docker image** | Planned (read-only worker exists) |
+| **Presentation mode** (read-only, its own port), **Docker image** | Planned (a read-only service exists) |
 | **More sources** (Slack, Telegram, Google Chat, photos, documents) | Planned |
-| **Windows** | Untested; `caixa serve` refuses to start there |
+| **Windows** | Untested |
 
 The known gaps of the collectors (for example, that iMessage attachments still in iCloud cannot be
 fetched) are listed in [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#known-limitations).
@@ -261,7 +261,7 @@ installs `chattr-cli`, Chattr's own command, which works without Caixa.
 Check it worked:
 
 ```bash
-caixa --version         # caixa 0.1.0
+caixa --version         # caixa 0.5.0
 caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
 ```
 
