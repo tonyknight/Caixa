@@ -783,9 +783,9 @@ class WhatsApp(_Chattr):
         inputs=("file", "folder", "zip"),
         how_to_export=(
             "In WhatsApp, open a chat, tap the contact or group name, then 'Export chat' and "
-            "choose 'Attach Media' to keep photos and voice notes. Save the .zip it makes and "
-            "point Caixa at it, or unzip several chats into one folder and choose the folder. "
-            "Each chat is exported separately."
+            "choose 'Attach Media' to keep photos and voice notes. Each chat is exported "
+            "separately, as a .zip: choose one, or put them all in one folder and choose the "
+            "folder to import every chat at once."
         ),
         options_schema=_schema(),
     )

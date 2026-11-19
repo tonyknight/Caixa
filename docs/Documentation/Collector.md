@@ -100,11 +100,15 @@ own: repeat for each chat you want.
 
 ```bash
 caixa import whatsapp ~/Downloads/WhatsApp\ Chat\ with\ Ana.zip --box ~/Our\ Box
-caixa import whatsapp ~/Downloads/all-my-chats/ --box ~/Our\ Box    # a folder holding several chats
+caixa import whatsapp ~/Downloads/all-my-chats/ --box ~/Our\ Box    # a folder of chat zips
 ```
 
-A folder is searched for every `_chat.txt` (and every `WhatsApp Chat….txt`), so you can unzip many chats
-into one folder and import them together.
+Put the chats' `.zip` files in one folder and choose the folder: every chat is imported in one go.
+The folder can also hold chats already unzipped, each in its own folder; every `_chat.txt` (and every
+`WhatsApp Chat….txt`) is found. A zip of that folder works too. Only the zips at the top of the folder
+are opened: a zip deeper down is a file someone sent in a chat. A zip that can't be read stops the
+import and is named, so nothing is left out unseen. (The same holds for every source that takes a
+folder: a Google Takeout in several parts, for example.)
 
 **What you get.** One page for each person (`People/Ana Costa/Ana Costa.html`), a group's page under
 `Groups/<group name>/`, and the chat's photos, videos and voice

@@ -2,7 +2,8 @@
 
 A zip is unpacked into a working folder first, safely: a member whose path would land outside that
 folder is refused. A folder is searched for what the collector reads (every WhatsApp `_chat.txt`,
-every Meta thread, …). A plain file is used as it is.
+every Meta thread, …), and so are the zips at its top (a folder of WhatsApp chats exported one zip
+each, a Takeout in several parts). A plain file is used as it is.
 """
 
 from __future__ import annotations
@@ -94,10 +95,10 @@ def resolve(
     folder: Optional[Path] = None
     if source.is_file() and source.suffix.lower() == ".zip":
         folder = unpack(source, workdir)
-        found = find(folder)
+        found = find(folder) + _inside_zips(folder, find, workdir, wrapped=True)
     elif source.is_dir():
         folder = source
-        found = find(source)
+        found = find(source) + _inside_zips(source, find, workdir)
     elif accept_files:
         found = [source]
     else:
@@ -108,6 +109,28 @@ def resolve(
             _what_was_seen(source, folder, expects, hints),
         )
     return sorted(found)
+
+
+def _top_zips(folder: Path, wrapped: bool = False) -> list[Path]:
+    """The zips at the top of a folder; for an unpacked zip (`wrapped`) also inside the one folder
+    it holds, since a folder that was zipped up unpacks into a folder of its own. Zips further down
+    are files someone sent in a conversation, not exports, and stay closed."""
+    children = [p for p in folder.iterdir() if p.name != ".unpacked" and not _is_system(p, folder)]
+    if wrapped and len(children) == 1 and children[0].is_dir():
+        folder = children[0]
+        children = [p for p in folder.iterdir() if not _is_system(p, folder)]
+    return sorted(p for p in children if p.is_file() and p.suffix.lower() == ".zip")
+
+
+def _inside_zips(
+    folder: Path, find: Callable[[Path], list[Path]], workdir: Path, wrapped: bool = False
+) -> list[Path]:
+    """What `find` locates in each zip at the top of `folder`. A zip that can't be read stops the
+    import, named, rather than being left out unseen."""
+    found: list[Path] = []
+    for archive in _top_zips(folder, wrapped):
+        found += find(unpack(archive, workdir))
+    return found
 
 
 def _missing(source: Path) -> list[str]:
@@ -156,11 +179,15 @@ def _what_was_seen(
             lines.append(f"Examples (letters shown as x, digits as 9): {examples}.")
         if ignored:
             lines.append(f"{ignored} hidden or Mac system files were ignored.")
+        top = set(_top_zips(folder, wrapped=source.is_file()))
         inner = [p for p in files if p.suffix.lower() == ".zip"]
         if inner:
+            opened = sum(1 for p in inner if p in top)
             lines.append(
-                f"It holds another .zip ({len(inner)}): unzip it and choose that folder, or "
-                "choose the inner zip itself."
+                f"It holds .zip files ({len(inner)}"
+                + (f"; the {opened} at its top were opened too" if opened else "")
+                + "). One further down is taken as a file sent in a conversation: to import it, "
+                "choose that zip itself."
             )
         if hints and files:
             lines.extend(hints(files))

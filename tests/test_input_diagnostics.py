@@ -107,9 +107,18 @@ def test_voicemail_files_with_names_it_could_not_read_are_named_as_the_problem(
     assert "(2018-12-21) 15 02 31 - Jane Smith.amr" in text  # the pattern, as an example
 
 
-def test_a_zip_inside_the_zip_is_called_out(six: dict[str, Collector], tmp_path: Path) -> None:
+def test_a_zip_inside_the_zip_is_opened_and_named_when_it_cannot_be_read(
+    six: dict[str, Collector], tmp_path: Path
+) -> None:
     archive = _zip(tmp_path / "outer.zip", {"inner.zip": b"PK", "readme.txt": "x"})
-    assert "holds another .zip" in str(_refused(six["voicemail"], archive))
+    assert "inner.zip is not a readable zip file" in str(_refused(six["voicemail"], archive))
+
+
+def test_a_zip_further_down_is_called_out(six: dict[str, Collector], tmp_path: Path) -> None:
+    good = _zip(tmp_path / "inner.zip", {"readme.txt": "x"})
+    archive = _zip(tmp_path / "outer.zip", {"a/b/inner.zip": good.read_bytes(), "c.txt": "x"})
+    text = str(_refused(six["voicemail"], archive))
+    assert "holds .zip files (1)" in text and "choose that zip itself" in text
 
 
 def test_files_a_mac_adds_are_not_counted_as_the_export(

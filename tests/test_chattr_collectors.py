@@ -331,6 +331,82 @@ def test_a_whatsapp_zip_is_unpacked_and_imported(
     )  # the media came too
 
 
+def _chats(fixture_family) -> list[Path]:
+    return sorted((fixture_family.paths["whatsapp"]).iterdir())
+
+
+def _everything(six: dict[str, Collector], box: Box, fixture_family) -> int:
+    """How many messages the three fixture chats hold, read from their plain folder."""
+    return six["whatsapp"].preview(fixture_family.paths["whatsapp"], {}, box).items
+
+
+def test_a_folder_of_whatsapp_zips_imports_every_chat_in_one_go(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    """WhatsApp exports one chat at a time, each as a zip: a folder of them is one import."""
+    expected = _everything(six, box, fixture_family)
+    folder = tmp_path / "WhatsApp exports"
+    folder.mkdir()
+    for chat in _chats(fixture_family):
+        _zip(chat, folder / f"{chat.name}.zip")
+    assert six["whatsapp"].preview(folder, {}, box).items == expected
+    result, _ = _run(six["whatsapp"], box, folder)
+    assert result.inserted == expected
+    assert list((box.root / "People" / family.ANA.name / "WhatsApp").glob("*.jpg"))
+
+
+def test_zips_and_unzipped_chats_mixed_in_one_folder_are_all_read(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    expected = _everything(six, box, fixture_family)
+    folder = tmp_path / "mixed"
+    folder.mkdir()
+    first, *others = _chats(fixture_family)
+    shutil.copytree(first, folder / first.name)
+    for chat in others:
+        _zip(chat, folder / f"{chat.name}.zip")
+    assert six["whatsapp"].preview(folder, {}, box).items == expected
+
+
+def test_a_zip_of_chat_zips_is_read_too(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    """A folder of chat zips zipped up again (it unpacks into one folder holding the zips)."""
+    expected = _everything(six, box, fixture_family)
+    folder = tmp_path / "All chats"
+    folder.mkdir()
+    for chat in _chats(fixture_family):
+        _zip(chat, folder / f"{chat.name}.zip")
+    archive = _zip(folder, tmp_path / "All chats.zip")
+    assert six["whatsapp"].preview(archive, {}, box).items == expected
+
+
+def test_a_zip_deep_inside_an_export_is_left_closed(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    """A zip someone sent in a chat sits in that chat's folder: it is a file, not an export."""
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    first, *others = _chats(fixture_family)
+    shutil.copytree(first, folder / first.name)
+    # another chat, zipped and sent as an attachment inside the first chat's folder
+    _zip(others[0], folder / first.name / "sent-to-me.zip")
+    alone = six["whatsapp"].preview(first, {}, box).items
+    assert six["whatsapp"].preview(folder, {}, box).items == alone
+
+
+def test_an_unreadable_zip_among_them_is_named(
+    six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
+) -> None:
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    chat = _chats(fixture_family)[0]
+    _zip(chat, folder / f"{chat.name}.zip")
+    (folder / "WhatsApp Chat - Broken.zip").write_bytes(b"not a zip at all")
+    with pytest.raises(InputError, match="WhatsApp Chat - Broken.zip is not a readable zip"):
+        six["whatsapp"].preview(folder, {}, box)
+
+
 def test_a_meta_export_with_both_services_imports_every_thread(
     six: dict[str, Collector], fixture_family, box: Box, tmp_path: Path
 ) -> None:
