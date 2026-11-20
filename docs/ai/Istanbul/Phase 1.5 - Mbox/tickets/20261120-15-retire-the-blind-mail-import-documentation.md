@@ -3,11 +3,12 @@ id: 20261120-15-retire-the-blind-mail-import-documentation
 title: Retire the blind mail import; documentation
 type: chore
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: whole-mbox import refused with directions; guide, README and first-mbox
+  checklist.'
 parent:
 depends_on:
 - 20261120-05-the-clean-mail-window
@@ -68,10 +69,32 @@ methods, where the project is).
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** no whole-mbox import any more: `import.preview`, `import.start` and `caixa import
+  mail` refuse the mail collector and say what to do instead; the wizard's Mail card opens Clean mail
+  (ticket 05). The guide's Mail section describes read, clean, sort, import and reduce with their
+  commands, accounts, the Cleaned and Reduced files, what `owner.json` keeps, what comes next, and
+  `caixa mail sample`, with a checklist for the first real mbox; the README's collectors table,
+  command line and status table are brought up to date.
+- **Files:** changed `caixa/service.py`, `docs/Documentation/Collector.md`, `README.md`, tests
+  (`test_mail_service`, `test_service_jobs`, `test_cli_commands`, `e2e-browse`).
+- **Errors:** three tests used the whole-mbox import only as a convenient source (progress order,
+  command line against service, Browse); they use other sources or the mail workflow now.
+- **Verify:** `python -m pytest -q` → 1396 passed, 1 skipped, 1 deselected; black, mypy, tsc clean;
+  `vitest run` → 248 passed. The guide's synthetic-data mail commands were run by hand.
+
+## Review
+
+### 2026-11-20: eba934c..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the guide's "What you get, for now" describes Phase 1's mail pages; it must be rewritten
+  with tickets 10 to 12 (the conversation pages, the overlay, summaries).
+- **Minor:** `chattr-cli convert mail` still imports a whole mbox into Chattr on its own, as agreed
+  (Chattr stands alone).
+- **Spec:** M14 met.
+- **TDD:** RED then GREEN for T01; T02 is documentation, verified by the suite and by hand.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
