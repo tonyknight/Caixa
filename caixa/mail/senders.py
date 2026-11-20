@@ -158,3 +158,36 @@ def listing(
             )
         )
     return found
+
+
+def selection(
+    index: "MailIndex", source_id: int, chosen: set[str], owner: set[str], people: set[str]
+) -> Selection:
+    """The threads (and their mails, by position) that importing the chosen senders brings."""
+    chosen = {a.lower() for a in chosen}
+    owner = {a.lower() for a in owner}
+    allowed = owner | {a.lower() for a in people} | chosen
+    threads: dict[str, list[tuple[int, Optional[str], int, bool]]] = {}
+    wanted: set[str] = set()
+    for key, position, sender, recipients, signals, length in index.connection.execute(
+        "SELECT thread_key, position, sender_address, recipients, signals, length FROM mails "
+        "WHERE source_id = ? ORDER BY thread_key, position",
+        (source_id,),
+    ):
+        listed = any(s in json.loads(signals) for s in LIST_SIGNALS)
+        threads.setdefault(key, []).append((int(position), sender, int(length), listed))
+        if sender in chosen or (
+            sender in owner and any(a in chosen for _, _, a in json.loads(recipients))
+        ):
+            wanted.add(key)
+    picked: dict[str, list[int]] = {}
+    count = size = 0
+    for key in sorted(wanted):
+        mails = threads[key]
+        if any(listed for *_, listed in mails):  # a mailing list's thread
+            mails = [m for m in mails if m[1] in allowed]
+        if mails:
+            picked[key] = [m[0] for m in mails]
+            count += len(mails)
+            size += sum(m[2] for m in mails)
+    return Selection(picked, count, size)

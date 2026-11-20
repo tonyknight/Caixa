@@ -115,3 +115,60 @@ def test_counts_add_up(source: tuple[MailIndex, int]) -> None:
         assert category.senders == len(category.rows)
         assert category.mails == sum(r.mails for r in category.rows)
         assert category.size == sum(r.size for r in category.rows)
+
+
+# --- What a choice brings (T02) ------------------------------------------------------------------
+
+from caixa.mail.senders import selection  # noqa: E402
+
+PEOPLE = set(KNOWN)
+
+
+def _subjects(source: tuple[MailIndex, int], chosen: set[str]) -> list[str]:
+    index, source_id = source
+    picked = selection(index, source_id, chosen, OWNER, PEOPLE)
+    positions = sorted(p for mails in picked.threads.values() for p in mails)
+    found = [
+        index.connection.execute(
+            "SELECT subject FROM mails WHERE source_id = ? AND position = ?", (source_id, p)
+        ).fetchone()[0]
+        for p in positions
+    ]
+    assert picked.mails == len(found)
+    return found
+
+
+def test_a_stranger_brings_their_threads_whole(source: tuple[MailIndex, int]) -> None:
+    assert sorted(_subjects(source, {"beatriz.lima@example.net"})) == [
+        "Book club in April",
+        "Book club in March",
+        "Re: Book club in March",
+        "Re: Book club in March",
+    ]
+
+
+def test_the_owners_unanswered_mail_comes_with_its_person(source: tuple[MailIndex, int]) -> None:
+    assert _subjects(source, {"rui.pereira@example.org"}) == ["Lunch next week?"]
+
+
+def test_from_a_list_thread_only_the_mail_of_box_people_and_the_owner(
+    source: tuple[MailIndex, int],
+) -> None:
+    found = _subjects(source, {"joao.costa@example.org"})
+    assert found.count("Re: Sintra walk on Saturday") == 2  # João's and the owner's
+    assert "Sintra walk on Saturday" not in found  # Pedro's opening post
+    assert sum("Fotos de São Martinho" in s for s in found) == 4
+    assert sum("The attic boxes" in s for s in found) == 3
+    assert len(found) == 9
+
+
+def test_the_size_and_nothing_for_nobody(source: tuple[MailIndex, int]) -> None:
+    index, source_id = source
+    picked = selection(index, source_id, {"beatriz.lima@example.net"}, OWNER, PEOPLE)
+    lengths = index.connection.execute(
+        "SELECT SUM(length) FROM mails WHERE source_id = ? AND subject LIKE '%Book club%'",
+        (source_id,),
+    ).fetchone()[0]
+    assert picked.size == lengths and len(picked.threads) == 2
+    nothing = selection(index, source_id, set(), OWNER, PEOPLE)
+    assert (nothing.threads, nothing.mails, nothing.size) == ({}, 0, 0)

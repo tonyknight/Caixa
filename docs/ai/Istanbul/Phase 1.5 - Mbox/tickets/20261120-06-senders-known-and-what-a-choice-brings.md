@@ -13,7 +13,7 @@ depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -41,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `caixa/mail/senders.py` works from the index, plain sets and the owner's decisions,
 like the classifier, so it is tested without a box; the service fills it from the box.
@@ -85,7 +85,7 @@ like the classifier, so it is tested without a box; the service fills it from th
   lunch mail; João brings his two threads and, from the hikers' list thread, only his mail and the
   owner's; nothing else.
 - Verify: `python -m pytest -q tests/test_mail_senders.py`
-- [ ] done
+- [x] done
 
 ### T03: Through the service and the command line
 
