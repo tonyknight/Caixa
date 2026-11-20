@@ -86,3 +86,12 @@ export function size(bytes: number): string {
   while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1 }
   return `${value.toLocaleString('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ${units[unit]}`
 }
+
+/** The browser window the mail windows open in: one, reused, beside Caixa's. */
+export const MAIL_WINDOW = 'caixa-mail'
+
+/** Open Clean mail or Sort mail in its window (the same one each time). */
+export function openMailWindow(which: 'clean' | 'sort', open: (url: string, name: string) => unknown = (url, name) => window.open(url, name)): void {
+  const opened = open(`/mail/${which}`, MAIL_WINDOW) as Window | null
+  opened?.focus?.()
+}

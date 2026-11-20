@@ -7,6 +7,7 @@ import { IMPORT_STAGES, PREVIEW_STAGES, ProgressView } from '../components/Progr
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import type { CaixaKey } from '../locales.ts'
 import { fields as formFields, initialValues, toOptions, type FormValues } from '../options-form.ts'
+import { openMailWindow } from '../mail/types.ts'
 import css from '../caixa.module.css'
 
 type Step = 'source' | 'export' | 'input' | 'options' | 'preview' | 'run'
@@ -134,10 +135,18 @@ function SourceStep({ collectors, onChoose }: { collectors: CollectorDescription
       <ul className={css.grid}>
         {collectors.map(c => (
           <li key={c.id}>
-            <button type="button" className={css.choice} onClick={() => onChoose(c)}>
-              <strong>{c.name}</strong>
-              <span>{t('import.source.takes', { inputs: c.inputs.map(kind => t(`input.${kind}` as CaixaKey)).join(', ') })}</span>
-            </button>
+            {c.id === 'mail' ? (
+              // Mail is never imported whole: it is cleaned and sorted first, in its own window.
+              <button type="button" className={css.choice} onClick={() => openMailWindow('clean')}>
+                <strong>{c.name}</strong>
+                <span>{t('import.source.mail')}</span>
+              </button>
+            ) : (
+              <button type="button" className={css.choice} onClick={() => onChoose(c)}>
+                <strong>{c.name}</strong>
+                <span>{t('import.source.takes', { inputs: c.inputs.map(kind => t(`input.${kind}` as CaixaKey)).join(', ') })}</span>
+              </button>
+            )}
           </li>
         ))}
       </ul>

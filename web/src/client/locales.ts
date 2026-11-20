@@ -240,6 +240,8 @@ export const en = {
   'people.deleteDo': 'Delete',
   'people.removed': 'Deleted the records chosen ({count}). The pages are being redrawn.',
   'toast.refreshFailed': 'Updating the pages failed: {error}',
+  'toast.mailReadFailed': 'Reading the mbox failed: {error}',
+  'toast.mailCleanFailed': 'Writing the cleaned mbox failed: {error}',
 
   'browse.heading': 'Browse',
   'browse.root': 'Box',
@@ -307,6 +309,7 @@ export const en = {
   'settings.revert': 'Undo changes',
   'settings.problems': 'The settings were not saved:',
   'mail.clean.title': 'Clean mail',
+  'import.source.mail': 'An .mbox, cleaned and sorted first: opens Clean mail in a window of its own.',
   'mail.clean.lead': 'Find the junk in an mbox (newsletters, notices, lists, spam) and write a slimmer copy without it. Receipts, orders, the people in your box and anyone you wrote to are always kept. The mbox you start from is never changed.',
   'mail.sources.heading': 'Mboxes already read',
   'mail.sources.none': 'No mbox has been read into this box yet.',
@@ -604,6 +607,8 @@ export const zh: Dictionary = {
   'people.deleteDo': '删除',
   'people.removed': '已删除所选的记录（{count}）。正在重新生成页面。',
   'toast.refreshFailed': '更新页面失败：{error}',
+  'toast.mailReadFailed': '读取 mbox 失败：{error}',
+  'toast.mailCleanFailed': '写出清理后的 mbox 失败：{error}',
 
   'browse.heading': '浏览',
   'browse.root': '档案盒',
@@ -671,6 +676,7 @@ export const zh: Dictionary = {
   'settings.revert': '撤销更改',
   'settings.problems': '设置未能保存：',
   'mail.clean.title': '清理邮件',
+  'import.source.mail': '.mbox 邮件，先清理再整理：在单独的窗口中打开“清理邮件”。',
   'mail.clean.lead': '找出 mbox 中的垃圾邮件（新闻通讯、通知、邮件列表、垃圾邮件），并写出一份不含它们的精简副本。收据、订单、盒子里的人以及您写过信的人始终保留。原始 mbox 永远不会被改动。',
   'mail.sources.heading': '已读取的 mbox',
   'mail.sources.none': '这个盒子还没有读取过任何 mbox。',

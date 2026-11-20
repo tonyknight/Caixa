@@ -13,8 +13,7 @@ depends_on:
 - 20261120-03-junk-classifier-and-the-receipts-guard
 - 20261120-04-the-mbox-writer
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -44,8 +43,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** the window is a second page of Caixa's React app, served at `/mail/clean` (the same
 built `index.html`; `main.tsx` picks the page by its address) and opened in a window of its own
@@ -109,7 +108,7 @@ can be listed without reading the mbox again (index schema 3).
 - `web/tests/e2e-clean-mail.test.ts`: in Chromium against the real `caixa serve`: read the noisy
   mbox, see the groups, keep a sender, write the cleaned mbox, find it beside the source.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -127,3 +126,6 @@ T01: service mail.clean (classify with the box's people and owner aliases, owner
 
 ### 2026-11-20
 T02: web/src/client/mail/ (types, MailList: categories with counts, rows, click/Shift-click, drag onto a drop target, hover tools, status bar; Preview overlay as text only; Sources: mboxes read and reading another with its account; CleanMail). /mail/clean and /mail/sort serve Caixa's page (main.tsx shows CleanMail at /mail/clean; Sort mail is ticket 07). The Jobs page's mail-clean label and result moved here from T03 (the locale test refuses an unused key). Selection colour is the index page's Frost blue, not the window's orange accent.
+
+### 2026-11-20
+T03: the wizard's Mail card opens Clean mail in its own window (caixa-mail) instead of the blind import; e2e-clean-mail.test.ts runs it in Chromium against the real caixa serve (read, groups, keep, write, file beside the source, no console errors). e2e-wizard.test.ts no longer imports mail through the wizard (its card is gone); its item total drops by the fixture mbox's 4. Added: failed mail-read / mail-clean jobs toast in their own words (they toasted 'Updating the pages failed').

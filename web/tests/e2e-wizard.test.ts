@@ -12,12 +12,13 @@ import { tmpdir } from 'node:os'
 
 const run = canRun && playwright() ? describe : describe.skip
 
-/** [collector id, the card's name in the wizard, where the fixture is, items it holds]. */
+/** [collector id, the card's name in the wizard, where the fixture is, items it holds]. Mail is
+ * not among them: the wizard's Mail card opens Clean mail, since mail is cleaned and sorted first
+ * (see e2e-clean-mail.test.ts). */
 const SOURCES = (paths: Record<string, string>): [string, RegExp, string, number][] => [
   ['whatsapp', /^WhatsApp/, join(paths.whatsapp!, 'WhatsApp Chat - Ana Costa', '_chat.txt'), 7],
   ['imessage', /^iMessage/, paths.imessage!, 7],
   ['messenger', /^Messenger/, paths.messenger!, 5],
-  ['mail', /^Mail/, paths.mbox!, 4],
   ['googlevoice', /^Google Voice/, paths.google_voice!, 6],
   ['voicemail', /^iPhone voicemail/, paths.iphone_voicemail!, 2],
 ]
@@ -120,7 +121,7 @@ run('the import wizard, in a browser', () => {
 
     const fromBrowser = snapshot(browserBox)
     const fromCommandLine = snapshot(cliBox)
-    expect(fromBrowser.rows.length).toBe(7 + 7 + 5 + 4 + 6 + 2)
+    expect(fromBrowser.rows.length).toBe(7 + 7 + 5 + 6 + 2)
     expect(fromBrowser.rows).toEqual(fromCommandLine.rows)
     expect(fromBrowser.people).toEqual(fromCommandLine.people)
     expect(fromBrowser.links).toBe(fromCommandLine.links)

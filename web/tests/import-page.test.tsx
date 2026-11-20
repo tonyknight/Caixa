@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { CollectorDescription } from '../src/client/api.ts'
 import { ImportPage } from '../src/client/pages/ImportPage.tsx'
 import { BOX, fail, job, ok } from './fake-api.ts'
 import { renderWith } from './render.tsx'
@@ -533,5 +534,20 @@ describe('the steps', () => {
     expect(currentStep()).toBe('Choose')
     expect(BOX.name).toBe('Our box')
     await view.flush()
+  })
+})
+
+describe('mail in the import wizard', () => {
+  it('opens Clean mail in a window of its own for mail, which is cleaned and sorted first', async () => {
+    const opened = vi.spyOn(window, 'open').mockImplementation(() => null)
+    const MAIL: CollectorDescription = { id: 'mail', name: 'Mail (Gmail and other mbox)', platform: 'Mail', inputs: ['file', 'folder', 'zip'], source: 'chattr', how_to_export: 'Google Takeout.', options_schema: { type: 'object', properties: {} } }
+    const view = await renderWith(<ImportPage onShowJob={vi.fn()} onShowPeople={vi.fn()} />, (api) => { api.collectorList = [...api.collectorList, MAIL] })
+    const card = screen.getByRole('button', { name: /Mail \(Gmail and other mbox\)/ })
+    expect(card.textContent).toContain('cleaned and sorted first')
+    fireEvent.click(card)
+    expect(opened).toHaveBeenCalledWith('/mail/clean', 'caixa-mail')
+    expect(currentStep()).toBe('Source')
+    expect(view.api.calls.some(c => c[0] === 'preview')).toBe(false)
+    opened.mockRestore()
   })
 })

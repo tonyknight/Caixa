@@ -146,6 +146,14 @@ describe('the toasts', () => {
     expect(screen.getByText('Updating the pages failed: disk full')).toBeTruthy()
   })
 
+  it('announce failed mail work in its own words', async () => {
+    const view = await renderWith(<ToastHost />)
+    await view.emit('job.finished', finished(10, { kind: 'mail-read', collector: null, status: 'failed', error: 'not an mbox', result: null }))
+    expect(screen.getByText('Reading the mbox failed: not an mbox')).toBeTruthy()
+    await view.emit('job.finished', finished(11, { kind: 'mail-clean', collector: null, status: 'failed', error: 'no room', result: null }))
+    expect(screen.getByText('Writing the cleaned mbox failed: no room')).toBeTruthy()
+  })
+
   it('speak Chinese when asked', async () => {
     const view = await renderWith(<ToastHost />, () => undefined, 'zh')
     await view.emit('job.finished', finished(5))
