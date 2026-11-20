@@ -139,11 +139,17 @@ class MboxParser(BaseParser):
         owner: Optional[str] = None,
         aliases: Optional[dict[str, str]] = None,
         attachments_dir: Optional[PathLike] = None,
+        account: Optional[str] = None,
+        workers: int = 1,
     ):
         self.owner = (owner or "").strip().lower()
         self.aliases = aliases or {}
         #: Where attachments are kept, by hash. Without it they are hashed but not saved.
         self.attachments_dir = Path(attachments_dir) if attachments_dir else None
+        #: The account the mail comes from (Caixa's name for it), kept with each mail.
+        self.account = account
+        #: Processes that build the mails' records (decoding, attachments) from their bytes.
+        self.workers = max(1, int(workers or 1))
 
     # --- BaseParser -------------------------------------------------------------------------
 
@@ -152,19 +158,48 @@ class MboxParser(BaseParser):
         if not path.is_file():
             raise FileNotFoundError(path)
         records: dict[str, MessageRecord] = {}
+        for record in self._records(path):
+            existing = records.get(record.source_id or "")
+            records[record.source_id or ""] = self._merge(existing, record) if existing else record
+        return self._threads(sorted(records.values(), key=lambda r: r.timestamp))
+
+    def _records(self, path: Path) -> list[MessageRecord]:
+        """Every mail's record, in file order; built by worker processes when there are several."""
         box = mailbox.mbox(str(path), create=False)
         try:
+            if self.workers == 1:
+                return [
+                    self._from_bytes(box.get_bytes(key), box.get_message(key).get_from())
+                    for key in box.keys()
+                ]
+            import concurrent.futures
+            import multiprocessing
+
+            batches: list[list[tuple[bytes, Optional[str]]]] = [[]]
+            held = 0
             for key in box.keys():
-                message = email.message_from_bytes(box.get_bytes(key), policy=email.policy.default)
-                assert isinstance(message, EmailMessage)
-                record = self._record(message, box.get_message(key).get_from())
-                existing = records.get(record.source_id or "")
-                records[record.source_id or ""] = (
-                    self._merge(existing, record) if existing else record
-                )
+                data = box.get_bytes(key)
+                batches[-1].append((data, box.get_message(key).get_from()))
+                held += len(data)
+                if held >= BATCH:
+                    batches.append([])
+                    held = 0
         finally:
             box.close()
-        return self._threads(sorted(records.values(), key=lambda r: r.timestamp))
+        settings = (self.owner, self.aliases, self.attachments_dir, self.account)
+        pool = concurrent.futures.ProcessPoolExecutor(
+            max_workers=self.workers, mp_context=multiprocessing.get_context("spawn")
+        )
+        try:
+            parts = pool.map(_build_batch, [settings] * len(batches), batches)
+            return [record for part in parts for record in part]
+        finally:
+            pool.shutdown()
+
+    def _from_bytes(self, data: bytes, from_line: Optional[str]) -> MessageRecord:
+        message = email.message_from_bytes(data, policy=email.policy.default)
+        assert isinstance(message, EmailMessage)
+        return self._record(message, from_line)
 
     # --- Threads ----------------------------------------------------------------------------
 
@@ -251,6 +286,8 @@ class MboxParser(BaseParser):
         html = _body(message.get_body(preferencelist=("html",)))
         text = (plain if plain is not None else html_to_text(html or "")).strip()
         extras: dict[str, Any] = {"body_html": html} if html else {}
+        if self.account:
+            extras["account"] = self.account
         attachments = tuple(self._attachments(message))
         source_id = message_id or self._synthetic_id(sender, timestamp, subject, text)
         return MessageRecord(
@@ -340,3 +377,17 @@ class MboxParser(BaseParser):
         from dataclasses import replace
 
         return replace(first, mail_headers=headers)
+
+
+#: Bytes of mail sent to a worker at once.
+BATCH = 16 * 1024 * 1024
+
+
+def _build_batch(
+    settings: tuple[str, dict[str, str], Optional[Path], Optional[str]],
+    batch: list[tuple[bytes, Optional[str]]],
+) -> list[MessageRecord]:
+    """Records for a batch of mails (runs in a worker process)."""
+    owner, aliases, attachments_dir, account = settings
+    parser = MboxParser(owner, aliases, attachments_dir, account)
+    return [parser._from_bytes(data, from_line) for data, from_line in batch]

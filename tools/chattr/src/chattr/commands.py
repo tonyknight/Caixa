@@ -263,6 +263,7 @@ def _convert_batches(
     attachments_dir: Optional[PathLike],
     transcriber: Optional[Transcriber],
     resolver: Optional[PeopleResolver],
+    parser_options: Optional[dict[str, Any]] = None,
 ) -> ConvertResult:
     """Import a service whose parser returns one batch per conversation (mail, Google Voice,
     voicemail).
@@ -275,6 +276,7 @@ def _convert_batches(
     roots = attachment_roots(settings, [attachments_dir] if attachments_dir else [])
     hears = key in ("voicemail", "googlevoice")  # the sources with recordings to transcribe
     options: dict[str, Any] = {"transcriber": transcriber} if hears else {}
+    options.update(parser_options or {})  # mail: the account and the workers
     parser = parser_class(
         owner=owner,
         aliases=_aliases_mapping(aliases),
@@ -365,6 +367,7 @@ def convert(
     region: Optional[str] = None,
     resolve: bool = True,
     keep: Optional[Callable[[ConversationRecord, list[dict[str, Any]]], Union[bool, str]]] = None,
+    parser_options: Optional[dict[str, Any]] = None,
 ) -> ConvertResult:
     """Convert one export along the chosen route.
 
@@ -410,6 +413,7 @@ def convert(
             attachments_dir,
             transcriber,
             resolver,
+            parser_options,
         )
     parser = parser_class()
     messages = parser.parse(str(export))

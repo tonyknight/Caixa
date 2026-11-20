@@ -1119,6 +1119,8 @@ class Mail(_Chattr):
         attachments_dir: Optional[Path],
         final: bool,
     ) -> None:
+        # The mail workflow (caixa.mail) passes the account the mail comes from and the workers.
+        parser_options = {k: options[k] for k in ("account", "workers") if options.get(k)}
         commands.convert(
             settings,
             "mail",
@@ -1128,6 +1130,7 @@ class Mail(_Chattr):
             attachments_dir=attachments_dir,
             contacts=options.get("contacts") or None,
             resolve=False,
+            parser_options=parser_options or None,
         )
 
 

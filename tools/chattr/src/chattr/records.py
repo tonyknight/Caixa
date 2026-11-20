@@ -5,7 +5,8 @@ older one, maps each message to the same row.
 
 - Conversation id: `<service>:<sha256(service, source conversation id)[:20]>`.
 - Message id: from the source's own message id when it has one (iMessage GUID, email
-  Message-ID). Otherwise from (service, conversation, time, sender, body, occurrence), where
+  Message-ID). A mail's id comes from its Message-ID alone (`mail:<hash>`), so the same mail is one
+  message whichever thread an export puts it in. Otherwise from (service, conversation, time, sender, body, occurrence), where
   occurrence numbers identical messages at the same moment in the same conversation, so genuine
   repeats ("ok", "ok") stay distinct.
 - `content_hash` covers the message's content, so a changed message is detected on re-import.
@@ -101,7 +102,11 @@ def assign_ids(
     occurrences: dict[str, int] = {}
     result = []
     for record in records:
-        if record.source_id:
+        if record.source_id and conversation.service == "Mail":
+            # A mail is the same mail in whichever thread an export puts it (a later export may
+            # thread it differently): its id comes from its Message-ID alone.
+            message_id = f"mail:{_digest(conversation.service, record.source_id)[:24]}"
+        elif record.source_id:
             message_id = f"{conversation.id}:{_digest(conversation.service, record.source_id)[:24]}"
         else:
             key = _digest(

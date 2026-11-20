@@ -670,8 +670,28 @@ class DatabaseManager:
                 "content_hash": record.content_hash,
             }
             existing = db.execute(
-                "SELECT content_hash FROM messages WHERE id = ?", (record.id,)
+                "SELECT content_hash, conversation_id FROM messages WHERE id = ?", (record.id,)
             ).fetchone()
+            if existing is not None and existing["conversation_id"] != conversation.id:
+                # A mail met again under another thread (its id does not depend on the thread):
+                # the later threading wins, and a thread left empty goes.
+                moved_from = existing["conversation_id"]
+                db.execute(
+                    "UPDATE messages SET conversation_id = ?, version = version + 1 WHERE id = ?",
+                    (conversation.id, record.id),
+                )
+                if not db.execute(
+                    "SELECT 1 FROM messages WHERE conversation_id = ? LIMIT 1", (moved_from,)
+                ).fetchone():
+                    db.execute("DELETE FROM participants WHERE conversation_id = ?", (moved_from,))
+                    db.execute("DELETE FROM conversations WHERE id = ?", (moved_from,))
+                if existing["content_hash"] == record.content_hash:
+                    counts.updated += 1
+                    moved = True
+                else:
+                    moved = False
+            else:
+                moved = False
             if existing is None:
                 columns = ", ".join(["id", *values])
                 marks = ", ".join("?" for _ in range(len(values) + 1))
@@ -687,7 +707,7 @@ class DatabaseManager:
                     (*values.values(), record.id),
                 )
                 counts.updated += 1
-            else:
+            elif not moved:
                 counts.unchanged += 1
 
             if record.attachments:
