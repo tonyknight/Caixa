@@ -3,11 +3,12 @@ id: 20261120-05-the-clean-mail-window
 title: The Clean mail window
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: Clean mail window (groups, keep, preview, write), service and CLI; opened
+  from the wizard''s Mail card.'
 parent:
 depends_on:
 - 20261120-03-junk-classifier-and-the-receipts-guard
@@ -112,10 +113,48 @@ can be listed without reading the mbox again (index schema 3).
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** the Clean mail window: Caixa's page at `/mail/clean`, opened in its own window from
+  the import wizard's Mail card (which no longer starts a blind import). It starts from the mboxes
+  already read, or reads another with its account (a job, with progress). Then, in the index page's
+  way of working: the groups on the left with senders, mails and size; senders as rows (name,
+  address, mails, size); click and Shift-click to select, drag onto Kept, Keep and Stop keeping from
+  the status bar or a row's hover tools; a sender's mail in an overlay (as text) and one mail in
+  full; Escape clears or closes. Write the cleaned mbox asks first (mails, size, senders left out;
+  the source is not changed), runs as a job and shows the new file. Service methods `mail.clean`,
+  `mail.keep`, `mail.preview`, `mail.message`, `mail.clean.write`; `caixa mail clean` and
+  `caixa mail keep`; kept senders in `owner.json` (`mail.kept`), surviving a reset.
+- **Files:** new `web/src/client/mail/{types.ts,MailList.tsx,Preview.tsx,Sources.tsx,CleanMail.tsx,
+  mail.module.css}`, `web/tests/{clean-mail.test.tsx,e2e-clean-mail.test.ts}`; changed
+  `caixa/{service,cli,owner,web}.py`, `caixa/mail/{index,clean}.py` (snippets, schema 3),
+  `web/src/app/main.tsx`, `web/src/client/{locales.ts,Toasts.tsx,pages/ImportPage.tsx,
+  pages/JobsPage.tsx}`, `caixa/data/web/*` (rebuilt), tests (`test_mail_service`, `test_owner`,
+  `test_web_server`, `test_worker_protocol`, `import-page`, `jobs-page`, `e2e-wizard`).
+- **Errors:** none in existing code. `e2e-wizard` imported mail through the wizard card that now
+  opens Clean mail; mail left its list (its item total drops by 4).
+- **Verify:** `python -m pytest -q` → 1354 passed, 1 skipped, 1 deselected; black and mypy clean;
+  `tsc` clean; `vitest run` → 238 passed, including Clean mail end to end in Chromium against the
+  real `caixa serve` with no console errors.
+
+## Review
+
+### 2026-11-20: e906574..HEAD (T01–T03), reviewed in-session, with screenshots
+
+**Verdict:** clean after two fixes; Minor items only.
+
+- **Fixed (Minor, seen in the screenshots):** the sidebar's first number had no word ("5 · 11
+  mails"); it now says "5 senders · 11 mails". The "Written" notice sat above the whole window and
+  pushed it down; it is now a card at the top of the list.
+- **Minor:** previewing one mail of an mbox inside a zip unzips forward to it (slow for a mail deep
+  in a large zip); the list of a sender's mails is instant (snippets in the index). After cleaning,
+  the Cleaned mbox is a plain file, so sorting never meets this.
+- **Minor:** the blind import is gone from the wizard but still exists as `caixa import mail` until
+  ticket 15 (as planned).
+- **Minor:** the window's hover tools are hidden until hover, as on the index page; keyboard users
+  reach them by Tab (they show on focus).
+- **Spec:** M5 and M8 (keeps) met; every acceptance criterion met.
+- **TDD:** RED then GREEN for each task (service tests, window tests, server route, Mail card, Jobs
+  page, toasts).
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 

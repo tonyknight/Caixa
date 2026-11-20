@@ -47,14 +47,14 @@ run('cleaning an mbox, in a browser', () => {
       await mail.getByRole('button', { name: 'Read it' }).click()
       await mail.getByRole('heading', { level: 1, name: 'Lists and newsletters' }).waitFor({ timeout: 60_000 })
       const groups = mail.getByRole('navigation', { name: 'Groups' })
-      expect(await groups.getByRole('link', { name: /Lists and newsletters/ }).textContent()).toContain('5 · 11 mails')
+      expect(await groups.getByRole('link', { name: /Lists and newsletters/ }).textContent()).toContain('5 senders · 11 mails')
       await shot(mail, 'clean-mail-groups')
 
       const fold = mail.getByRole('row', { name: /The Daily Fold/ })
       await fold.hover()
       await mail.getByRole('button', { name: 'Keep The Daily Fold' }).click()
       await fold.waitFor({ state: 'detached', timeout: 15_000 })
-      expect(await groups.getByRole('link', { name: /Kept/ }).textContent()).toContain('1 · 6 mails')
+      expect(await groups.getByRole('link', { name: /Kept/ }).textContent()).toContain('1 sender · 6 mails')
 
       await mail.getByRole('button', { name: 'Write the cleaned mbox' }).click()
       const ask = mail.getByRole('dialog', { name: /Leave out \d+ mails/ })

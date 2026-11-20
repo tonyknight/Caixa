@@ -41,8 +41,10 @@ export function useCounts() {
  * onto a category that takes it, the tools of a row on hover, and a status bar that adds up the
  * category and the selection and holds the actions.
  */
-export function MailList({ brand, categories, view, onView, title, hint, rows, tools, selectable, onDrop, actions, primary, quiet = false }: {
+export function MailList({ brand, categories, view, onView, title, hint, rows, tools, selectable, onDrop, actions, primary, notice, quiet = false }: {
   brand: ReactNode
+  /** Above the list: what was just written, work going on, a problem. */
+  notice?: ReactNode
   categories: readonly Category[]
   view: string
   onView: (key: string) => void
@@ -123,6 +125,7 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
         ))}
       </nav>
       <main className={css.content}>
+        {notice}
         <h1 className={css.title}>{title}</h1>
         <p className={css.hint}>{hint}</p>
         <table className={css.table}>

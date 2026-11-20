@@ -71,11 +71,11 @@ export function CleanMail() {
   const categories: Category[] = [
     ...groups.map(group => ({
       key: group.key, label: group.label, dot: DOTS[group.key] ?? 'dotLists',
-      line: `${group.senders.toLocaleString('en')} · ${counts.mails(group.mails)} · ${size(group.size)}`,
+      line: `${counts.senders(group.senders)} · ${counts.mails(group.mails)} · ${size(group.size)}`,
     })),
     {
       key: KEPT, label: t('mail.kept'), dot: DOTS.kept!, dropTarget: true,
-      line: `${reply.kept_senders.length.toLocaleString('en')} · ${counts.mails(reply.kept_senders.reduce((n, r) => n + r.mails, 0))}`,
+      line: `${counts.senders(reply.kept_senders.length)} · ${counts.mails(reply.kept_senders.reduce((n, r) => n + r.mails, 0))}`,
     },
   ]
   const group = groups.find(g => g.key === view)
@@ -92,22 +92,24 @@ export function CleanMail() {
 
   return (
     <>
-      {failure && <p className={css.problemBar} role="alert">{t('mail.failed', { message: failure })}</p>}
-      {written && (
-        <div className={css.written} role="status" aria-label={t('mail.written')}>
-          <strong>{t('mail.written')}</strong> <code>{written.path}</code>
-          <span>{t('mail.written.line', { mails: written.mails.toLocaleString('en'), left: written.left_out.toLocaleString('en'), size: size(written.left_out_size) })}</span>
-        </div>
-      )}
-      {job && !written && job.status !== 'failed' && (
-        <div className={css.writingBar}>
-          <span>{t('mail.write.writing')}</span>
-          <ProgressView step={job.stage ? { stage: job.stage, current: job.current, total: job.total, message: job.message ?? '' } : undefined}
-                        stages={['writing', 'checking']} startedAt={started} />
-        </div>
-      )}
-      {job?.status === 'failed' && <p className={css.problemBar} role="alert">{t('mail.failed', { message: job.error ?? '' })}</p>}
       <MailList
+        notice={<>
+          {failure && <p className={css.problemBar} role="alert">{t('mail.failed', { message: failure })}</p>}
+          {written && (
+            <div className={css.written} role="status" aria-label={t('mail.written')}>
+              <strong>{t('mail.written')}</strong> <code>{written.path}</code>
+              <span>{t('mail.written.line', { mails: written.mails.toLocaleString('en'), left: written.left_out.toLocaleString('en'), size: size(written.left_out_size) })}</span>
+            </div>
+          )}
+          {job && !written && job.status !== 'failed' && (
+            <div className={css.writingBar}>
+              <span>{t('mail.write.writing')}</span>
+              <ProgressView step={job.stage ? { stage: job.stage, current: job.current, total: job.total, message: job.message ?? '' } : undefined}
+                            stages={['writing', 'checking']} startedAt={started} />
+            </div>
+          )}
+          {job?.status === 'failed' && <p className={css.problemBar} role="alert">{t('mail.failed', { message: job.error ?? '' })}</p>}
+        </>}
         brand={<>{t('mail.clean.title')}<small>{name}</small><small>{reply.source.account} · {counts.mails(reply.source.mails)}</small></>}
         categories={categories}
         view={view}

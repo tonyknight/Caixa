@@ -65,8 +65,8 @@
 .pill:disabled { opacity: .5; cursor: not-allowed; }
 
 /* --- Bars above the window: what was written, the writing, a problem --- */
-.written, .writingBar, .problemBar { margin: 0; padding: .6rem 1.8rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; font-size: .88rem; background: var(--m-panel); color: var(--m-fg); border-bottom: 1px solid var(--m-line); }
-.written { background: color-mix(in srgb, #a3be8c 25%, var(--m-panel)); }
+.written, .writingBar, .problemBar { margin: 0 0 1.2rem; padding: .7rem 1rem; display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; font-size: .88rem; background: var(--m-card); color: var(--m-fg); border: 1px solid var(--m-line); border-radius: .7rem; box-shadow: 0 1px 2px var(--m-shadow); }
+.written { border-color: #a3be8c; background: color-mix(in srgb, #a3be8c 18%, var(--m-card)); }
 .written code { overflow-wrap: anywhere; }
 .problemBar, .problem { color: var(--m-danger); }
 
