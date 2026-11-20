@@ -13,7 +13,7 @@ depends_on:
 - 20261120-01-synthetic-mail-fixtures
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -44,7 +44,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** a new package `caixa/mail/` (the mail workflow lives in Caixa, beside the
 collectors). `caixa/mail/index.py` holds `MailIndex`, a SQLite file at
@@ -89,7 +89,7 @@ callback raising, as for imports; the pool is shut down and the source left unre
   sources with one account; a folder; a zip without an mbox is refused; workers 1 and 4 agree on a
   zip.
 - Verify: `python -m pytest -q tests/test_mail_index.py`
-- [ ] done
+- [x] done
 
 ### T03: The Workers setting, `mail.read` as a job, and `caixa mail read`
 
@@ -124,3 +124,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: caixa/mail/index.py. Workers are spawned processes (spawn, not fork: Caixa runs jobs in a thread and fork in a threaded process can deadlock); one worker means no pool. A source's mails are stored in one transaction, so a cancelled read leaves nothing. Attachments are counted as Content-Disposition attachment/inline lines (inline signature images included). The list and bulk headers (List-Id, List-Unsubscribe, List-Post, Precedence, Auto-Submitted, Feedback-ID and a few mass-mail services' own) are kept per mail in 'signals' for ticket 03.
+
+### 2026-11-20
+T02: zips are read as one stream per .mbox member, batches (16 MB) parsed by the workers with at most two per worker waiting; a zip member is identified by the zip's time and the member's size and CRC. Folders give every .mbox and zip with one, and Apple Mail's '<name>.mbox/mbox' (added: Apple Mail exports each mailbox as such a folder).

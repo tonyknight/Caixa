@@ -26,6 +26,7 @@ no pool at all. The result is the same whatever the number of workers.
 
 from __future__ import annotations
 
+import collections
 import concurrent.futures
 import hashlib
 import json
@@ -379,7 +380,19 @@ class MailIndex:
         if not path.exists():
             raise MailError(f"Not found: {path}")
         given = check_account(account) if account is not None else None
-        return [self._read_file(path.resolve(), given, max(1, workers), progress, range_size)]
+        workers = max(1, workers)
+        found = _mboxes(path.resolve())
+        if not found:
+            raise MailError(f"{path.name}: there is no .mbox in it.")
+        results = []
+        for file, member in found:
+            if member:
+                results.append(
+                    self._read_member(file, member, given, workers, progress, range_size)
+                )
+            else:
+                results.append(self._read_file(file, given, workers, progress, range_size))
+        return results
 
     def _account(self, known: Optional[tuple[Any, ...]], given: Optional[str]) -> str:
         if given is not None:
@@ -405,30 +418,69 @@ class MailIndex:
         head_hash = hashlib.sha256(head).hexdigest()
         known = self._known(str(path), "")
         account = self._account(known, given)
-        if (
-            known
-            and known[2] == "read"
-            and tuple(known[3:6]) == (stat.st_size, stat.st_mtime_ns, head_hash)
-        ):
-            if given is not None and given != known[1]:
-                self.connection.execute(
-                    "UPDATE sources SET account = ? WHERE id = ?", (given, known[0])
-                )
-            mails = self.connection.execute(
-                "SELECT mails FROM sources WHERE id = ?", (known[0],)
-            ).fetchone()[0]
-            return ReadResult(known[0], str(path), "", account, known[6], mails, True, 0.0)
+        identity = (stat.st_size, stat.st_mtime_ns, head_hash)
+        if known and known[2] == "read" and tuple(known[3:6]) == identity:
+            return self._reused(known, given, str(path), "", account)
         size = stat.st_size
         chosen = range_size or min(MAX_RANGE, max(MIN_RANGE, size // (workers * 4)))
         ranges = _ranges(path, size, chosen)
         rows = self._parsed_ranges(str(path), ranges, workers, size, path.name, progress)
         kind = known[6] if known else kind_of(path.name)
-        source_id, count = self._store(
-            str(path), "", kind, account, (size, stat.st_mtime_ns, head_hash), rows
-        )
+        source_id, count = self._store(str(path), "", kind, account, identity, rows)
         return ReadResult(
             source_id, str(path), "", account, kind, count, False, time.monotonic() - started
         )
+
+    def _read_member(
+        self,
+        path: Path,
+        member: str,
+        given: Optional[str],
+        workers: int,
+        progress: Report,
+        batch_size: Optional[int],
+    ) -> ReadResult:
+        """An mbox inside a zip, read as one stream; offsets are offsets in the unzipped member."""
+        started = time.monotonic()
+        with zipfile.ZipFile(path) as archive:
+            info = archive.getinfo(member)
+            with archive.open(info) as handle:
+                if not handle.read(5).startswith(b"From "):
+                    raise MailError(
+                        f"{member} in {path.name} is not an mbox: it does not begin with a "
+                        "'From ' line."
+                    )
+            identity = (info.file_size, path.stat().st_mtime_ns, f"crc:{info.CRC:08x}")
+            known = self._known(str(path), member)
+            account = self._account(known, given)
+            kind = known[6] if known else kind_of(Path(member).name)
+            if known and known[2] == "read" and tuple(known[3:6]) == identity:
+                return self._reused(known, given, str(path), member, account)
+            with archive.open(info) as handle:
+                rows = _parsed_stream(
+                    handle,
+                    workers,
+                    batch_size or BATCH,
+                    info.file_size,
+                    Path(member).name,
+                    progress,
+                )
+                source_id, count = self._store(str(path), member, kind, account, identity, rows)
+        return ReadResult(
+            source_id, str(path), member, account, kind, count, False, time.monotonic() - started
+        )
+
+    def _reused(
+        self, known: tuple[Any, ...], given: Optional[str], path: str, member: str, account: str
+    ) -> ReadResult:
+        if given is not None and given != known[1]:
+            self.connection.execute(
+                "UPDATE sources SET account = ? WHERE id = ?", (given, known[0])
+            )
+        mails = self.connection.execute(
+            "SELECT mails FROM sources WHERE id = ?", (known[0],)
+        ).fetchone()[0]
+        return ReadResult(known[0], path, member, account, known[6], mails, True, 0.0)
 
     def _parsed_ranges(
         self,
@@ -524,6 +576,90 @@ class MailIndex:
             db.execute("ROLLBACK")
             raise
         return source_id, position
+
+
+def _mboxes(path: Path) -> list[tuple[Path, str]]:
+    """(file, member) for every mbox `path` stands for: itself, the `.mbox` members of a zip, or
+    every `.mbox` and zip holding one inside a folder, including Apple Mail's `<name>.mbox/mbox`
+    (member is '' for a plain file)."""
+    if path.is_dir():
+        found: list[tuple[Path, str]] = []
+        for file in sorted(p for p in path.rglob("*") if p.is_file()):
+            apple = file.name == "mbox" and file.parent.suffix.lower() == ".mbox"  # Apple Mail
+            if file.suffix.lower() in (".mbox", ".zip") or apple:
+                found += _mboxes(file)
+        return found
+    if path.suffix.lower() == ".zip" and zipfile.is_zipfile(path):
+        with zipfile.ZipFile(path) as archive:
+            return [
+                (path, i.filename)
+                for i in archive.infolist()
+                if not i.is_dir() and i.filename.lower().endswith(".mbox")
+            ]
+    return [(path, "")]
+
+
+def _parsed_stream(
+    handle: IO[bytes],
+    workers: int,
+    batch_size: int,
+    size: int,
+    name: str,
+    progress: Report,
+) -> Iterator[list[Row]]:
+    """The rows of a stream of mails, in order: batches parsed by the workers, at most two per
+    worker waiting, so memory stays bounded however large the stream."""
+
+    def report(done: int, count: int) -> None:
+        if progress is not None:
+            progress(Progress("reading", done, size, f"{name}: {count:,} mails"))
+
+    def batches() -> Iterator[list[tuple[int, bytes]]]:
+        batch: list[tuple[int, bytes]] = []
+        held = 0
+        for offset, data in entries(_blocks(handle), 0):
+            batch.append((offset, data))
+            held += len(data)
+            if held >= batch_size:
+                yield batch
+                batch, held = [], 0
+        if batch:
+            yield batch
+
+    def end_of(batch: list[tuple[int, bytes]]) -> int:
+        return batch[-1][0] + len(batch[-1][1])
+
+    report(0, 0)
+    count = 0
+    if workers == 1:
+        for batch in batches():
+            parsed = parse_batch(batch)
+            count += len(parsed)
+            yield parsed
+            report(end_of(batch), count)
+        return
+    pool = concurrent.futures.ProcessPoolExecutor(
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn")
+    )
+    waiting: collections.deque[tuple[concurrent.futures.Future[list[Row]], int]]
+    waiting = collections.deque()
+    try:
+        for batch in batches():
+            waiting.append((pool.submit(parse_batch, batch), end_of(batch)))
+            while len(waiting) >= workers * 2:
+                future, end = waiting.popleft()
+                parsed = future.result()
+                count += len(parsed)
+                yield parsed
+                report(end, count)
+        while waiting:
+            future, end = waiting.popleft()
+            parsed = future.result()
+            count += len(parsed)
+            yield parsed
+            report(end, count)
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 def _ranges(path: Path, size: int, range_size: int) -> list[tuple[int, int]]:

@@ -173,3 +173,76 @@ def test_the_index_file_is_private(index: MailIndex, noisy_mail: NoisyMail) -> N
     assert index.path.stat().st_mode & 0o077 == 0
     assert index.path.parent.stat().st_mode & 0o077 == 0
     assert zipfile.is_zipfile(noisy_mail.zip)  # (the zip test of T02 uses it)
+
+
+# --- Zips and folders (T02) ----------------------------------------------------------------------
+
+
+def test_a_zip_gives_the_same_mails_and_offsets(tmp_path: Path, noisy_mail: NoisyMail) -> None:
+    plain, zipped = MailIndex(tmp_path / "p.sqlite"), MailIndex(tmp_path / "z.sqlite")
+    (a,) = plain.read(noisy_mail.gmail, account="Gmail")
+    (b,) = zipped.read(noisy_mail.zip, account="Gmail")
+    assert b.member == MAILBOX_NAME and b.path == str(noisy_mail.zip.resolve())
+
+    def strip(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [{k: v for k, v in r.items() if k != "source_id"} for r in rows]
+
+    assert strip(_rows(plain, a.source_id)) == strip(_rows(zipped, b.source_id))
+    (again,) = zipped.read(noisy_mail.zip, account=None)
+    assert again.reused
+
+
+def test_a_takeout_zip_gives_one_source_per_mbox(index: MailIndex, noisy_mail: NoisyMail) -> None:
+    results = index.read(noisy_mail.takeout_zip, account="Gmail", workers=4)
+    assert sorted(r.member for r in results) == sorted(
+        [f"Takeout/Mail/{MAILBOX_NAME}", "Takeout/Mail/Work.mbox"]
+    )
+    assert {r.account for r in results} == {"Gmail"}
+    assert sum(r.mails for r in results) == 56 + 4
+
+
+def test_a_folder_reads_every_mbox_and_zip_in_it(
+    index: MailIndex, noisy_mail: NoisyMail, tmp_path: Path
+) -> None:
+    folder = tmp_path / "exports"
+    (folder / "deep").mkdir(parents=True)
+    shutil.copy(noisy_mail.work, folder / "Work.mbox")
+    shutil.copy(noisy_mail.zip, folder / "deep" / "gmail.zip")
+    (folder / "notes.txt").write_text("not mail")
+    with zipfile.ZipFile(folder / "photos.zip", "w") as other:
+        other.writestr("photo.txt", "no mbox here")
+    results = index.read(folder, account="Gmail")
+    assert sorted((Path(r.path).name, r.member) for r in results) == [
+        ("Work.mbox", ""),
+        ("gmail.zip", MAILBOX_NAME),
+    ]
+
+
+def test_a_zip_or_folder_without_an_mbox_is_refused(index: MailIndex, tmp_path: Path) -> None:
+    empty = tmp_path / "photos.zip"
+    with zipfile.ZipFile(empty, "w") as other:
+        other.writestr("photo.txt", "no mbox here")
+    with pytest.raises(MailError, match="no .mbox"):
+        index.read(empty, account="Gmail")
+    (tmp_path / "nothing").mkdir()
+    with pytest.raises(MailError, match="no .mbox"):
+        index.read(tmp_path / "nothing", account="Gmail")
+
+
+def test_one_or_four_workers_agree_on_a_zip(tmp_path: Path, noisy_mail: NoisyMail) -> None:
+    one, four = MailIndex(tmp_path / "1.sqlite"), MailIndex(tmp_path / "4.sqlite")
+    (a,) = one.read(noisy_mail.zip, account="Gmail", workers=1, range_size=4096)
+    (b,) = four.read(noisy_mail.zip, account="Gmail", workers=4, range_size=4096)
+    assert _rows(one, a.source_id) == _rows(four, b.source_id)
+
+
+def test_an_apple_mail_export_folder(
+    index: MailIndex, noisy_mail: NoisyMail, tmp_path: Path
+) -> None:
+    bundle = tmp_path / "Apple Mail" / "Inbox.mbox"
+    bundle.mkdir(parents=True)
+    shutil.copy(noisy_mail.work, bundle / "mbox")
+    (bundle / "table_of_contents").write_bytes(b"\x00\x01")
+    (result,) = index.read(bundle, account="Work")
+    assert Path(result.path).name == "mbox" and result.mails == 4
+    assert len(index.read(tmp_path / "Apple Mail", account="Work")) == 1
