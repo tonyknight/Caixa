@@ -39,7 +39,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import timezone
 from email.message import EmailMessage
-from email.parser import BytesHeaderParser
+from email.parser import BytesParser
 from email.policy import default as default_policy
 from email.utils import getaddresses
 from pathlib import Path
@@ -48,16 +48,19 @@ from typing import IO, Any, Callable, Iterable, Iterator, Optional, Sequence, Un
 from chattr.parsers.mbox_parser import MboxParser, normalize_message_id
 
 from caixa.box import Box
+from caixa.mail import clean
 from caixa.collectors.base import Progress
 
 PathLike = Union[str, Path]
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
 MB = 1 << 20
 #: Ranges of a plain mbox handed to one worker at a time.
 MIN_RANGE, MAX_RANGE = 8 * MB, 64 * MB
 #: Mails of a zip member sent to a worker at once (about this many bytes).
 BATCH = 16 * MB
 BLOCK = 4 * MB
+#: How much of a mail is parsed for its headers and text.
+BODY_LIMIT = MB
 #: The headers cleaning looks at (lower case), kept as given (cut to this many characters).
 SIGNAL_HEADERS = (
     "list-id",
@@ -117,6 +120,8 @@ CREATE TABLE mails (
     labels TEXT NOT NULL DEFAULT '[]',
     attachments INTEGER NOT NULL DEFAULT 0,
     signals TEXT NOT NULL DEFAULT '{}',
+    unsubscribe INTEGER NOT NULL DEFAULT 0,
+    receipt INTEGER NOT NULL DEFAULT 0,
     flags TEXT,
     protections TEXT,
     by_owner INTEGER,
@@ -160,6 +165,8 @@ PARSED = (
     "labels",
     "attachments",
     "signals",
+    "unsubscribe",
+    "receipt",
 )
 Row = tuple[Any, ...]
 
@@ -245,11 +252,11 @@ def _addresses(message: EmailMessage, name: str) -> list[tuple[str, str]]:
 
 
 def parse(offset: int, data: bytes) -> Row:
-    """One mail's facts, from its bytes (headers only, plus a count of its file parts)."""
+    """One mail's facts, from its bytes: its headers, a count of its file parts, and whether its
+    text has an unsubscribe link or reads like a receipt (bodies are never kept)."""
     first_line, _, rest = data.partition(b"\n")
-    head_end = rest.find(b"\n\n")
-    head = rest if head_end < 0 else rest[: head_end + 1]
-    message = BytesHeaderParser(policy=default_policy).parsebytes(head)
+    # The first megabyte is enough for the headers and the text; a large attachment costs nothing.
+    message = BytesParser(policy=default_policy).parsebytes(rest[:BODY_LIMIT])
     assert isinstance(message, EmailMessage)
     from_line = first_line[5:].decode("latin-1").strip() if first_line.startswith(b"From ") else ""
     moment, assumed = MboxParser._time(message, from_line)
@@ -267,6 +274,8 @@ def parse(offset: int, data: bytes) -> Row:
     signals = {
         name: _text(message, name)[:SIGNAL_LENGTH] for name in SIGNAL_HEADERS if name in message
     }
+    subject = _text(message, "Subject")
+    unsubscribe, receipt = clean.body_signals(message, subject)
     return (
         offset,
         len(data),
@@ -281,10 +290,12 @@ def parse(offset: int, data: bytes) -> Row:
         sender[1] or None,
         sender[0] or None,
         json.dumps(recipients, ensure_ascii=False),
-        _text(message, "Subject"),
+        subject,
         json.dumps(labels, ensure_ascii=False),
         len(_ATTACHMENT_PART.findall(data)),
         json.dumps(signals, ensure_ascii=False),
+        int(unsubscribe),
+        int(receipt),
     )
 
 
