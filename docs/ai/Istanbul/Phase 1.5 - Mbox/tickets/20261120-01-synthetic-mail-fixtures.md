@@ -1,18 +1,19 @@
 ---
 id: 20261120-01-synthetic-mail-fixtures
-title: "Synthetic mail fixtures"
+title: Synthetic mail fixtures
 type: chore
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-20
 updated: 2026-11-20
 closed:
-notes: ""
+notes: ''
 parent:
 depends_on: []
 subtasks: []
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
 The synthetic mail every test of this project uses: a noisy mbox (plain and zipped) and a
@@ -41,8 +42,53 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: draft
-Current task:
+Status: in-progress
+Current task: T02
+
+**Design:** a new builder, `tools/chattr/tests/fixtures/builders/noisy_mbox.py`, beside Phase 1's
+`mbox.py` (which stays as it is for the existing tests). Mails are declared as data (`Mail`
+specs: sender, recipients, subject, time, bodies, labels, thread, extra headers, attachments) and
+each carries what later tickets must find: its cleaning outcome (`junk:<group>` with the group
+slugs `lists`, `notices`, `unsubscribe`, `spam_trash`; `kept:receipt`; `kept:protected`; or
+`clean`) and the case names it illustrates. `build_noisy_mbox(out_dir)` writes the Gmail account's
+mbox, a second account's mbox (the "Work" account, sharing one mail with the first), a zip of the
+first and a Takeout-shaped zip holding both, and returns their paths with the catalogue. Every MIME
+boundary and `From ` line is fixed, so builds are byte-identical. People are the fixture family
+(Ana, João and Rui are people in the box); strangers, shops and lists use reserved `example.*`
+domains. A generator, `write_large_mbox(path, size)`, renders the catalogue's mails once and
+writes numbered copies (new Message-IDs and thread ids per copy) straight to disk until the size is
+reached, for the slow scale test.
+
+### T01: The noisy mbox, its second account, the zips and the catalogue
+
+- `noisy_mbox.py`: `Mail` spec, `MAILS`, `OWNER_WORK` address, `NoisyMail` result
+  (`gmail`, `work`, `zip`, `takeout_zip`, `catalogue`), `build_noisy_mbox(out_dir)`.
+- Cases: family threads (Gmail thread id; References only; across years), the owner's unanswered
+  mail, strangers the owner wrote to and did not, a name-only match, newsletters, a mailing list
+  (with a post by a box person, replies by strangers and the owner), notifications, no-reply,
+  bounce, Feedback-ID, unsubscribe links in English, Portuguese and Spanish, Gmail Spam, Trash and
+  categories, receipts and orders in the three languages (from no-reply senders with unsubscribe
+  links), a box person forwarding a newsletter, a list the owner answered, no Message-ID, the
+  same mail in both accounts, ISO-8859-1 and windows-1252, HTML-only mail with a script, an event
+  handler and a remote image, signature images repeated with different bytes, tracking pixels,
+  `image001.png` from two mails on one day, a body line beginning `From `.
+- Documented in `tools/chattr/tests/fixtures/README.md`.
+- Tests (`tools/chattr/tests/test_noisy_mbox.py`): byte-identical builds; every mail parses and
+  the counts match the catalogue; each case is present (escaped `>From `, no Message-ID, the shared
+  Message-ID in both accounts, labels, attachments); the zips hold the right members.
+- Verify: `python -m pytest -q tools/chattr/tests/test_noisy_mbox.py`
+- [x] done
+
+### T02: The large mbox generator and the slow marker
+
+- `write_large_mbox(path, size_bytes)` in `noisy_mbox.py`: numbered copies of the catalogue,
+  streamed to disk, deterministic; returns the number of mails written.
+- `pyproject.toml`: register a `slow` marker and leave slow tests out of the default run
+  (`-m "not slow"` in `addopts`), so `python -m pytest -q -m slow …` runs them.
+- Tests: a few-megabyte file is a valid mbox with the expected count and unique Message-IDs, is
+  identical on a second run, and is at least the size asked for.
+- Verify: `python -m pytest -q tools/chattr/tests/test_noisy_mbox.py && python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
+- [ ] done
 
 ## Completion report
 
@@ -54,3 +100,6 @@ Current task:
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-20
+T01: noisy_mbox.py declares 56 Gmail mails and 4 Work mails (one shared) as data, each with its cleaning outcome and cases; builds are byte-identical (fixed boundaries, From lines, zip entries). Group slugs chosen: lists, notices, unsubscribe, spam_trash. Feedback-ID (bulk mail service) is expected under lists, Auto-Submitted under notices. Mailing-list posts in a thread the owner wrote in are expected kept:protected (cleaning rule: owner wrote in its thread); the list rule for import is ticket 06's.
