@@ -11,7 +11,8 @@ rebuildable from the mbox at any time):
   many files it carries, and the list and bulk-mail headers cleaning looks at. Bodies are never
   kept;
 - `senders`: each sender of a source, summed: the names they used, their number of mails, the space
-  those take, their first and last date.
+  those take, their first and last date;
+- `imported`: the mails of a source an import took (by position), for writing its Reduced mbox.
 
 **A mail is the bytes from its `From ` line to the next one** (the rule Python's `mailbox` and mail
 programs follow: a body line that begins `From ` is written `>From `). So a source's mails, end to
@@ -52,7 +53,7 @@ from caixa.mail import clean
 from caixa.collectors.base import Progress
 
 PathLike = Union[str, Path]
-SCHEMA_VERSION = "3"
+SCHEMA_VERSION = "4"
 MB = 1 << 20
 #: Ranges of a plain mbox handed to one worker at a time.
 MIN_RANGE, MAX_RANGE = 8 * MB, 64 * MB
@@ -133,6 +134,12 @@ CREATE TABLE mails (
 CREATE INDEX mails_by_message_id ON mails (source_id, message_id);
 CREATE INDEX mails_by_sender ON mails (source_id, sender_address);
 CREATE INDEX mails_by_thread ON mails (source_id, thread_key);
+CREATE TABLE imported (
+    source_id INTEGER NOT NULL REFERENCES sources (id),
+    position INTEGER NOT NULL,
+    job INTEGER,
+    PRIMARY KEY (source_id, position)
+);
 CREATE TABLE senders (
     source_id INTEGER NOT NULL REFERENCES sources (id),
     address TEXT NOT NULL,

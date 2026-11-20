@@ -112,6 +112,7 @@ from fixtures.builders.noisy_mbox import MAILBOX_NAME  # noqa: E402
 
 from caixa import owner  # noqa: E402
 from caixa.box import Box  # noqa: E402
+from caixa.mail.index import MailIndex  # noqa: E402
 
 
 def _box(service: Service) -> Box:
@@ -418,3 +419,54 @@ def test_the_command_line_imports(
     code = cli.main(["mail", "import", str(gmail), "--account", "Gmail", "--box", str(box)])
     out = capsys.readouterr().out
     assert code == 0 and "4 new" in out and "2 conversations" in out
+
+
+# --- The Reduced mbox (ticket 13) --------------------------------------------------------------------
+
+
+def test_the_reduced_mbox_holds_everything_not_imported(service: Service, gmail: Path) -> None:
+    with _box(service).master() as master:
+        master.add_alias(master.add_person("Rui Pereira"), family.RUI.emails[0], "email")
+        master.commit()
+    source = _read(service, gmail)
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    service.call("mail.ignore", {"source": source, "addresses": ["carlos.mendes@example.net"]})
+    _imported(service, source)
+    job = service.call("mail.reduce", {"source": source})
+    assert job["kind"] == "mail-reduce"
+    done = service.wait(job["id"], timeout=60)
+    assert done["status"] == "done", done["error"]
+    reduced = Path(done["result"]["path"])
+    assert reduced.parent == gmail.parent and reduced.name.endswith("[Reduced].mbox")
+    assert (done["result"]["mails"], done["result"]["left_out"]) == (56 - 5, 5)
+    with MailIndex.for_box(_box(service), read_only=True) as index:
+        kept = [
+            (o, n)
+            for o, n, m in index.connection.execute(
+                "SELECT offset, length, message_id FROM mails WHERE source_id = ? ORDER BY position",
+                (source,),
+            )
+            if m not in {"beatriz-1@example.net", "beatriz-2@example.com",
+                         "beatriz-3@example.net", "beatriz-4@example.net",
+                         "rui-unanswered@example.com"}
+        ]  # fmt: skip
+    data = gmail.read_bytes()
+    assert reduced.read_bytes() == b"".join(data[o : o + n] for o, n in kept)
+    child = done["result"]["source_id"]
+    found = _categories(service.call("mail.senders", {"source": child}))
+    assert "beatriz.lima@example.net" in found["imported"]
+    assert "carlos.mendes@example.net" in found["ignored"]
+    assert "beatriz.lima@example.net" not in found["to_import"]
+
+
+def test_the_command_line_reduces(
+    tmp_path: Path, gmail: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    box = tmp_path / "Box"
+    assert cli.main(["box", "create", str(box), "--name", "Our box"]) == 0
+    assert cli.main(["mail", "choose", "beatriz.lima@example.net", "--box", str(box)]) == 0
+    assert cli.main(["mail", "import", str(gmail), "--account", "Gmail", "--box", str(box)]) == 0
+    capsys.readouterr()
+    assert cli.main(["mail", "reduce", str(gmail), "--box", str(box)]) == 0
+    out = capsys.readouterr().out
+    assert "[Reduced].mbox" in out and "52 mails kept, 4 mails left out" in out

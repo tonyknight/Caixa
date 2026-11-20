@@ -94,8 +94,11 @@ def listing(
     chosen: set[str],
     ignored: set[str],
     imported: set[str],
+    lineage: Optional[dict[str, str]] = None,
 ) -> list[Category]:
-    """The source's senders in the Sort mail window's categories."""
+    """The source's senders in the Sort mail window's categories. `lineage` (address → name) lists
+    senders imported from the mboxes this one was written from, who have no mail left in it: they
+    are shown under Imported."""
     owner = {a.lower() for a in owner}
     wrote = _owner_wrote(index, owner)
     people: dict[str, tuple[str, int, int]] = {}  # address → (name, mails, size)
@@ -115,6 +118,10 @@ def listing(
                 people[address] = (name, 0, 0)
             elif not people[address][0] and name:
                 people[address] = (name, *people[address][1:])
+    for address, name in (lineage or {}).items():
+        if address not in people and address not in owner:
+            people[address] = (name, 0, 0)
+            imported = imported | {address}
     rows: dict[str, list[Row]] = {key: [] for key in KEYS}
     for address, (name, mails, size) in people.items():
         if address in owner:

@@ -898,6 +898,8 @@ class Service:
             return self._mail_read(box, job, progress)
         if job["kind"] == "mail-clean":
             return self._mail_clean_write(box, job, progress)
+        if job["kind"] == "mail-reduce":
+            return self._mail_reduce(box, job, progress)
         if job["kind"] == "mail-import":
             imported = self._mail_import(box, job, progress)
             undo.note_moves(box, imported.pop("moved", []))
@@ -1107,6 +1109,66 @@ class Service:
             mail_senders.selection(index, source, chosen, owner_addresses, addresses),
         )
 
+    def _mail_taken(self, box: Box, index: mail_index.MailIndex, source: int) -> set[int]:
+        """The positions of an mbox's mails that are in the box: an import took them (and the box
+        still has them), or their Message-ID is among the box's mail."""
+        with box.master(read_only=True) as master:
+            in_box = {
+                str(r[0])
+                for r in master.connection.execute(
+                    "SELECT message_id FROM mail WHERE message_id IS NOT NULL"
+                )
+            }
+        recorded = {
+            int(r[0])
+            for r in index.connection.execute(
+                "SELECT position FROM imported WHERE source_id = ?", (source,)
+            )
+        }
+        return {
+            int(position)
+            for position, message_id in index.connection.execute(
+                "SELECT position, message_id FROM mails WHERE source_id = ?", (source,)
+            )
+            if message_id in in_box or (message_id is None and position in recorded)
+        }
+
+    @method("mail.reduce", write=True)
+    def mail_reduce(self, source: int) -> dict[str, Any]:
+        """Write the Reduced mbox (every mail not in the box, ignored senders' included) beside its
+        source, as a job."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            info = self._mail_source(index, int(source))
+        return self._enqueue("mail-reduce", None, str(info["path"]), {"source": int(source)})
+
+    def _mail_reduce(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
+        source = int(job["options"]["source"])
+        workers = int(settings.load(box)["workers"])
+        try:
+            with mail_index.MailIndex.for_box(box) as index:
+                taken = self._mail_taken(box, index, source)
+                rows = index.connection.execute(
+                    "SELECT position, length FROM mails WHERE source_id = ?", (source,)
+                ).fetchall()
+                keep = [int(p) for p, _ in rows if int(p) not in taken]
+                written = mail_write.write_mbox(
+                    index, source, keep, "Reduced", workers=workers, progress=progress
+                )
+        except mail_index.MailError as error:
+            raise ServiceError("input", str(error)) from None
+        total = sum(int(n) for _, n in rows)
+        return {
+            "path": str(written.path),
+            "source_id": written.source_id,
+            "mails": written.mails,
+            "size": written.size,
+            "left_out": len(rows) - written.mails,
+            "left_out_size": total - written.size,
+        }
+
     @method("mail.import.preview")
     def mail_import_preview(self, source: int) -> dict[str, Any]:
         """What importing an mbox's chosen senders would bring: senders, conversations, mails, the
@@ -1179,6 +1241,11 @@ class Service:
         finally:
             undo.finish(box, job["id"])
             target.unlink(missing_ok=True)
+        with mail_index.MailIndex.for_box(box) as index:  # what this import took, for Reduce
+            index.connection.executemany(
+                "INSERT OR IGNORE INTO imported (source_id, position, job) VALUES (?, ?, ?)",
+                [(source, p, int(job["id"])) for p in positions],
+            )
         return {
             **result,
             "mails": picked.mails,
@@ -1200,6 +1267,21 @@ class Service:
                 if a.kind == "email" and a.person_id in people
             }
         decided = owner_file.load(box)["mail"]
+        lineage: dict[str, str] = {}
+        parent = index.connection.execute(
+            "SELECT parent_id FROM sources WHERE id = ?", (source,)
+        ).fetchone()
+        while parent and parent[0]:
+            ancestor = int(parent[0])
+            gone = self._mail_imported(box, index, ancestor, owner_addresses)
+            for address, names_json in index.connection.execute(
+                "SELECT address, names FROM senders WHERE source_id = ?", (ancestor,)
+            ):
+                if address in gone:
+                    lineage.setdefault(address, (json.loads(names_json) or [address])[0])
+            parent = index.connection.execute(
+                "SELECT parent_id FROM sources WHERE id = ?", (ancestor,)
+            ).fetchone()
         categories = mail_senders.listing(
             index,
             source,
@@ -1209,6 +1291,7 @@ class Service:
             set(decided["chosen"]),
             set(decided["ignored"]),
             self._mail_imported(box, index, source, owner_addresses),
+            lineage,
         )
         chosen = {r.address for c in categories if c.key == "to_import" for r in c.rows}
         picked = mail_senders.selection(index, source, chosen, owner_addresses, addresses)

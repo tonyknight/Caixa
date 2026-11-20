@@ -149,6 +149,12 @@ def build_parser() -> argparse.ArgumentParser:
     imported.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
     imported.add_argument("--account", help="the account the mail comes from (once per mbox)")
     _box_argument(imported)
+    reduced = mail_commands.add_parser(
+        "reduce", help="write the Reduced mbox: everything not yet in the box, beside the source"
+    )
+    reduced.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
+    reduced.add_argument("--account", help="the account the mail comes from (once per mbox)")
+    _box_argument(reduced)
     sampled = mail_commands.add_parser(
         "sample", help="draw a few conversations three ways, to choose how mail looks"
     )
@@ -474,6 +480,18 @@ def _cmd_mail(args: argparse.Namespace) -> int:
     service.subscribe(show)
     try:
         for source in done["result"]["sources"]:
+            if args.action == "reduce":
+                job = service.mail_reduce(source["source_id"])
+                ended = service.wait(job["id"])
+                if ended["status"] != "done":
+                    print(f"caixa: {ended['error'] or ended['status']}", file=sys.stderr)
+                    return 1
+                got = ended["result"]
+                print(json.dumps(got, indent=2) if args.json else
+                      f"Wrote {got['path']}: {_plural(got['mails'], 'mail')} kept, "
+                      f"{_plural(got['left_out'], 'mail')} left out "
+                      f"({mail_write.human_size(got['left_out_size'])}).")  # fmt: skip
+                continue
             if args.action == "import":
                 job = service.mail_import(source["source_id"])
                 ended = service.wait(job["id"])
