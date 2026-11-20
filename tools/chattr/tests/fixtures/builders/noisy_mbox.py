@@ -617,7 +617,7 @@ def _mails() -> tuple[Mail, ...]:
             text="Thank you. Is the 3rd of October a holiday?\n",
             labels=("Sent",),
             replies_to=("school-1",),
-            clean="kept:protected",
+            clean="clean",  # the owner's own plain reply: nothing flags it
         ),
         Mail(
             "school-3",

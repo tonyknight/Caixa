@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -41,8 +40,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** cleaning needs two things from a mail's body: whether it has an unsubscribe link and
 whether it reads like a receipt or an order. Both are found **in the read itself** (ticket 02's
@@ -91,7 +90,7 @@ from, plus any given (ticket 06 adds confirming them). Its result is written to 
   test lists any that differ); group order and labels; counts and sizes add up to the mails;
   `kept` senders lose their junk; a sender in a junk group and under receipts.
 - Verify: `python -m pytest -q tests/test_mail_clean.py && python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && python -m pytest -q -m slow tests/test_mail_scale.py -s`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -106,3 +105,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: the read parses each mail's first megabyte fully (headers and text from one parse) and keeps 'unsubscribe' and 'receipt'; both the plain part and the HTML part (as text) are searched, since a newsletter's plain part sometimes leaves the link out. Index schema 2.
+
+### 2026-11-20
+T02: classify/groups/outcome in clean.py; every mail of both fixture accounts gets the catalogue's outcome. Fixture corrected: school-2 (the owner's plain reply) is 'clean'. owner_wrote counts the owner's mail in every source of the index; owner_thread is per source. Performance: parsing bodies in the read made 2 GB of 40 KB mails 5x slower (191.7 s with 1 worker, 48.8 s with 4); a quick keyword check before the wording searches brought it to 140.2 s and 35.4 s (header parsing by the email package's default policy is now the largest cost). Memory unchanged (86 MB).
