@@ -92,7 +92,7 @@ carried into Caixa as the converter for every conversation-like source:
 | iMessage | the macOS `chat.db` | read-only, tapbacks, spam tagged (never dropped) |
 | WhatsApp | an exported chat (`.zip` or folder) | media filed with the person, ambiguous dates resolved |
 | Facebook Messenger / Instagram | "Download your information" JSON | doubled text encoding repaired |
-| Mail | `.mbox` (a Gmail Takeout) | threaded, attachments filed by date and sender |
+| Mail | `.mbox` (a Gmail Takeout, Apple Mail, …), zipped or not | never imported whole: read, cleaned of junk, sorted by sender, and only the chosen conversations imported; the rest left in a smaller mbox |
 | Google Voice | a Takeout folder | calls, texts and voicemail audio |
 | iPhone voicemail | a backup's voicemail folder | optional transcription on your own computer |
 
@@ -209,9 +209,10 @@ Caixa is in early development; version 0.5.0 closes its first project (Phase 1, 
 | | Status |
 | --- | --- |
 | **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice and iPhone voicemail also tried by the maintainer on real exports; mail not yet |
+| **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, the Reduced mbox | Built and tested on a synthetic noisy mailbox, in a real browser too; not yet tried on real mail. Conversation pages per person, the overlay on the person's page and local summaries are being built |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
-| **Browser interface**: create a box, import wizard, jobs, people, browse, settings | Built, and tested in a real browser against the real `caixa serve` |
+| **Browser interface**: create a box, import wizard, jobs, people, browse, settings, Clean mail and Sort mail | Built, and tested in a real browser against the real `caixa serve` |
 | **Chattr's own browser page** (`chattr-cli serve`) | Built |
 | **Search index, personal model, the heirs' "Ask" experience** | Planned |
 | **Presentation mode** (read-only, its own port), **Docker image** | Planned (a read-only service exists) |
@@ -286,6 +287,11 @@ caixa import whatsapp ~/Downloads/chat.zip --box ~/Our\ Box --preview
 caixa import whatsapp ~/Downloads/chat.zip --box ~/Our\ Box
 caixa people unresolved --box ~/Our\ Box        # numbers and names no one is called yet
 caixa people link WhatsApp "Ana Costa" "Ana" --box ~/Our\ Box
+caixa mail read ~/Downloads/takeout.zip --account Gmail --box ~/Our\ Box   # mail: read, then
+caixa mail clean ~/Downloads/takeout.zip --write --box ~/Our\ Box         #   clean,
+caixa mail senders "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box  #   sort,
+caixa mail import "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box   #   import,
+caixa mail reduce "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box   #   and keep the rest
 ```
 
 Set `CAIXA_BOX` (or run inside the box) to leave out `--box`. Drop exports into the box's `Inbox/`

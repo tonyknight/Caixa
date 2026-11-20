@@ -13,16 +13,23 @@ run('Browse and Settings, in a browser', () => {
   let running: Running
   let box: string
 
-  const imported = async (collector: string, source: string) => {
-    const started = await running.rpc('import.start', { collector, source })
+  const finished = async (started: { ok: boolean; result?: any }) => {
     expect(started.ok, JSON.stringify(started)).toBe(true)
     const end = Date.now() + 120_000
     while (Date.now() < end) {
       const job = (await running.rpc('jobs.get', { job: started.result.id })).result
-      if (['done', 'failed', 'cancelled'].includes(job.status)) { expect(job.status, job.error).toBe('done'); return }
+      if (['done', 'failed', 'cancelled'].includes(job.status)) { expect(job.status, job.error).toBe('done'); return job }
       await new Promise(resolve => setTimeout(resolve, 200))
     }
-    throw new Error('the import did not finish')
+    throw new Error('the job did not finish')
+  }
+  const imported = async (collector: string, source: string) => finished(await running.rpc('import.start', { collector, source }))
+  /** Mail comes in through the mail workflow: read, choose, import. */
+  const mailed = async (mbox: string, senders: string[]) => {
+    const read = await finished(await running.rpc('mail.read', { source: mbox, account: 'Gmail' }))
+    const source = read.result.sources[0].source_id
+    expect((await running.rpc('mail.choose', { source, addresses: senders })).ok).toBe(true)
+    await finished(await running.rpc('mail.import', { source }))
   }
 
   beforeAll(async () => {
@@ -31,7 +38,7 @@ run('Browse and Settings, in a browser', () => {
     box = join(running.work, 'Box')
     expect((await running.rpc('box.create', { path: box, name: 'Browse box', owner: 'Maria Costa' })).ok).toBe(true)
     await imported('whatsapp', join(fixtures.whatsapp!, 'WhatsApp Chat - Ana Costa', '_chat.txt'))
-    await imported('mail', fixtures.mbox!)
+    await mailed(fixtures.mbox!, ['joao.costa@example.org', 'ana.costa@example.com'])
   }, 180_000)
   afterAll(async () => { await running?.stop() })
 

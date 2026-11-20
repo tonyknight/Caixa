@@ -14,8 +14,7 @@ depends_on:
 - 20261120-07-the-sort-mail-window
 - 20261120-13-reduce
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -39,8 +38,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** the Mail collector stays (the wizard shows its card, which opens Clean mail, and the
 `mail-import` job runs it on the chosen conversations), but nothing imports a whole mbox any more:
@@ -65,7 +64,7 @@ methods, where the project is).
 
 - `docs/Documentation/Collector.md` (Mail, and the first-real-mbox checklist), `README.md`.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -80,3 +79,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: import.preview and import.start refuse the mail collector with directions (Clean mail from the Mail card, or caixa mail read|clean|senders|import); caixa import mail prints the same and imports nothing. The Mail collector stays for the mail-import job and the wizard's card. Two tests that used mail only as one source among others now use WhatsApp (progress order) and iPhone voicemail (command line against service).
+
+### 2026-11-20
+T02: docs/Documentation/Collector.md Mail section rewritten (the five steps with their commands, accounts, Cleaned and Reduced files, owner.json, what comes next, caixa mail sample) with a first-own-mbox checklist; the synthetic-data walkthrough uses mail read, choose, import (run by hand: 4 mails in 2 conversations). README: collectors table, the mail commands, the status table (Mail without the noise), the browser interface line. e2e-browse brought mail in with the old import; it now reads, chooses and imports through the mail workflow.

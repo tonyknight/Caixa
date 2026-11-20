@@ -273,21 +273,104 @@ first, so names and text come out right.
 
 ### Mail
 
-*(`mail`; takes an `.mbox` file, a folder or a .zip)*
+*(`mail`; takes an `.mbox` file, a `.zip` holding mboxes, a folder of them, or Apple Mail's
+`<name>.mbox` folders)*
 
-**Export.** For Gmail, go to Google Takeout (takeout.google.com), choose only **Mail**, and download. Other
-mail programs that export `.mbox` files work too.
+**Export.** For Gmail, go to Google Takeout (takeout.google.com), choose only **Mail**, and download.
+Apple Mail, Thunderbird and most other mail programs can export `.mbox` files too.
 
-**Import.**
+**Mail is never imported whole.** A real mailbox is mostly newsletters, notices, lists and strangers,
+so mail comes in in steps, each one your decision. In the browser, the **Mail** card of Import opens
+**Clean mail** in a window of its own; every step is also a command.
 
-```bash
-caixa import mail ~/Downloads/takeout-20250101.zip --box ~/Our\ Box
-caixa import mail "~/Takeout/Mail/All mail Including Spam and Trash.mbox" --box ~/Our\ Box
-```
+1. **Read.** The mbox is read into the box's mail index (`.caixa/mail/index.sqlite`): where each mail
+   is, its headers, its thread, a few words of its text. Nothing is imported. You name the **account**
+   the mail comes from (for example `Gmail` or `Work`); it is asked once per mbox. Reading uses the
+   **Workers** setting (Settings; up to 12 processes) and can be cancelled.
 
-**What you get.** One page per mail conversation under `Mail/<year>/`, named by date, sender and subject
-(`Mail/2019/(2019-11-02) João Costa — Fotos de São Martinho.html`). Attachments are taken out of the mail
-and kept in `Mail/<year>/Attachments/`, named by date, sender and their own name, and linked from the page.
+   ```bash
+   caixa mail read ~/Downloads/takeout-20250101.zip --account Gmail --box ~/Our\ Box
+   ```
+
+2. **Clean** (recommended the first time). The junk is shown by sender in groups: **Lists and
+   newsletters**, **Notices and no-reply**, **Unsubscribe links**, **Spam and Trash**, each sender
+   with their number of mails and the space they take. **Receipts and orders** are always kept and
+   shown as such, and so is mail from the people in your box, mail you sent, mail from anyone you
+   wrote to, and every thread you wrote in. **Keep** a sender to rescue their mail (remembered).
+   Writing the cleaned mbox puts a new file beside the source,
+   `(YYYY-MM-DD) <name> [Cleaned].mbox`, with everything but the junk; the source is not changed.
+
+   ```bash
+   caixa mail clean "~/Takeout/Mail/All mail Including Spam and Trash.mbox" --box ~/Our\ Box
+   caixa mail keep news@school.example.org --box ~/Our\ Box
+   caixa mail clean "~/Takeout/Mail/All mail Including Spam and Trash.mbox" --write --box ~/Our\ Box
+   ```
+
+3. **Sort.** **Sort mail** lists the senders as **Known** (people already in your box: chosen to
+   begin with when their address is known; a match by name only waits for you to confirm it),
+   **To sort** (everyone else, the people you wrote to first), **To import**, **Ignored** and
+   **Imported**. Choose or ignore senders as you sort people on the index page (select, Shift-select,
+   drag onto a category, Delete ignores), or type a name under an address to join it to someone in
+   the box. People you wrote to who never answered are listed too, so your letters to them can come
+   in. Confirm your own addresses for the account when Sort mail asks.
+
+   ```bash
+   caixa mail senders "(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox" --box ~/Our\ Box
+   caixa mail choose beatriz@example.net --box ~/Our\ Box
+   caixa mail ignore deals@shop.example.com --box ~/Our\ Box
+   ```
+
+4. **Import.** Only the chosen senders' conversations come in: every thread they wrote in, whole,
+   and every thread in which you wrote to them, even unanswered; from a mailing list's thread only
+   the mails of the people in your box and yours. A mail is known by its Message-ID, so importing
+   again (or the same mail from a second account) never duplicates it. An import can be undone like
+   any other.
+
+   ```bash
+   caixa mail import "(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox" --box ~/Our\ Box
+   ```
+
+5. **Reduce.** After an import, **Write the reduced mbox** puts
+   `(YYYY-MM-DD) <name> [Reduced].mbox` beside the mbox you sorted, with every mail not yet in the
+   box (ignored senders' included), so you can sort what is left another time. Reading it again shows
+   whom you imported and whom you ignored.
+
+   ```bash
+   caixa mail reduce "(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox" --box ~/Our\ Box
+   ```
+
+**The original export is never changed or deleted**: it stays the full record of every mail. A
+Cleaned or Reduced mbox is checked mail by mail against its source before it is given its name.
+What you decide (senders kept, chosen and ignored, your addresses for each account) is kept in
+`.caixa/owner.json` and outlives a reset.
+
+**What you get, for now.** Imported mail is drawn as before, one page per conversation under
+`Mail/<year>/` with its attachments in `Mail/<year>/Attachments/`; the master database records each
+mail's date, sender, recipients, subject, account and text. Conversation pages filed with each person
+(`People/<Person>/Mail/<Account>/`), an entry per conversation on the person's page opening the
+conversation over it, and short summaries written by a model on your computer come next (Phase 1.5,
+tickets 10 to 12), once the look of mail bodies is chosen.
+
+**How mail bodies could look.** `caixa mail sample <mbox> --out <folder>` draws a few conversations
+three ways (plain text, tidied HTML, and the mail's own HTML made safe) as pages you can open side by
+side; none of them runs a script or loads anything from the internet.
+
+#### Your first own mbox: a checklist
+
+1. Make a box (or use yours) and set **Workers** in Settings if the computer should stay free.
+2. **Read** a small mbox first (a few hundred mails): name its account; note how long it took.
+3. **Clean** it. Look through each group, and at **Receipts and orders (kept)**: is anything in a
+   junk group that matters (a friend writing through a newsletter tool, a receipt that was not
+   recognised)? **Keep** those senders, and note them.
+4. Write the cleaned mbox; check that it is beside the source and that the source is unchanged.
+5. **Sort** the cleaned mbox: are the people you know under Known? Is anyone known only by name
+   right? Confirm your addresses. Choose a few strangers you want, ignore a few you do not.
+6. **Import**; open the people's pages and the `Mail/` pages; then **Write the reduced mbox** and read
+   it again: imported senders under Imported, ignored ones under Ignored.
+7. Run `caixa mail sample` on the same mbox and look at the three versions: which should the box use?
+8. Report: what was in a wrong group, what was missing, how long each step took, the size of the mbox
+   and of the Cleaned copy, and anything that read badly. `caixa doctor` makes a report with no names
+   or mail in it.
 
 ### Google Voice
 
@@ -1122,7 +1205,9 @@ caixa box create /tmp/trybox --name "Try box" --owner "Maria Costa"
 caixa import whatsapp    "/tmp/family/whatsapp/WhatsApp Chat - Ana Costa/_chat.txt" --box /tmp/trybox
 caixa import imessage    /tmp/family/imessage/chat.db                               --box /tmp/trybox
 caixa import messenger   /tmp/family/meta/meta-export/your_facebook_activity/messages/inbox/joaocosta_1234567890/message_1.json --box /tmp/trybox
-caixa import mail        "/tmp/family/gmail/Takeout/Mail/All mail Including Spam and Trash.mbox" --box /tmp/trybox
+caixa mail read          "/tmp/family/gmail/Takeout/Mail/All mail Including Spam and Trash.mbox" --account Gmail --box /tmp/trybox
+caixa mail choose        joao.costa@example.org ana.costa@example.com                --box /tmp/trybox
+caixa mail import        "/tmp/family/gmail/Takeout/Mail/All mail Including Spam and Trash.mbox" --box /tmp/trybox
 caixa import googlevoice /tmp/family/google-voice/Takeout/Voice/Calls               --box /tmp/trybox
 caixa import voicemail   /tmp/family/iphone/Voicemail                              --box /tmp/trybox
 ```
