@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-01-synthetic-mail-fixtures
 subtasks: []
-plan_status: in-progress
-current_task: T04
+plan_status: done
 ---
 ## Description
 
@@ -43,8 +42,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T04
+Status: done
+Current task: 
 
 **Design:** a new package `caixa/mail/` (the mail workflow lives in Caixa, beside the
 collectors). `caixa/mail/index.py` holds `MailIndex`, a SQLite file at
@@ -109,7 +108,7 @@ callback raising, as for imports; the pool is shut down and the source left unre
   500 MB; more workers faster than one when the computer has more than one processor; times
   printed.
 - Verify: `python -m pytest -q -m slow tests/test_mail_scale.py -s`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -130,3 +129,6 @@ T02: zips are read as one stream per .mbox member, batches (16 MB) parsed by the
 
 ### 2026-11-20
 T03: 'workers' box setting; mail.read (write: queues a 'mail-read' job; account checked at once, and needed unless the index knows the file) and mail.sources (opens the index read-only, never creating it); 'caixa mail read'. The documented method list is the one in tests/test_worker_protocol.py and README.md (worker.py's docstring lists no methods). Added to the window, beyond the plan: the Jobs page names a mail-read job 'Mail read' and shows '60 mails read' as its result instead of import counts (it would have shown 'undefined new'); window rebuilt (with Node 22; esbuild's output does not depend on Node's version).
+
+### 2026-11-20
+T04: scale test (slow). First run used the catalogue's tiny mails (about 600 bytes): 2 GB was 3.5 million mails and one worker took over 10 minutes (header parsing is about 5,000 mails a second per worker), so the generator gained 'average' padding (filler lines after a mail's own end) and the test uses 40 KB mails, as real mail with attachments. Result on this 4-processor container: 53,622 mails (2 GB) in 36.7 s with 1 worker, 9.9 s with 4; peak memory 85 MB, largest worker 40 MB.

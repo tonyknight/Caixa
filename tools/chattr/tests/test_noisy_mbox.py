@@ -154,3 +154,14 @@ def test_a_large_mbox_is_valid_deterministic_and_big_enough(tmp_path: Path) -> N
     second = tmp_path / "large-2.mbox"
     assert write_large_mbox(second, size) == count
     assert first.read_bytes() == second.read_bytes()
+
+
+def test_a_large_mbox_can_have_mails_of_a_realistic_size(tmp_path: Path) -> None:
+    from fixtures.builders.noisy_mbox import write_large_mbox
+
+    path = tmp_path / "padded.mbox"
+    count = write_large_mbox(path, 4_000_000, average=40_000)
+    messages = _messages(path)
+    assert len(messages) == count
+    assert 30_000 < path.stat().st_size / count < 50_000
+    assert all(m["Subject"] is not None for m in messages)

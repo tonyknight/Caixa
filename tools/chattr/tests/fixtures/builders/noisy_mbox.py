@@ -974,12 +974,28 @@ def _entry(message: Message) -> bytes:
     return data + (b"\n" if data.endswith(b"\n") else b"\n\n")
 
 
-def write_large_mbox(path: Path, size_bytes: int) -> int:
+#: Filler that pads a mail to a realistic size: lines like a base64 attachment's, after the mail's
+#: own end (a multipart mail's epilogue, a single-part mail's last lines), never a `From ` line.
+_FILLER_LINE = b"QWxsIG1haWwgcGFkZGluZyBmb3IgdGhlIHNjYWxlIHRlc3Q" * 2 + b"\n"
+
+
+def _padded(entry: bytes, average: int) -> bytes:
+    missing = average - len(entry)
+    if missing <= 0:
+        return entry
+    lines = _FILLER_LINE * (missing // len(_FILLER_LINE) + 1)
+    return entry.rstrip(b"\n") + b"\n" + lines + b"\n"
+
+
+def write_large_mbox(path: Path, size_bytes: int, average: int = 0) -> int:
     """Numbered copies of the Gmail account's mails (new Message-IDs and thread ids per copy),
-    streamed to `path` until it holds at least `size_bytes`. Returns the number of mails."""
+    streamed to `path` until it holds at least `size_bytes`. Returns the number of mails.
+
+    With `average`, every mail is padded to about that many bytes (real mail averages tens of
+    kilobytes; the catalogue's mails are a few hundred bytes)."""
     by_key = {m.key: m for m in MAILS}
     templates = [
-        _entry(render(m, by_key, copy=_COPY))
+        _padded(_entry(render(m, by_key, copy=_COPY)), average)
         for m in sorted(_account("gmail"), key=lambda m: m.moment)
     ]
     token = re.escape(_COPY.encode())
