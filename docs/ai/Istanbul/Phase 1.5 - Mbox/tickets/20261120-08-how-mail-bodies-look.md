@@ -3,16 +3,17 @@ id: 20261120-08-how-mail-bodies-look
 title: How mail bodies look
 type: spike
 priority: high
-status: in-progress
+status: blocked
 created: 2026-11-20
 updated: 2026-11-20
 closed:
-notes: ''
+notes: 'Waiting for the maintainer: run ''caixa mail sample'' on a small real mbox
+  and choose plain, tidied or original.'
 parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
-plan_status: in-progress
+plan_status: blocked
 current_task: T03
 ---
 ## Description
@@ -40,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
+Status: blocked
 Current task: T03
 
 **Design (spike):** `caixa/mail/render.py` draws a mail's body three ways, with the standard
@@ -101,3 +102,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T02: 'caixa mail sample SOURCE --out FOLDER [--account] [--conversations N]' writes plain/, tidied/, original/, files/ and index.html. Seen in a browser from disk: a frame that runs nothing (sandbox, no allow-same-origin) cannot load pictures from disk, so the original's pictures travel inside it as data: addresses; it also cannot size itself, so its height is estimated from the mail (words, blocks, pictures; 4 to 60 rem, and it can be resized by hand). Links inside the original's frame open in the frame. These are the original style's trade-offs for the maintainer to weigh.
+
+### 2026-11-20
+Blocked on T03: the maintainer's choice of body style (run caixa mail sample on a small real mbox). Tickets 10, 11, 12 and 14 wait on it; 09, 13 and 15 go on.

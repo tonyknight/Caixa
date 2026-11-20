@@ -6,13 +6,14 @@
 
 Mail without the noise: clean an mbox of junk, sort it by sender, import only the conversations that matter, summarize each one locally, and keep what is left in a smaller mbox
 
-## In progress (1)
+## In progress (0)
 
-- **20261120-08-how-mail-bodies-look** How mail bodies look [high] — plan in-progress · T03/T03
+_No tickets in progress._
+
+## Blocked (7)
+
+- **20261120-08-how-mail-bodies-look** How mail bodies look [high] — Waiting for the maintainer: run 'caixa mail sample' on a small real mbox and choose plain, tidied or original. · plan blocked · T03/T03
   - checkboxes: 2/7
-
-## Blocked (6)
-
 - **20261120-10-conversation-pages-and-attachments** Conversation pages and attachments [high]
   - depends on: 20261120-08-how-mail-bodies-look, 20261120-09-import-the-chosen-conversations (not yet marked blocked)
 - **20261120-11-the-person-page-s-entry-and-the-overlay** The person page's entry and the overlay [high]
@@ -42,5 +43,5 @@ Mail without the noise: clean an mbox of junk, sort it by sender, import only th
 
 ## Stats
 
-- Total: 15 tickets · 7 done · 7 todo · 1 in-progress · 0 blocked
+- Total: 15 tickets · 7 done · 7 todo · 0 in-progress · 1 blocked
 - By type: 12 feature · 2 chore · 1 spike
