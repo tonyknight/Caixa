@@ -62,6 +62,14 @@ describe('the jobs page', () => {
     expect(within(details).queryByText(/new,/)).toBeNull()
   })
 
+  it('names a mail cleaning and says what it kept and left out', async () => {
+    const cleaning = job({ id: 6, kind: 'mail-clean', collector: null, source: '/exports/All mail.mbox', options: { source: 1 }, result: { path: '/exports/(2026-11-20) All mail [Cleaned].mbox', mails: 33, size: 20_000, left_out: 23, left_out_size: 9_000 } as never })
+    await renderWith(<JobsPage selected={6} onSelect={() => undefined} />, (api) => { api.jobList = [cleaning] })
+    expect(within(screen.getAllByRole('row')[1]!).getByText('Mail cleaned')).toBeTruthy()
+    const details = screen.getByRole('region', { name: 'Details of job 6' })
+    expect(within(details).getByText('33 mails kept, 23 left out')).toBeTruthy()
+  })
+
   it('shows the result of a finished job and the options it ran with', async () => {
     await renderWith(<JobsPage selected={1} onSelect={() => undefined} />, (api) => { api.jobList = [job({ id: 1, options: { owner: 'Maria Costa' } })] })
     const details = screen.getByRole('region', { name: 'Details of job 1' })

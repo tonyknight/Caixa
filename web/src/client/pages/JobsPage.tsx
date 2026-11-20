@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Job, JobLog, MailReadResult, UndoInfo } from '../api.ts'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import type { CaixaKey } from '../locales.ts'
+import type { CleanWritten } from '../mail/types.ts'
 import css from '../caixa.module.css'
 
 const ACTIVE = new Set(['queued', 'running'])
@@ -34,7 +35,8 @@ function Details({ job }: { job: Job }) {
       <p>{job.source}</p>
       {options.length > 0 && <><h3>{t('jobs.options')}</h3><ul>{options.map(([name, value]) => <li key={name}>{name}: {String(value)}</li>)}</ul></>}
       {job.result && job.kind === 'mail-read' && <><h3>{t('jobs.result')}</h3><p>{t('jobs.mailRead', { mails: (job.result as unknown as MailReadResult).mails })}</p></>}
-      {job.result && job.kind !== 'mail-read' && <><h3>{t('jobs.result')}</h3><p>{t('import.report.counts', { inserted: job.result.inserted, updated: job.result.updated, unchanged: job.result.unchanged })}</p></>}
+      {job.result && job.kind === 'mail-clean' && <><h3>{t('jobs.result')}</h3><p>{t('jobs.mailClean', { mails: (job.result as unknown as CleanWritten).mails, left: (job.result as unknown as CleanWritten).left_out })}</p></>}
+      {job.result && job.kind !== 'mail-read' && job.kind !== 'mail-clean' && <><h3>{t('jobs.result')}</h3><p>{t('import.report.counts', { inserted: job.result.inserted, updated: job.result.updated, unchanged: job.result.unchanged })}</p></>}
       {job.error && <div className={css.error} role="alert"><strong>{t('jobs.error')}</strong><br />{job.error}</div>}
       <h3>{t('jobs.log')}</h3>
       <Log job={job} />

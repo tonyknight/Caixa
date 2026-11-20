@@ -14,7 +14,7 @@ depends_on:
 - 20261120-04-the-mbox-writer
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -45,7 +45,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** the window is a second page of Caixa's React app, served at `/mail/clean` (the same
 built `index.html`; `main.tsx` picks the page by its address) and opened in a window of its own
@@ -100,7 +100,7 @@ can be listed without reading the mbox again (index schema 3).
   file goes, that the original is not changed), then shows progress and the new file.
 - Tests (`web/tests/clean-mail.test.tsx`, vitest with the fake API).
 - Verify: `cd web && pnpm exec tsc --noEmit && pnpm exec vitest run tests/clean-mail.test.tsx`
-- [ ] done
+- [x] done
 
 ### T03: From the import wizard, in a real browser
 
@@ -124,3 +124,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: service mail.clean (classify with the box's people and owner aliases, owner.json keeps; groups, left_out and kept totals, kept senders), mail.keep, mail.preview (from the index's snippets, schema 3), mail.message (reads the mail; text only), mail.clean.write (a mail-clean job: everything but the junk, ticket 04's writer). mail.clean is a write method because classifying writes the index. CLI: 'caixa mail clean PATH [--account] [--write]', 'caixa mail keep ADDRESS... [--forget]'. owner.json gains 'mail' {kept, ignored, accounts}; test_owner's empty-file expectation updated for it. Note for tests: every box person in the fixture is also someone the owner wrote to, so box-person protection is tested with an extra person.
+
+### 2026-11-20
+T02: web/src/client/mail/ (types, MailList: categories with counts, rows, click/Shift-click, drag onto a drop target, hover tools, status bar; Preview overlay as text only; Sources: mboxes read and reading another with its account; CleanMail). /mail/clean and /mail/sort serve Caixa's page (main.tsx shows CleanMail at /mail/clean; Sort mail is ticket 07). The Jobs page's mail-clean label and result moved here from T03 (the locale test refuses an unused key). Selection colour is the index page's Frost blue, not the window's orange accent.

@@ -118,6 +118,15 @@ def test_the_window_is_caixas_own_with_no_deepseek_and_a_strict_policy(running) 
     assert browser.ask("GET", "/app/../web.py")[0] == 404
 
 
+def test_the_mail_windows_are_caixas_page_at_their_own_address(running) -> None:
+    _, browser, _ = running
+    for address in ("/mail/clean", "/mail/sort"):
+        status, headers, page = browser.ask("GET", address)
+        assert status == 200 and b'<script src="/app/app.js"></script>' in page, address
+        assert "script-src 'self'" in headers["content-security-policy"]
+    assert browser.ask("GET", "/mail/other")[0] == 404
+
+
 def test_calls_answer_as_the_window_expects(running) -> None:
     _, browser, _ = running
     assert browser.rpc("box.status")["result"]["name"] == "Web box"

@@ -7,6 +7,7 @@
 import { createRoot } from 'react-dom/client'
 import { makeApi } from '../client/api.ts'
 import { CaixaPage } from '../client/CaixaPage.tsx'
+import { CleanMail } from '../client/mail/CleanMail.tsx'
 import { Providers, type Translate } from '../client/hooks.tsx'
 import { dictionaries, type CaixaKey } from '../client/locales.ts'
 import { Store } from '../client/store.ts'
@@ -38,7 +39,8 @@ if (root) {
   document.documentElement.lang = t('page.title') === dictionaries.zh['page.title'] ? 'zh' : 'en'
   createRoot(root).render(
     <Providers store={store} t={t}>
-      <CaixaPage />
+      {/* The mail windows are this page at their own addresses (see caixa/web.py, MAIL_WINDOWS). */}
+      {location.pathname === '/mail/clean' ? <CleanMail /> : <CaixaPage />}
       <ToastHost />
     </Providers>,
   )

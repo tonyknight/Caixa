@@ -7,6 +7,7 @@ Harness. It serves:
 - `GET  /sign-in?ticket=…`   the link `caixa serve` prints and opens: sets the session cookie, then
                               goes to `/`. Nothing else answers without that cookie;
 - `GET  /`, `/app/…`         Caixa's window (built from `web/src` into `caixa/data/web`);
+- `GET  /mail/clean|sort`    the same page, showing the Clean mail or Sort mail window;
 - `POST /api/caixa/rpc`      `{"method": "box.status", "params": {}}` → `{"ok": true, "result": …}`
                               or `{"ok": false, "error": {"code", "message", "kind", "data"}}`;
 - `GET  /api/caixa/events`   the service's notifications as server-sent events;
@@ -53,6 +54,9 @@ from caixa.worker import INTERNAL, INVALID_PARAMS, REFUSED, UNKNOWN_METHOD, Work
 APP = Path(__file__).resolve().parent / "data" / "web"
 APP_FILES = {"app.js": "text/javascript", "app.css": "text/css"}
 COOKIE = "caixa_session"
+#: The mail windows (Clean mail, Sort mail): Caixa's page at their own addresses, opened in a window
+#: of their own; the page picks what to show by its address.
+MAIL_WINDOWS = ("/mail/clean", "/mail/sort")
 METHOD_NAME = re.compile(r"^[a-z][a-z.]*[a-zA-Z]$")
 MAX_REQUEST = 10_000_000
 HEARTBEAT = 15.0
@@ -339,7 +343,7 @@ class _Handler(BaseHTTPRequestHandler):
             return self._sign_in(url.query)
         if not self._admitted():
             return
-        if url.path in ("/", "/index.html"):
+        if url.path in ("/", "/index.html") or url.path in MAIL_WINDOWS:
             body = (APP / "index.html").read_bytes()
             return self._send(200, body, "text/html; charset=utf-8",
                               {"Content-Security-Policy": APP_CSP})  # fmt: skip
