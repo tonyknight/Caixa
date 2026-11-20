@@ -79,3 +79,15 @@ def test_plain_text_is_escaped_and_its_quotes_folded() -> None:
     assert "&lt;b&gt;not bold&lt;/b&gt;" in page
     assert page.index("Thanks!") < page.index("<details")
     assert "Lunch?" in page.split("<details", 1)[1]
+
+
+def test_the_originals_frame_is_sized_to_its_mail() -> None:
+    short = original("<p>Hi.</p>", {})
+    long = original("<p>" + "word " * 2000 + "</p>", {})
+
+    def rem(page: str) -> float:
+        found = re.search(r'style="height:\s*([\d.]+)rem"', page)
+        assert found, page[:120]
+        return float(found.group(1))
+
+    assert 4 <= rem(short) < 10 < rem(long) <= 60

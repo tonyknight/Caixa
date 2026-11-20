@@ -64,6 +64,8 @@ def _picture(value: str, images: dict[str, str]) -> Optional[str]:
         return images.get(value[4:].strip("<> "))
     if re.match(r"data:image/(png|jpe?g|gif|webp);base64,", value, re.IGNORECASE):
         return value
+    if value.startswith("data:image/"):
+        return None  # any other data address (an SVG can hold a script) is left out
     return None
 
 
@@ -130,6 +132,14 @@ class _Cleaner(HTMLParser):
                     continue
             elif name == "src":
                 pointed = _picture(value, self.images)
+                if (
+                    pointed is not None
+                    and pointed.startswith("data:")
+                    and not re.match(
+                        r"data:image/(png|jpe?g|gif|webp);base64,", pointed, re.IGNORECASE
+                    )
+                ):
+                    pointed = None
                 if pointed is None:
                     return None if tag == "img" else ""  # a remote picture is left out
                 value = pointed
@@ -190,19 +200,33 @@ def tidied(source: str, images: dict[str, str]) -> str:
     return cleaner.result().strip()
 
 
+def _height(cleaned: str) -> float:
+    """A frame's height (rem) for its mail: a frame that runs nothing cannot size itself, so it is
+    estimated from the text's length, its blocks and its pictures."""
+    text = re.sub(r"<style.*?</style>|<[^>]+>", " ", cleaned, flags=re.S)
+    words = len(text.split())
+    blocks = len(re.findall(r"<(?:p|div|br|li|tr|h[1-6])\b", cleaned, re.I))
+    pictures = len(re.findall(r"<img\b", cleaned, re.I))
+    lines = words / 12 + blocks * 0.6 + pictures * 2.5
+    return round(min(60.0, max(4.0, 2 + lines * 1.5)), 1)
+
+
 def original(source: str, images: dict[str, str], title: str = "The mail as it was sent") -> str:
-    """The mail's own HTML with its styles, made safe, in a frame that runs nothing."""
+    """The mail's own HTML with its styles, made safe, in a frame that runs nothing. A picture in
+    `images` should be a `data:` address: a frame like this cannot load a file from disk."""
     cleaner = _Cleaner("original", images)
     cleaner.feed(source)
+    cleaned = cleaner.result()
     document = (
         '<!DOCTYPE html><html><head><meta charset="utf-8">'
         "<style>body{margin:0;font-family:system-ui,sans-serif;overflow-wrap:anywhere}"
         "img{max-width:100%;height:auto}</style></head><body>"
-        f"{cleaner.result()}</body></html>"
+        f"{cleaned}</body></html>"
     )
     return (
         f'<iframe class="mailframe" sandbox="" title="{html.escape(title, quote=True)}" '
-        f'srcdoc="{html.escape(document, quote=True)}"></iframe>'
+        f'style="height: {_height(cleaned)}rem" srcdoc="{html.escape(document, quote=True)}">'
+        "</iframe>"
     )
 
 

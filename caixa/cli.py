@@ -143,6 +143,14 @@ def build_parser() -> argparse.ArgumentParser:
         decide.add_argument("addresses", nargs="+", help="the senders' addresses")
         decide.add_argument("--forget", action="store_true", help="forget the decision")
         _box_argument(decide)
+    sampled = mail_commands.add_parser(
+        "sample", help="draw a few conversations three ways, to choose how mail looks"
+    )
+    sampled.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
+    sampled.add_argument("--out", required=True, help="the folder to write the samples into")
+    sampled.add_argument("--account", help="the account the mail comes from (once per mbox)")
+    sampled.add_argument("--conversations", type=int, default=6, help="how many (default 6)")
+    _box_argument(sampled)
     keep = mail_commands.add_parser("keep", help="never leave a sender's mail out when cleaning")
     keep.add_argument("addresses", nargs="+", help="the senders' addresses")
     keep.add_argument("--forget", action="store_true", help="stop keeping them")
@@ -460,6 +468,19 @@ def _cmd_mail(args: argparse.Namespace) -> int:
     service.subscribe(show)
     try:
         for source in done["result"]["sources"]:
+            if args.action == "sample":
+                from caixa.mail import sample as mail_sample
+                from caixa.mail.index import MailIndex
+
+                out = Path(args.out).expanduser()
+                if len(done["result"]["sources"]) > 1:
+                    out = out / Path(source["member"] or source["path"]).stem
+                box = Box.open(service.box_status()["root"])
+                with MailIndex.for_box(box, read_only=True) as index:
+                    made = mail_sample.sample(index, source["source_id"], out, args.conversations)
+                print(f"{_plural(made.conversations, 'conversation')} drawn three ways: "
+                      f"open {out / 'index.html'}")  # fmt: skip
+                continue
             if args.action == "senders":
                 listed = service.mail_senders(source["source_id"])
                 print(json.dumps(listed, indent=2) if args.json else _senders_text(listed))

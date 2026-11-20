@@ -13,7 +13,7 @@ depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -41,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design (spike):** `caixa/mail/render.py` draws a mail's body three ways, with the standard
 library's HTML parser, and `caixa mail sample` lays a few conversations of a real mbox out as pages
@@ -80,7 +80,7 @@ The sample folder holds `plain/`, `tidied/` and `original/`, one page per conver
 - Tests: the fixture sampled into a folder: three versions of each conversation, the index, the
   pictures, and no script, handler or remote reference in any page.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ### T03: The maintainer's choice
 
@@ -98,3 +98,6 @@ The sample folder holds `plain/`, `tidied/` and `original/`, one page per conver
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-20
+T02: 'caixa mail sample SOURCE --out FOLDER [--account] [--conversations N]' writes plain/, tidied/, original/, files/ and index.html. Seen in a browser from disk: a frame that runs nothing (sandbox, no allow-same-origin) cannot load pictures from disk, so the original's pictures travel inside it as data: addresses; it also cannot size itself, so its height is estimated from the mail (words, blocks, pictures; 4 to 60 rem, and it can be resized by hand). Links inside the original's frame open in the frame. These are the original style's trade-offs for the maintainer to weigh.
