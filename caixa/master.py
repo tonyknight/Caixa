@@ -291,6 +291,8 @@ class Master:
             if row is None:
                 continue
             self._db.execute("DELETE FROM item_people WHERE item_id = ?", (item_id,))
+            self._db.execute("DELETE FROM mail_accounts WHERE item_id = ?", (item_id,))
+            self._db.execute("DELETE FROM mail WHERE item_id = ?", (item_id,))
             self._db.execute("DELETE FROM items WHERE id = ?", (item_id,))
             self.log_change(item_id, "delete", int(row[0]), import_id)
             gone += 1

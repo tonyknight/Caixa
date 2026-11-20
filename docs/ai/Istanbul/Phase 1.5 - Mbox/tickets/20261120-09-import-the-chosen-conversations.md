@@ -13,7 +13,7 @@ depends_on:
 - 20261120-06-senders-known-and-what-a-choice-brings
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -41,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** importing reuses Phase 1's mail pipeline (Chattr's mail conversion, people, filing,
 pages, the master's adapter, undo) on a small working mbox that holds only the chosen
@@ -87,7 +87,7 @@ the box's files and pages to ticket 10.
   with their counts; importing the Work account's mbox records the shared mail in `mail_accounts`
   and keeps it with Gmail; importing again adds nothing.
 - Verify: `python -m pytest -q tests/test_mail_records.py tests/test_master.py`
-- [ ] done
+- [x] done
 
 ### T03: `mail.import` as a job, and `caixa mail import`
 
@@ -114,3 +114,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: Chattr: a mail's id is 'mail:<hash of its Message-ID>' (other services unchanged); a mail met again under another thread moves to it and a thread left empty is deleted (with its participants). MboxParser(account, workers): account in service_specific; with workers > 1 the mails' bytes are read in the parent and their records built in spawned processes in 16 MB batches, in file order. commands.convert(parser_options=...) passes them for batch services; the Mail collector forwards options 'account' and 'workers'. Mail ids change for boxes that imported mail with Phase 1 (none on real data yet): re-importing such a box would add the mail again under new ids.
+
+### 2026-11-20
+T02: master migration 4 (accounts, mail, mail_accounts, mail_threads); caixa/mail/records.py record_mail(master, chattr_db, account, seen). Found and fixed: Phase 1's group rule (a group the owner never wrote in is removed) dropped a chosen mail thread where the owner was only a recipient; DatabaseManager.tidy_groups(keep=('Mail',)) spares mail conversations (mail now only comes in as the owner chose it). A mail met again in another account is unchanged in Chattr, so its second account comes from the import job (seen = the working mbox's Message-IDs). Master.delete_items also deletes an item's mail rows.

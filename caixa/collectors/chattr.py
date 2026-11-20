@@ -359,8 +359,9 @@ class _Chattr:
                 f"{error} (The contacts file is set in Settings, under Contacts, or in this "
                 "import's options.)"
             ) from error
-        # Group conversations: only those the owner wrote in, and of their members only those
-        # who wrote (see DatabaseManager.tidy_groups). Then what is left unnamed on WhatsApp,
+        # Group conversations: only those the owner wrote in (but every mail conversation, which
+        # the owner chose in Sort mail), and of their members only those who wrote (see
+        # DatabaseManager.tidy_groups). Then what is left unnamed on WhatsApp,
         # Google Voice and voicemail and is shown by a name (not a number) is a name from the
         # owner's own phone or Google contacts: take it as the person. The same name as a contact
         # (or anyone else) is the same person.
@@ -371,7 +372,7 @@ class _Chattr:
                 options.get(REMOVED) or [], str(options.get("region") or "US")
             )
             with DatabaseManager(database) as db:
-                tidy = db.tidy_groups()
+                tidy = db.tidy_groups(keep=("Mail",))  # mail comes in as the owner chose it
                 for service in SHOWN_BY_OWN_NAME:
                     db.name_handles(service, own_name)
                 taken = db.remove_people(match) if match else None

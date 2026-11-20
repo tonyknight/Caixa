@@ -12,6 +12,8 @@ which a collector's adapter reads the collector's database and upserts here by s
 - `imports`: provenance of each run.
 - `change_log`: append-only (triggers refuse edits and deletes); the change number only grows, so
   anything built on top (an index, a knowledge store) can ask "what changed since N".
+- `accounts`, `mail`, `mail_accounts`, `mail_threads`: the mail imported through Caixa's mail
+  workflow (Phase 1.5), each mail with its facts and account, each conversation with its summary.
 """
 
 from __future__ import annotations
@@ -123,7 +125,56 @@ CREATE TRIGGER change_log_no_delete BEFORE DELETE ON change_log
 BEGIN SELECT RAISE(ABORT, 'change_log is append-only'); END;
 """
 
-MIGRATIONS: list[tuple[int, str]] = [(1, MIGRATION_1), (2, MIGRATION_2), (3, MIGRATION_3)]
+# Version 4: mail (Phase 1.5): the accounts mail comes from, the facts of every imported mail (its
+# plain text is its item's `text`), the accounts a mail was seen in, and each conversation with what
+# later steps add to it (the page that shows it, the person it is filed with, its summary).
+MIGRATION_4 = """
+CREATE TABLE accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE
+);
+CREATE TABLE mail (
+    item_id TEXT PRIMARY KEY REFERENCES items (id),
+    account_id INTEGER NOT NULL REFERENCES accounts (id),
+    message_id TEXT,
+    thread_key TEXT NOT NULL,
+    date_utc TEXT NOT NULL,
+    tz_offset_minutes INTEGER,
+    sender_address TEXT,
+    sender_name TEXT,
+    recipients TEXT NOT NULL DEFAULT '[]',
+    subject TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX mail_by_thread ON mail (thread_key);
+CREATE INDEX mail_by_sender ON mail (sender_address);
+CREATE TABLE mail_accounts (
+    item_id TEXT NOT NULL REFERENCES items (id),
+    account_id INTEGER NOT NULL REFERENCES accounts (id),
+    PRIMARY KEY (item_id, account_id)
+);
+CREATE TABLE mail_threads (
+    thread_key TEXT PRIMARY KEY,
+    account_id INTEGER REFERENCES accounts (id),
+    subject TEXT NOT NULL DEFAULT '',
+    first_utc TEXT,
+    last_utc TEXT,
+    mails INTEGER NOT NULL DEFAULT 0,
+    files INTEGER NOT NULL DEFAULT 0,
+    home_person_id INTEGER REFERENCES people (id),
+    page TEXT,
+    summary TEXT,
+    summary_model TEXT,
+    summary_at TEXT,
+    summary_hash TEXT
+);
+"""
+
+MIGRATIONS: list[tuple[int, str]] = [
+    (1, MIGRATION_1),
+    (2, MIGRATION_2),
+    (3, MIGRATION_3),
+    (4, MIGRATION_4),
+]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 
 

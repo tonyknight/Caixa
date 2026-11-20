@@ -548,7 +548,7 @@ class DatabaseManager:
             ).fetchone()
         )
 
-    def tidy_groups(self) -> GroupTidy:
+    def tidy_groups(self, keep: tuple[str, ...] = ()) -> GroupTidy:
         """Apply the rules for group conversations, from any source:
 
         1. a group the owner never wrote in is removed, messages and all (groups someone added
@@ -560,7 +560,8 @@ class DatabaseManager:
         3. (in `unresolved_rows`) a member known only by a phone number, who wrote only in groups,
            is never listed to be named.
 
-        Safe to repeat. Returns what was removed.
+        Safe to repeat. Returns what was removed. The services in `keep` are spared rule 1 (Caixa's
+        mail is imported conversation by conversation, as the owner chose, so none is unwanted).
         """
         db = self._db
         result = GroupTidy()
@@ -577,6 +578,8 @@ class DatabaseManager:
             "WHERE m.conversation_id = c.id AND m.is_from_owner = 1)"
         ).fetchall()
         for conversation_id, service, name in silent:
+            if service in keep:
+                continue
             if service not in known:
                 result.unchecked.add(service)
                 continue
