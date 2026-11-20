@@ -3,11 +3,12 @@ id: 20261120-06-senders-known-and-what-a-choice-brings
 title: Senders, Known and what a choice brings
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: Known/To sort/To import/Ignored/Imported, what a choice brings, decisions
+  and owner addresses in owner.json; service and CLI.'
 parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
@@ -100,10 +101,39 @@ like the classifier, so it is tested without a box; the service fills it from th
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa/mail/senders.py` sorts an mbox's senders into Known (by address, chosen to
+  begin with; by name, shown and waiting), To sort (the owner's correspondents first, then the
+  busiest), To import, Ignored and Imported, each with senders, mails and size; the owner's
+  correspondents who never wrote back are listed too, so the owner's unanswered mail can come with
+  them. `selection()` gives what a choice brings: the chosen senders' threads whole, the threads in
+  which the owner wrote to them, and from a mailing list's thread only the owner's, the box's
+  people's and the chosen's mails. Choices, ignores (exclusive) and the owner's confirmed addresses
+  per account are kept in `owner.json`, across resets and for Cleaned children. Service:
+  `mail.senders`, `mail.choose`, `mail.ignore`, `mail.selection`, `mail.owner`, `mail.owner.set`;
+  `caixa mail senders|choose|ignore`.
+- **Files:** new `caixa/mail/senders.py`, `tests/test_mail_senders.py`; changed `caixa/owner.py`,
+  `caixa/service.py`, `caixa/cli.py`, `tests/test_owner.py`, `tests/test_mail_service.py`,
+  `tests/test_worker_protocol.py`.
+- **Errors:** none.
+- **Verify:** `python -m pytest -q` → 1368 passed, 1 skipped, 1 deselected; black and mypy clean.
+
+## Review
+
+### 2026-11-20: 0112d09..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** "Imported" stays empty until ticket 09 records imported mail in the master
+  (`Service._mail_imported`).
+- **Minor:** a known-by-address person cannot be "unchosen" except by ignoring them; that matches
+  the window's categories (Known people are imported unless ignored).
+- **Minor:** a mailing-list thread is recognised by `List-Id`/`List-Post` on any of its mails; a list
+  that strips those headers is treated as an ordinary thread (whole thread imported).
+- **Minor:** the commonest-sender fallback for the owner's addresses is only proposed, never used
+  without the owner's confirmation.
+- **Spec:** M2 (owner's addresses proposed and confirmed) and M8 met; every acceptance criterion met.
+- **TDD:** RED then GREEN for each task.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 

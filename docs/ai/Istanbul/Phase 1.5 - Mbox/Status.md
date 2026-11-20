@@ -6,17 +6,12 @@
 
 Mail without the noise: clean an mbox of junk, sort it by sender, import only the conversations that matter, summarize each one locally, and keep what is left in a smaller mbox
 
-## In progress (1)
+## In progress (0)
 
-- **20261120-06-senders-known-and-what-a-choice-brings** Senders, Known and what a choice brings [high] — plan done · 3/3
-  - checkboxes: 3/9
+_No tickets in progress._
 
-## Blocked (8)
+## Blocked (6)
 
-- **20261120-07-the-sort-mail-window** The Sort mail window [high]
-  - depends on: 20261120-06-senders-known-and-what-a-choice-brings (not yet marked blocked)
-- **20261120-09-import-the-chosen-conversations** Import the chosen conversations [high]
-  - depends on: 20261120-06-senders-known-and-what-a-choice-brings (not yet marked blocked)
 - **20261120-10-conversation-pages-and-attachments** Conversation pages and attachments [high]
   - depends on: 20261120-08-how-mail-bodies-look, 20261120-09-import-the-chosen-conversations (not yet marked blocked)
 - **20261120-11-the-person-page-s-entry-and-the-overlay** The person page's entry and the overlay [high]
@@ -30,19 +25,22 @@ Mail without the noise: clean an mbox of junk, sort it by sender, import only th
 - **20261120-15-retire-the-blind-mail-import-documentation** Retire the blind mail import; documentation [medium]
   - depends on: 20261120-07-the-sort-mail-window, 20261120-13-reduce (not yet marked blocked)
 
-## Up next (1)
+## Up next (3)
 
+- **20261120-07-the-sort-mail-window** The Sort mail window [high]
 - **20261120-08-how-mail-bodies-look** How mail bodies look [high]
+- **20261120-09-import-the-chosen-conversations** Import the chosen conversations [high]
 
-## Recently completed (last 5 of 5)
+## Recently completed (last 6 of 6)
 
 - **20261120-01-synthetic-mail-fixtures** Synthetic mail fixtures (closed 2026-11-20)
 - **20261120-02-mail-index-and-parallel-reading** Mail index and parallel reading (closed 2026-11-20)
 - **20261120-03-junk-classifier-and-the-receipts-guard** Junk classifier and the receipts guard (closed 2026-11-20)
 - **20261120-04-the-mbox-writer** The mbox writer (closed 2026-11-20)
 - **20261120-05-the-clean-mail-window** The Clean mail window (closed 2026-11-20)
+- **20261120-06-senders-known-and-what-a-choice-brings** Senders, Known and what a choice brings (closed 2026-11-20)
 
 ## Stats
 
-- Total: 15 tickets · 5 done · 9 todo · 1 in-progress · 0 blocked
+- Total: 15 tickets · 6 done · 9 todo · 0 in-progress · 0 blocked
 - By type: 12 feature · 2 chore · 1 spike
