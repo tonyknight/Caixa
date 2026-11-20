@@ -78,9 +78,8 @@ RECEIPT_HINTS = ("order", "shipped", "shipping", "receipt", "invoice", "payment"
                  "billete", "pago")  # fmt: skip
 
 
-def body_signals(message: EmailMessage, subject: str) -> tuple[bool, bool]:
-    """(has an unsubscribe link, reads like a receipt or an order)."""
-    text = body_text(message)
+def text_signals(text: str, subject: str) -> tuple[bool, bool]:
+    """(a mail's text has an unsubscribe link, it reads like a receipt or an order)."""
     lowered = text.lower()
     unsubscribe = any(h in lowered for h in UNSUBSCRIBE_HINTS) and bool(UNSUBSCRIBE.search(text))
     both = f"{subject}\n{text}"

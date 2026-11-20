@@ -7,7 +7,10 @@ it outlives a reset and applies again at the next import:
   hand). At import these come first, before Contacts and before the names a source gives;
 - `categories`: the category each person was sorted into;
 - `removed`: the people (`person`, by name) and identifiers (`identifier`, with the `service`
-  it is on) taken out of the box. Their one-to-one conversations are not imported again.
+  it is on) taken out of the box. Their one-to-one conversations are not imported again;
+- `mail`: what the owner decided about mail: the senders `kept` when cleaning (their mail is never
+  left out of a Cleaned mbox), the senders `ignored` when sorting, and the `accounts` with the
+  owner's addresses in each.
 
 Caixa writes the file whenever one of these changes. It is plain JSON and can be edited by hand
 while Caixa is not running: names and categories added there are taken up at the next import, and
@@ -42,7 +45,13 @@ def path(box: Box) -> Path:
 def load(box: Box) -> dict[str, Any]:
     """The file's contents, with every section present; a missing or damaged file reads as empty
     (a damaged one is kept beside it as `owner.json.damaged`, never overwritten unread)."""
-    empty: dict[str, Any] = {"schema": SCHEMA, "names": [], "categories": {}, "removed": []}
+    empty: dict[str, Any] = {
+        "schema": SCHEMA,
+        "names": [],
+        "categories": {},
+        "removed": [],
+        "mail": _mail({}),
+    }
     file = path(box)
     try:
         data = json.loads(file.read_text(encoding="utf-8"))
@@ -65,7 +74,48 @@ def load(box: Box) -> dict[str, Any]:
         r for r in data.get("removed", [])
         if isinstance(r, dict) and (r.get("identifier") or r.get("person"))
     ]  # fmt: skip
-    return {"schema": SCHEMA, "names": names, "categories": categories, "removed": removed}
+    mail = _mail(data.get("mail"))
+    return {
+        "schema": SCHEMA,
+        "names": names,
+        "categories": categories,
+        "removed": removed,
+        "mail": mail,
+    }
+
+
+def _mail(section: Any) -> dict[str, Any]:
+    """The mail section: senders kept in cleaning and ignored in sorting (addresses, lower case),
+    and the accounts with the owner's addresses in each."""
+    given = section if isinstance(section, dict) else {}
+
+    def addresses(name: str) -> list[str]:
+        values = given.get(name)
+        found = values if isinstance(values, list) else []
+        return sorted({str(a).strip().lower() for a in found if str(a).strip()})
+
+    accounts = given.get("accounts")
+    return {
+        "kept": addresses("kept"),
+        "ignored": addresses("ignored"),
+        "accounts": accounts if isinstance(accounts, dict) else {},
+    }
+
+
+def mail_kept(box: Box) -> list[str]:
+    """The senders the owner kept when cleaning mail (their mail is never left out)."""
+    return list(load(box)["mail"]["kept"])
+
+
+def set_mail_kept(box: Box, addresses: Iterable[str], keep: bool = True) -> list[str]:
+    """Keep these senders (or stop keeping them); returns the kept senders."""
+    data = load(box)
+    chosen = {a.strip().lower() for a in addresses if a.strip()}
+    kept = set(data["mail"]["kept"])
+    kept = kept | chosen if keep else kept - chosen
+    data["mail"]["kept"] = sorted(kept)
+    _write(box, data)
+    return list(data["mail"]["kept"])
 
 
 def _write(box: Box, data: dict[str, Any]) -> None:

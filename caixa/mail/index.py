@@ -52,7 +52,7 @@ from caixa.mail import clean
 from caixa.collectors.base import Progress
 
 PathLike = Union[str, Path]
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"
 MB = 1 << 20
 #: Ranges of a plain mbox handed to one worker at a time.
 MIN_RANGE, MAX_RANGE = 8 * MB, 64 * MB
@@ -61,6 +61,8 @@ BATCH = 16 * MB
 BLOCK = 4 * MB
 #: How much of a mail is parsed for its headers and text.
 BODY_LIMIT = MB
+#: Characters of a mail's text kept, to list a sender's mails without reading the mbox.
+SNIPPET = 200
 #: The headers cleaning looks at (lower case), kept as given (cut to this many characters).
 SIGNAL_HEADERS = (
     "list-id",
@@ -122,6 +124,7 @@ CREATE TABLE mails (
     signals TEXT NOT NULL DEFAULT '{}',
     unsubscribe INTEGER NOT NULL DEFAULT 0,
     receipt INTEGER NOT NULL DEFAULT 0,
+    snippet TEXT NOT NULL DEFAULT '',
     flags TEXT,
     protections TEXT,
     by_owner INTEGER,
@@ -167,6 +170,7 @@ PARSED = (
     "signals",
     "unsubscribe",
     "receipt",
+    "snippet",
 )
 Row = tuple[Any, ...]
 
@@ -275,7 +279,8 @@ def parse(offset: int, data: bytes) -> Row:
         name: _text(message, name)[:SIGNAL_LENGTH] for name in SIGNAL_HEADERS if name in message
     }
     subject = _text(message, "Subject")
-    unsubscribe, receipt = clean.body_signals(message, subject)
+    text = clean.body_text(message)
+    unsubscribe, receipt = clean.text_signals(text, subject)
     return (
         offset,
         len(data),
@@ -296,6 +301,7 @@ def parse(offset: int, data: bytes) -> Row:
         json.dumps(signals, ensure_ascii=False),
         int(unsubscribe),
         int(receipt),
+        " ".join(text.split())[:SNIPPET],
     )
 
 
@@ -466,6 +472,31 @@ class MailIndex:
             db.execute("ROLLBACK")
             raise
         return new_id
+
+    def mail_bytes(self, source_id: int, position: int) -> bytes:
+        """One mail's bytes, read from its mbox (forward through a zip member)."""
+        row = self.connection.execute(
+            "SELECT s.path, s.member, m.offset, m.length FROM mails m JOIN sources s "
+            "ON s.id = m.source_id WHERE m.source_id = ? AND m.position = ?",
+            (source_id, position),
+        ).fetchone()
+        if row is None:
+            raise MailError("There is no such mail in the index.")
+        path, member, offset, length = Path(row[0]), str(row[1]), int(row[2]), int(row[3])
+        if not path.exists():
+            raise MailError(f"The mbox is no longer at {path}.")
+        if not member:
+            with path.open("rb") as handle:
+                handle.seek(offset)
+                return handle.read(length)
+        with zipfile.ZipFile(path) as archive, archive.open(member) as handle:
+            left = offset
+            while left > 0:
+                skipped = handle.read(min(BLOCK, left))
+                if not skipped:
+                    raise MailError("The mbox ended before that mail.")
+                left -= len(skipped)
+            return handle.read(length)
 
     # --- Reading --------------------------------------------------------------------------------
 

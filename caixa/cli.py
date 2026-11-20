@@ -17,6 +17,9 @@ from pathlib import Path
 from typing import Any, Optional
 
 from caixa import __version__
+from caixa import owner as owner_file
+from caixa.box import Box
+from caixa.mail import write as mail_write
 from caixa.service import Service, ServiceError
 
 ENVIRONMENT = "CAIXA_BOX"
@@ -120,6 +123,19 @@ def build_parser() -> argparse.ArgumentParser:
     read.add_argument("--account", help="the account the mail comes from, such as Gmail or Work")
     read.add_argument("--workers", type=int, help="processes at once (default: the setting)")
     _box_argument(read)
+    clean = mail_commands.add_parser(
+        "clean", help="show the junk in an mbox, by group and sender; --write leaves it out"
+    )
+    clean.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
+    clean.add_argument("--account", help="the account the mail comes from (once per mbox)")
+    clean.add_argument(
+        "--write", action="store_true", help="write the Cleaned mbox beside the source"
+    )
+    _box_argument(clean)
+    keep = mail_commands.add_parser("keep", help="never leave a sender's mail out when cleaning")
+    keep.add_argument("addresses", nargs="+", help="the senders' addresses")
+    keep.add_argument("--forget", action="store_true", help="stop keeping them")
+    _box_argument(keep)
 
     serve = commands.add_parser("serve", help="start the browser interface and open it")
     serve.add_argument("--box", help="open this box when it starts")
@@ -334,7 +350,38 @@ def _mail_read_text(result: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _clean_text(reply: dict[str, Any]) -> str:
+    source = reply["source"]
+    name = source["member"] or Path(source["path"]).name
+    lines = [f"{name} ({source['account']}): {_plural(source['mails'], 'mail')}"]
+    for group in reply["groups"]:
+        lines.append(
+            f"{group['label']}: {_plural(group['senders'], 'sender')}, "
+            f"{_plural(group['mails'], 'mail')}, {mail_write.human_size(group['size'])}"
+        )
+        lines += [
+            f"  {row['mails']:>6}  {mail_write.human_size(row['size']):>9}  "
+            f"{row['name']} <{row['address']}>"
+            for row in group["rows"][:10]
+        ]
+        if len(group["rows"]) > 10:
+            lines.append(f"  … and {len(group['rows']) - 10} more")
+    left = reply["left_out"]
+    lines.append(
+        f"Writing the cleaned mbox would leave out {_plural(left['mails'], 'mail')} "
+        f"({mail_write.human_size(left['size'])}) from {_plural(left['senders'], 'sender')}."
+    )
+    return "\n".join(lines)
+
+
 def _cmd_mail(args: argparse.Namespace) -> int:
+    if args.action == "keep":
+        service = _open(args)
+        box = Box.open(service.box_status()["root"])
+        kept = owner_file.set_mail_kept(box, args.addresses, keep=not args.forget)
+        print(json.dumps({"kept": kept}, indent=2) if args.json else
+              "Kept when cleaning: " + (", ".join(kept) or "nobody"))  # fmt: skip
+        return 0
     service = _open(args)
     screen = sys.stderr  # a running job redirects sys.stderr to its log; keep the real one
 
@@ -344,7 +391,8 @@ def _cmd_mail(args: argparse.Namespace) -> int:
 
     service.subscribe(show)
     try:
-        job = service.mail_read(args.source, account=args.account, workers=args.workers)
+        workers = getattr(args, "workers", None)
+        job = service.mail_read(args.source, account=args.account, workers=workers)
         done = service.wait(job["id"])
     except KeyboardInterrupt:
         print("caixa: cancelled.", file=sys.stderr)
@@ -354,7 +402,31 @@ def _cmd_mail(args: argparse.Namespace) -> int:
     if done["status"] != "done":
         print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
         return 1
-    print(json.dumps(done["result"], indent=2) if args.json else _mail_read_text(done["result"]))
+    if args.action == "read":
+        print(
+            json.dumps(done["result"], indent=2) if args.json else _mail_read_text(done["result"])
+        )
+        return 0
+    service = _open(args)
+    service.subscribe(show)
+    try:
+        for source in done["result"]["sources"]:
+            reply = service.mail_clean(source["source_id"])
+            if not args.write:
+                print(json.dumps(reply, indent=2) if args.json else _clean_text(reply))
+                continue
+            job = service.mail_clean_write(source["source_id"])
+            written = service.wait(job["id"])
+            if written["status"] != "done":
+                print(f"caixa: {written['error'] or written['status']}", file=sys.stderr)
+                return 1
+            result = written["result"]
+            print(json.dumps(result, indent=2) if args.json else
+                  f"Wrote {result['path']}: {_plural(result['mails'], 'mail')} kept, "
+                  f"{_plural(result['left_out'], 'mail')} left out "
+                  f"({mail_write.human_size(result['left_out_size'])}).")  # fmt: skip
+    finally:
+        service.close()
     return 0
 
 

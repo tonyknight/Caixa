@@ -37,7 +37,13 @@ def _file(service: Service) -> dict:
 def test_a_missing_file_reads_as_empty_and_a_damaged_one_is_set_aside(service: Service) -> None:
     box = service.box
     assert box is not None
-    assert owner.load(box) == {"schema": 1, "names": [], "categories": {}, "removed": []}
+    assert owner.load(box) == {
+        "schema": 1,
+        "names": [],
+        "categories": {},
+        "removed": [],
+        "mail": {"kept": [], "ignored": [], "accounts": {}},
+    }
     owner.path(box).write_text("{not json", encoding="utf-8")
     assert owner.load(box)["names"] == []
     assert (box.caixa_dir / "owner.json.damaged").read_text(encoding="utf-8") == "{not json"

@@ -12,6 +12,11 @@ a later project) refuses every one of them and never writes anywhere in the box.
 from __future__ import annotations
 
 import copy
+import email
+import email.message
+import email.policy
+import email.utils
+import json
 
 import contextlib
 import functools
@@ -42,7 +47,9 @@ from caixa.collectors.registry import Registry, discover
 from caixa.master import CATEGORIES
 from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
+from caixa.mail import clean as mail_clean
 from caixa.mail import index as mail_index
+from caixa.mail import write as mail_write
 from caixa.state import State
 
 PathLike = Union[str, Path]
@@ -887,6 +894,8 @@ class Service:
             return self._undo(box, int(job["options"]["job"]), progress)
         if job["kind"] == "mail-read":
             return self._mail_read(box, job, progress)
+        if job["kind"] == "mail-clean":
+            return self._mail_clean_write(box, job, progress)
         if job["kind"] == "refresh":
             result = self._refresh_all(box, progress)
         else:
@@ -961,6 +970,180 @@ class Service:
         box = self._require_box()
         with mail_index.MailIndex.for_box(box, read_only=True) as index:
             return {"sources": index.sources()}
+
+    def _mail_people(self, box: Box) -> tuple[set[str], set[str], set[str]]:
+        """(the owner's addresses, the box's people's addresses, their names) from the master."""
+        with box.master(read_only=True) as master:
+            people = {p.id: p for p in master.people()}
+            owner_addresses, addresses = set(), set()
+            for alias in master.aliases():
+                if alias.kind != "email" or alias.person_id not in people:
+                    continue
+                if people[alias.person_id].is_owner:
+                    owner_addresses.add(alias.normalized)
+                else:
+                    addresses.add(alias.normalized)
+            names = {p.name for p in people.values() if not p.is_owner}
+        return owner_addresses, addresses, names
+
+    def _classify(self, box: Box, index: mail_index.MailIndex, source: int) -> None:
+        if not index.connection.execute(
+            "SELECT 1 FROM sources WHERE id = ? AND status = 'read'", (source,)
+        ).fetchone():
+            raise ServiceError("not_found", "That mbox has not been read into the box's index.")
+        owner_addresses, addresses, names = self._mail_people(box)
+        owner_addresses |= mail_clean.owner_addresses_from_sent(index)
+        mail_clean.classify(
+            index, source, owner_addresses, addresses, names, set(owner_file.mail_kept(box))
+        )
+
+    @method("mail.clean", write=True)
+    def mail_clean(self, source: int) -> dict[str, Any]:
+        """What cleaning this mbox would leave out, by group and sender (and the receipts it keeps),
+        with the totals; the senders the owner kept, as far as this mbox has mail from them."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box) as index:
+            self._classify(box, index, int(source))
+            return self._clean_reply(box, index, int(source))
+
+    def _clean_reply(self, box: Box, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
+        db = index.connection
+        found = mail_clean.groups(index, source)
+        row = db.execute(
+            "SELECT id, path, member, kind, account, mails, size FROM sources WHERE id = ?",
+            (source,),
+        ).fetchone()
+        info = dict(zip(("id", "path", "member", "kind", "account", "mails", "size"), row))
+        junk = [g for g in found if g.key != "receipts"]
+        left_mails = sum(g.mails for g in junk)
+        left_senders = len({r.address for g in junk for r in g.rows})
+        everyone = db.execute(
+            "SELECT COUNT(*) FROM senders WHERE source_id = ?", (source,)
+        ).fetchone()[0]
+        kept = set(owner_file.mail_kept(box))
+        kept_senders = [
+            {"address": a, "name": (json.loads(n) or [a])[0], "mails": m, "size": s}
+            for a, n, m, s in db.execute(
+                "SELECT address, names, mails, size FROM senders WHERE source_id = ? "
+                "ORDER BY mails DESC, address",
+                (source,),
+            )
+            if a in kept
+        ]
+        return {
+            "source": info,
+            "groups": [asdict(g) for g in found],
+            "left_out": {
+                "mails": left_mails,
+                "size": sum(g.size for g in junk),
+                "senders": left_senders,
+            },
+            "kept": {"mails": int(info["mails"]) - left_mails, "senders": everyone - left_senders},
+            "kept_senders": kept_senders,
+        }
+
+    @method("mail.keep", write=True)
+    def mail_keep(self, source: int, addresses: list[str], keep: bool = True) -> dict[str, Any]:
+        """Keep senders when cleaning (their mail is never left out), or stop keeping them; the
+        owner's choice is remembered in `owner.json`. Answers as `mail.clean` does."""
+        box = self._require_box()
+        owner_file.set_mail_kept(box, [str(a) for a in addresses], keep=bool(keep))
+        return self.mail_clean(int(source))
+
+    @method("mail.preview")
+    def mail_preview(self, source: int, address: str, limit: int = 50) -> dict[str, Any]:
+        """A sender's mails in an mbox, latest first: date, subject, recipients and a snippet."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            rows = index.connection.execute(
+                "SELECT position, date_utc, tz_offset_minutes, subject, recipients, snippet, "
+                "length, attachments FROM mails WHERE source_id = ? AND sender_address = ? "
+                "ORDER BY date_utc DESC, position DESC LIMIT ?",
+                (int(source), str(address).strip().lower(), int(limit)),
+            ).fetchall()
+        return {
+            "mails": [
+                {"position": p, "date": d, "offset": o, "subject": s,
+                 "recipients": json.loads(r), "snippet": n, "size": z, "attachments": a}
+                for p, d, o, s, r, n, z, a in rows
+            ]
+        }  # fmt: skip
+
+    @method("mail.message")
+    def mail_message(self, source: int, position: int) -> dict[str, Any]:
+        """One mail, read from its mbox: its headers and its text (never its HTML as such)."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            try:
+                data = index.mail_bytes(int(source), int(position))
+            except mail_index.MailError as error:
+                raise ServiceError("not_found", str(error)) from None
+        message = email.message_from_bytes(data.partition(b"\n")[2], policy=email.policy.default)
+        assert isinstance(message, email.message.EmailMessage)
+
+        def people(name: str) -> list[list[str]]:
+            values = [str(v) for v in message.get_all(name, [])]
+            return [[n, a.lower()] for n, a in email.utils.getaddresses(values) if a]
+
+        sender = (people("From") or [["", ""]])[0]
+        text = mail_clean.body_text(message)
+        return {
+            "from": sender,
+            "to": people("To"),
+            "cc": people("Cc"),
+            "subject": str(message.get("Subject", "") or ""),
+            "date": str(message.get("Date", "") or ""),
+            "text": text[:200_000],
+            "attachments": [
+                part.get_filename() or part.get_content_type()
+                for part in message.iter_attachments()
+            ],
+        }
+
+    @method("mail.clean.write", write=True)
+    def mail_clean_write(self, source: int) -> dict[str, Any]:
+        """Write the Cleaned mbox (every mail cleaning keeps) beside its source, as a job."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            row = index.connection.execute(
+                "SELECT path FROM sources WHERE id = ? AND status = 'read'", (int(source),)
+            ).fetchone()
+        if row is None:
+            raise ServiceError("not_found", "That mbox has not been read into the box's index.")
+        return self._enqueue("mail-clean", None, str(row[0]), {"source": int(source)})
+
+    def _mail_clean_write(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
+        source = int(job["options"]["source"])
+        workers = int(settings.load(box)["workers"])
+        try:
+            with mail_index.MailIndex.for_box(box) as index:
+                self._classify(box, index, source)
+                positions = [
+                    int(p)
+                    for p, flags, protections in index.connection.execute(
+                        "SELECT position, flags, protections FROM mails WHERE source_id = ?",
+                        (source,),
+                    )
+                    if not (json.loads(flags) and not json.loads(protections))
+                ]
+                total, size = index.connection.execute(
+                    "SELECT COUNT(*), SUM(length) FROM mails WHERE source_id = ?", (source,)
+                ).fetchone()
+                written = mail_write.write_mbox(
+                    index, source, positions, "Cleaned", workers=workers, progress=progress
+                )
+        except mail_index.MailError as error:
+            raise ServiceError("input", str(error)) from None
+        return {
+            "path": str(written.path),
+            "source_id": written.source_id,
+            "mails": written.mails,
+            "size": written.size,
+            "left_out": int(total) - written.mails,
+            "left_out_size": int(size or 0) - written.size,
+        }
 
     def _mail_read(
         self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
