@@ -3,11 +3,12 @@ id: 20261120-02-mail-index-and-parallel-reading
 title: Mail index and parallel reading
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: mail index, zips and folders, workers (2 GB in 9.9 s with 4), mail.read
+  job, caixa mail read.'
 parent:
 depends_on:
 - 20261120-01-synthetic-mail-fixtures
@@ -112,10 +113,45 @@ callback raising, as for imports; the pool is shut down and the source left unre
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa/mail/index.py` reads an mbox, a zip holding mboxes (one source per member,
+  streamed), a folder of them, or an Apple Mail `<name>.mbox/mbox`, into
+  `<box>/.caixa/mail/index.sqlite` (owner-only): every mail's byte range and SHA-256, header facts,
+  thread key, attachment count and list/bulk headers; senders summed per source. Up to the
+  **Workers** setting (processor count, at most 12) spawned processes; the same index whatever the
+  number. Reading a known, unchanged file again is instant; a cancelled read leaves nothing.
+  `mail.read` (a `mail-read` job) and `mail.sources` in the service, `caixa mail read`, and the Jobs
+  page names the job and its result.
+- **Files:** new `caixa/mail/__init__.py`, `caixa/mail/index.py`, `tests/test_mail_index.py`,
+  `tests/test_mail_service.py`, `tests/test_mail_scale.py`; changed `caixa/settings.py`,
+  `caixa/service.py`, `caixa/cli.py`, `tests/conftest.py`, `tests/test_worker_protocol.py`,
+  `README.md`, `web/src/client/{api.ts,locales.ts,pages/JobsPage.tsx}`, `web/tests/jobs-page.test.tsx`,
+  `caixa/data/web/*` (rebuilt), `tools/chattr/tests/fixtures/builders/noisy_mbox.py` and its test
+  (padding for the scale test).
+- **Errors:** none in existing code. The first scale run used 600-byte mails (3.5 million in 2 GB;
+  one worker took over 10 minutes); the test now uses 40 KB mails, as real mail.
+- **Verify:** `python -m pytest -q` → 1327 passed, 1 skipped, 1 deselected (the slow test);
+  `python -m pytest -q -m slow tests/test_mail_scale.py` → 2 GB, 53,622 mails: 36.7 s with 1
+  worker, 9.9 s with 4, peak 85 MB; black and mypy clean; `vitest run` → 226 passed; `tsc` clean.
+
+## Review
+
+### 2026-11-20: 817e3c8..HEAD (T01–T04), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a Cleaned or Reduced file "gets its parent's account" only once ticket 04's writer
+  records it in the index before it is read; the read already honours an account the index knows.
+- **Minor:** cancelling is tested on a plain mbox with one worker; the zip and pool paths share the
+  same mechanism (the progress callback raising inside the generator, the pool shut down) but are
+  not separately tested. Running workers finish their range before they exit.
+- **Minor:** `parse` reuses Chattr's `MboxParser._time`, a private method; if Chattr's parser
+  changes it, the index's dates follow.
+- **Minor (performance):** header parsing is about 5,000 mails a second per worker; a mailbox of
+  millions of very small mails takes minutes per million with one worker.
+- **Spec:** M1–M3 met; acceptance criteria met except the parent-account point above (ticket 04).
+- **TDD:** RED then GREEN for each task (collection errors; failing zip and folder tests; failing
+  service, setting, protocol and Jobs-page tests).
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
