@@ -3,11 +3,12 @@ id: 20261120-04-the-mbox-writer
 title: The mbox writer
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: Cleaned/Reduced names, byte-for-byte copy checked mail by mail, recorded
+  in the index.'
 parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
@@ -82,10 +83,33 @@ source is only ever opened for reading.
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa/mail/write.py` writes a Cleaned or Reduced mbox beside its source:
+  `(YYYY-MM-DD) <name> [Cleaned|Reduced].mbox` (an earlier date and tag replaced, ` (2)` on a
+  clash; a zip's folder; beside an Apple Mail `<name>.mbox`), after checking the folder can be
+  written and has room. The kept mails are copied byte for byte in order into a `.part` file,
+  checked mail by mail (size and SHA-256, in the workers), then renamed; a failed check, a cancel or
+  an error leave nothing. The new file is recorded in the index as the source's child, with its
+  account and the kept mails' rows, so it is never read again.
+- **Files:** new `caixa/mail/write.py`, `tests/test_mail_write.py`; changed `caixa/mail/index.py`
+  (`record_written`, a shared `_sum_senders`).
+- **Errors:** none.
+- **Verify:** `python -m pytest -q` → 1347 passed, 1 skipped, 1 deselected; black and mypy clean.
+
+## Review
+
+### 2026-11-20: 6b439ed..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `os.access` says yes to the superuser for any folder; a folder that still cannot be
+  written then fails when the `.part` file is opened, which also leaves nothing behind.
+- **Minor:** if the source changed after it was read, the copy no longer matches the index and the
+  check refuses it ("a mail differs from its source"); the message could say to read the mbox again.
+  Ticket 05's window reads the source before cleaning, so it is unlikely.
+- **Spec:** M6 met; every acceptance criterion met. Ticket 02's "a Cleaned or Reduced file gets its
+  parent's account" is now complete.
+- **TDD:** RED then GREEN (collection errors before each task).
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
