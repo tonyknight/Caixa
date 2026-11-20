@@ -146,10 +146,11 @@ describe('the Clean mail window', () => {
     fireEvent.click(within(ask).getByRole('button', { name: 'Write it' }))
     await view.flush()
     expect(view.api.calls).toContainEqual(['call', 'mail.clean.write', { source: 1 }])
-    await view.emit('job.finished', { ...job({ id: 9, kind: 'mail-clean', collector: null, status: 'done', result: { path: '/exports/(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox', mails: 45, size: 30_000, left_out: 11, left_out_size: 6_400 } as never }), job: 9 })
+    await view.emit('job.finished', { ...job({ id: 9, kind: 'mail-clean', collector: null, status: 'done', result: { path: '/exports/(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox', source_id: 12, mails: 45, size: 30_000, left_out: 11, left_out_size: 6_400 } as never }), job: 9 })
     const done = within(screen.getByRole('main')).getByRole('status', { name: 'Written' })
     expect(done.textContent).toContain('(2026-11-20) All mail Including Spam and Trash [Cleaned].mbox')
     expect(done.textContent).toContain('45 mails kept, 11 left out')
+    expect(within(done).getByRole('link', { name: 'Sort the cleaned mbox' }).getAttribute('href')).toBe('/mail/sort?source=12')
   })
 
   it('reads another mbox with its account, then cleans what it read', async () => {

@@ -99,6 +99,7 @@ export function CleanMail() {
             <div className={css.written} role="status" aria-label={t('mail.written')}>
               <strong>{t('mail.written')}</strong> <code>{written.path}</code>
               <span>{t('mail.written.line', { mails: written.mails.toLocaleString('en'), left: written.left_out.toLocaleString('en'), size: size(written.left_out_size) })}</span>
+              <a className={`${css.pill} ${css.pillPrimary}`} href={`/mail/sort?source=${written.source_id}`}>{t('mail.sortCleaned')}</a>
             </div>
           )}
           {job && !written && job.status !== 'failed' && (

@@ -1,0 +1,154 @@
+// @vitest-environment jsdom
+import { cleanup, fireEvent, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it } from 'vitest'
+import { SortMail } from '../src/client/mail/SortMail.tsx'
+import type { SortReply, SortRow } from '../src/client/mail/types.ts'
+import { ok, type FakeApi } from './fake-api.ts'
+import { renderWith } from './render.tsx'
+
+afterEach(cleanup)
+
+const SOURCE = { id: 4, path: '/exports/(2026-11-20) All mail [Cleaned].mbox', member: '', kind: 'cleaned', account: 'Gmail', status: 'read', mails: 33, size: 20_000, parent_id: 1 }
+
+const person = (name: string, address: string, mails: number, size: number, over: Partial<SortRow> = {}): SortRow =>
+  ({ name, address, mails, size, known_by: null, person: null, owner_wrote: 0, chosen: false, ...over })
+
+const ANA = person('Ana Costa', 'ana.costa@example.com', 4, 2_000, { known_by: 'address', person: 'Ana Costa', owner_wrote: 1, chosen: true })
+const HOME = person('Rui Pereira', 'rui.home@example.net', 1, 400, { known_by: 'name', person: 'Rui Pereira' })
+const BEATRIZ = person('Beatriz Lima', 'beatriz.lima@example.net', 3, 1_500, { owner_wrote: 1 })
+const CARLOS = person('Carlos Mendes', 'carlos.mendes@example.net', 2, 900)
+const INES = person('Inês Rocha', 'ines.rocha@example.net', 2, 700)
+
+/** A stand-in for the service's sorting: decisions move people between the categories. */
+function scripted(api: FakeApi, state = { chosen: new Set<string>(), ignored: new Set<string>(), linked: new Map<string, string>() }) {
+  const reply = (): SortReply => {
+    const everyone = [ANA, HOME, BEATRIZ, CARLOS, INES].map(r => {
+      const linked = state.linked.get(r.address)
+      return linked ? { ...r, known_by: 'address' as const, person: linked, chosen: true } : r
+    })
+    const live = everyone.filter(r => !state.ignored.has(r.address)).map(r => ({ ...r, chosen: r.chosen || state.chosen.has(r.address) }))
+    const sum = (rows: SortRow[]) => ({ senders: rows.length, mails: rows.reduce((n, r) => n + r.mails, 0), size: rows.reduce((n, r) => n + r.size, 0), rows })
+    const toImport = live.filter(r => r.chosen)
+    return {
+      source: { ...SOURCE, size: SOURCE.size },
+      categories: [
+        { key: 'known', label: 'Known', ...sum(live.filter(r => r.known_by)) },
+        { key: 'to_sort', label: 'To sort', ...sum(live.filter(r => !r.known_by && !r.chosen)) },
+        { key: 'to_import', label: 'To import', ...sum(toImport) },
+        { key: 'ignored', label: 'Ignored', ...sum(everyone.filter(r => state.ignored.has(r.address))) },
+        { key: 'imported', label: 'Imported', ...sum([]) },
+      ],
+      selection: { threads: toImport.length * 2, mails: toImport.reduce((n, r) => n + r.mails, 0) + 1, size: 9_000, senders: toImport.length },
+    }
+  }
+  api.generic['mail.sources'] = () => ok({ sources: [SOURCE] })
+  api.generic['mail.senders'] = () => ok(reply())
+  api.generic['mail.choose'] = (params) => { (params.addresses as string[]).forEach(a => params.choose === false ? state.chosen.delete(a) : state.chosen.add(a)); return ok(reply()) }
+  api.generic['mail.ignore'] = (params) => { (params.addresses as string[]).forEach(a => params.ignore === false ? state.ignored.delete(a) : state.ignored.add(a)); return ok(reply()) }
+  api.generic['mail.owner'] = () => ok({ account: 'Gmail', confirmed: [], proposed: ['maria.costa@example.com'] })
+  api.generic['mail.owner.set'] = () => ok({ account: 'Gmail', confirmed: ['maria.costa@example.com'], proposed: ['maria.costa@example.com'] })
+  api.changeReply = (kind, args) => { if (kind === 'link') state.linked.set(String(args[1]), String(args[2])); return ok({ person: { id: 9, name: String(args[2]) }, refresh: null }) as never }
+  return state
+}
+
+async function opened() {
+  const view = await renderWith(<SortMail />, api => scripted(api))
+  fireEvent.click(screen.getByRole('button', { name: /Sort \(2026-11-20\) All mail \[Cleaned\]\.mbox/ }))
+  await view.flush()
+  return view
+}
+
+const rows = () => screen.getAllByRole('row').slice(1)
+const names = () => rows().map(r => within(r).getAllByRole('cell')[1]!.textContent)
+const sidebar = () => screen.getByRole('navigation', { name: 'Groups' })
+const go = (label: RegExp) => fireEvent.click(within(sidebar()).getByRole('link', { name: label }))
+
+describe('the Sort mail window', () => {
+  it('shows the categories with their counts, Known first, with notes under the names', async () => {
+    await opened()
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Known')
+    expect(within(sidebar()).getByRole('link', { name: /To sort/ }).textContent).toContain('3 senders · 7 mails · 3.0 KB')
+    expect(names()).toEqual(['Ana Costaknown · you wrote 1', 'Rui Pereiraby name: Rui Pereira?'])
+    expect(screen.getByRole('contentinfo').textContent).toContain('Importing would bring 5 mails in 2 conversations')
+  })
+
+  it('chooses with the tool and the status bar, and ignores with Delete', async () => {
+    const view = await opened()
+    go(/To sort/)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Beatriz Lima' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.choose', { source: 4, addresses: ['beatriz.lima@example.net'], choose: true }])
+    expect(names()).not.toContain('Beatriz Limayou wrote 1')
+    fireEvent.click(rows()[0]!)
+    fireEvent.keyDown(document, { key: 'Delete' })
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.ignore', { source: 4, addresses: ['carlos.mendes@example.net'], ignore: true }])
+    fireEvent.click(rows()[0]!)
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Choose' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.choose', { source: 4, addresses: ['ines.rocha@example.net'], choose: true }])
+    go(/Ignored/)
+    fireEvent.click(screen.getByRole('button', { name: 'Stop ignoring Carlos Mendes' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.ignore', { source: 4, addresses: ['carlos.mendes@example.net'], ignore: false }])
+  })
+
+  it('takes senders dropped on Ignored or To import', async () => {
+    const view = await opened()
+    go(/To sort/)
+    fireEvent.click(rows()[1]!)
+    fireEvent.dragStart(rows()[1]!, { dataTransfer: { setData: () => undefined } })
+    const target = within(sidebar()).getByRole('link', { name: /To import/ })
+    fireEvent.dragOver(target)
+    fireEvent.drop(target)
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.choose', { source: 4, addresses: ['carlos.mendes@example.net'], choose: true }])
+  })
+
+  it('does not import someone from To import: a known person is ignored, a chosen one forgotten', async () => {
+    const view = await opened()
+    go(/To sort/)
+    fireEvent.click(screen.getByRole('button', { name: 'Choose Beatriz Lima' }))
+    await view.flush()
+    go(/To import/)
+    fireEvent.click(screen.getByRole('button', { name: "Don't import Beatriz Lima" }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.choose', { source: 4, addresses: ['beatriz.lima@example.net'], choose: false }])
+    fireEvent.click(screen.getByRole('button', { name: "Don't import Ana Costa" }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.ignore', { source: 4, addresses: ['ana.costa@example.com'], ignore: true }])
+  })
+
+  it('confirms a match by name, and names a sender with the people of the box', async () => {
+    const view = await opened()
+    fireEvent.click(screen.getByRole('button', { name: "It's Rui Pereira: rui.home@example.net" }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['link', 'Mail', 'rui.home@example.net', 'Rui Pereira', undefined])
+    go(/To sort/)
+    fireEvent.click(screen.getByRole('button', { name: 'Name Inês Rocha' }))
+    const field = screen.getByRole('combobox', { name: 'Name for ines.rocha@example.net' })
+    expect([...document.querySelectorAll('datalist option')].map(o => (o as HTMLOptionElement).value)).toEqual(['Ana A', 'Rui Pereira'])
+    fireEvent.change(field, { target: { value: 'Inês Rocha Costa' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['link', 'Mail', 'ines.rocha@example.net', 'Inês Rocha Costa', undefined])
+  })
+
+  it('confirms the owner’s addresses for the account', async () => {
+    const view = await opened()
+    const bar = screen.getByRole('region', { name: 'Your addresses' })
+    expect(bar.textContent).toContain('maria.costa@example.com')
+    fireEvent.click(within(bar).getByRole('button', { name: 'Confirm' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.owner.set', { source: 4, addresses: ['maria.costa@example.com'] }])
+    expect(screen.queryByRole('region', { name: 'Your addresses' })).toBeNull()
+  })
+
+  it('opens the mbox named in its address', async () => {
+    window.history.replaceState(null, '', '/mail/sort?source=4')
+    const view = await renderWith(<SortMail />, api => scripted(api))
+    await view.flush()
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Known')
+    window.history.replaceState(null, '', '/')
+  })
+})

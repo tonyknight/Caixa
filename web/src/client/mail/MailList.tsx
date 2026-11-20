@@ -20,6 +20,16 @@ export interface RowTool {
   readonly label: (row: SenderRow) => string
   readonly onClick: (row: SenderRow) => void
   readonly danger?: boolean
+  /** Only on the rows this says yes to (every row when absent). */
+  readonly show?: (row: SenderRow) => boolean
+}
+
+/** A name being typed for one row's address, with the box's people offered as it is typed. */
+export interface Naming {
+  readonly address: string
+  readonly suggestions: readonly string[]
+  readonly onApply: (row: SenderRow, name: string) => void
+  readonly onCancel: () => void
 }
 
 /** "1 sender · 2 mails · 800 bytes" */
@@ -41,7 +51,7 @@ export function useCounts() {
  * onto a category that takes it, the tools of a row on hover, and a status bar that adds up the
  * category and the selection and holds the actions.
  */
-export function MailList({ brand, categories, view, onView, title, hint, rows, tools, selectable, onDrop, actions, primary, notice, quiet = false }: {
+export function MailList({ brand, categories, view, onView, title, hint, rows, tools, selectable, onDrop, actions, primary, notice, note, naming, onDelete, quiet = false }: {
   brand: ReactNode
   /** Above the list: what was just written, work going on, a problem. */
   notice?: ReactNode
@@ -57,6 +67,11 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
   /** The status bar's actions for what is selected (the selection is cleared by `done`). */
   actions?: (selected: SenderRow[], done: () => void) => ReactNode
   primary?: ReactNode
+  /** A line under a row's name ("known", "you wrote 3"). */
+  note?: (row: SenderRow) => string | undefined
+  naming?: Naming
+  /** Delete or Backspace with senders selected (as on the index page). */
+  onDelete?: (rows: SenderRow[]) => void
   /** True while something else (an overlay, a question) has the keyboard. */
   quiet?: boolean
 }) {
@@ -73,10 +88,19 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
   const clear = () => { setPicked(new Set()); anchor.current = undefined }
 
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => { if (!quiet && event.key === 'Escape') clear() }
+    const onKey = (event: KeyboardEvent) => {
+      if (quiet) return
+      const typing = event.target instanceof HTMLElement && event.target.closest('input, textarea, select')
+      if (event.key === 'Escape') clear()
+      else if ((event.key === 'Delete' || event.key === 'Backspace') && !typing && onDelete && selected.length) {
+        event.preventDefault()
+        onDelete(selected)
+        clear()
+      }
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [quiet])
+  }, [quiet, onDelete, selected])
 
   const pick = (row: SenderRow, event: MouseEvent) => {
     if (!selectable) return
@@ -148,12 +172,16 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
                     onClick={(event) => pick(row, event)} onDragStart={(event) => startDrag(row, event)}
                     onDragEnd={() => { setDragging(false); setOver(undefined) }}>
                   <td className={css.mark}>{on ? '✓' : ''}</td>
-                  <td className={css.name}>{row.name}</td>
+                  <td className={css.name}>
+                    {naming?.address === row.address
+                      ? <NameField row={row} naming={naming} />
+                      : <>{row.name}{note?.(row) && <small className={css.note}>{note(row)}</small>}</>}
+                  </td>
                   <td className={css.address}>{row.address}</td>
                   <td className={css.number}>{row.mails.toLocaleString('en')}</td>
                   <td className={css.number}>{size(row.size)}</td>
                   <td className={css.tools}>
-                    {tools.map(tool => (
+                    {tools.filter(tool => !tool.show || tool.show(row)).map(tool => (
                       <button key={tool.key} type="button" className={`${css.tool} ${tool.danger ? css.toolDanger : ''}`}
                               aria-label={tool.label(row)} title={tool.label(row)}
                               onClick={(event) => { event.stopPropagation(); tool.onClick(row) }}>
@@ -179,5 +207,24 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
         {primary && <span className={css.primary}>{primary}</span>}
       </footer>
     </div>
+  )
+}
+
+/** The name field of a row: type a name (the box's people are offered), then Apply or Enter. */
+function NameField({ row, naming }: { row: SenderRow; naming: Naming }) {
+  const t = useT()
+  const [typed, setTyped] = useState('')
+  const listId = `names-${row.address.replace(/[^a-z0-9]/gi, '-')}`
+  const apply = () => { if (typed.trim()) naming.onApply(row, typed.trim()) }
+  return (
+    <span className={css.naming} onClick={(event) => event.stopPropagation()}>
+      <input className={css.nameInput} list={listId} value={typed} autoFocus placeholder={t('mail.name.placeholder')}
+             aria-label={t('mail.nameFor', { address: row.address })}
+             onChange={(event) => setTyped(event.target.value)}
+             onKeyDown={(event) => { if (event.key === 'Enter') apply(); else if (event.key === 'Escape') naming.onCancel() }} />
+      <datalist id={listId}>{naming.suggestions.map(name => <option key={name} value={name} />)}</datalist>
+      <button type="button" className={css.pill} disabled={!typed.trim()} onClick={apply}>{t('mail.apply')}</button>
+      <button type="button" className={css.pill} onClick={naming.onCancel}>{t('mail.cancel')}</button>
+    </span>
   )
 }

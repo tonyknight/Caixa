@@ -67,6 +67,7 @@ export interface ReadResult {
 /** The result of a `mail-clean` job. */
 export interface CleanWritten {
   readonly path: string
+  readonly source_id: number
   readonly mails: number
   readonly size: number
   readonly left_out: number
@@ -94,4 +95,34 @@ export const MAIL_WINDOW = 'caixa-mail'
 export function openMailWindow(which: 'clean' | 'sort', open: (url: string, name: string) => unknown = (url, name) => window.open(url, name)): void {
   const opened = open(`/mail/${which}`, MAIL_WINDOW) as Window | null
   opened?.focus?.()
+}
+
+/** A sender in Sort mail: how they are known, how often the owner wrote to them, whether chosen. */
+export interface SortRow extends SenderRow {
+  readonly known_by: 'address' | 'name' | null
+  readonly person: string | null
+  readonly owner_wrote: number
+  readonly chosen: boolean
+}
+
+export interface SortCategory {
+  readonly key: string
+  readonly label: string
+  readonly senders: number
+  readonly mails: number
+  readonly size: number
+  readonly rows: readonly SortRow[]
+}
+
+export interface SortReply {
+  readonly source: CleanReply['source']
+  readonly categories: readonly SortCategory[]
+  /** What importing the chosen senders would bring. */
+  readonly selection: { readonly threads: number; readonly mails: number; readonly size: number; readonly senders: number }
+}
+
+export interface OwnerAddresses {
+  readonly account: string
+  readonly confirmed: readonly string[]
+  readonly proposed: readonly string[]
 }

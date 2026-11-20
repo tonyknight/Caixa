@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client'
 import { makeApi } from '../client/api.ts'
 import { CaixaPage } from '../client/CaixaPage.tsx'
 import { CleanMail } from '../client/mail/CleanMail.tsx'
+import { SortMail } from '../client/mail/SortMail.tsx'
 import { Providers, type Translate } from '../client/hooks.tsx'
 import { dictionaries, type CaixaKey } from '../client/locales.ts'
 import { Store } from '../client/store.ts'
@@ -40,7 +41,7 @@ if (root) {
   createRoot(root).render(
     <Providers store={store} t={t}>
       {/* The mail windows are this page at their own addresses (see caixa/web.py, MAIL_WINDOWS). */}
-      {location.pathname === '/mail/clean' ? <CleanMail /> : <CaixaPage />}
+      {location.pathname === '/mail/clean' ? <CleanMail /> : location.pathname === '/mail/sort' ? <SortMail /> : <CaixaPage />}
       <ToastHost />
     </Providers>,
   )
