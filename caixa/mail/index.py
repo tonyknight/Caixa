@@ -406,6 +406,67 @@ class MailIndex:
         ).fetchone()
         return row
 
+    def record_written(
+        self, path: Path, kind: str, parent_id: int, account: str, positions: Sequence[int]
+    ) -> int:
+        """Record an mbox Caixa wrote from a source: its mails are the source's mails at
+        `positions`, in that order, end to end, so their rows are copied with new positions and
+        offsets (and it never needs reading)."""
+        stat = path.stat()
+        with path.open("rb") as handle:
+            head_hash = hashlib.sha256(handle.read(MB)).hexdigest()
+        columns = [
+            r[1]
+            for r in self.connection.execute("PRAGMA table_info(mails)")
+            if r[1] not in ("source_id", "position", "offset")
+        ]
+        db = self.connection
+        db.execute("BEGIN")
+        try:
+            known = self._known(str(path), "")
+            if known:
+                for table in ("mails", "senders"):
+                    db.execute(f"DELETE FROM {table} WHERE source_id = ?", (known[0],))
+                db.execute("DELETE FROM sources WHERE id = ?", (known[0],))
+            new_id = int(
+                db.execute(
+                    "INSERT INTO sources (path, member, kind, parent_id, account, size, mtime_ns, "
+                    "head_hash, status, read_at, mails) VALUES (?, '', ?, ?, ?, ?, ?, ?, 'read', "
+                    "datetime('now'), ?)",
+                    (str(path), kind, parent_id, account, stat.st_size, stat.st_mtime_ns,
+                     head_hash, len(positions)),  # fmt: skip
+                ).lastrowid
+                or 0
+            )
+            lengths = dict(
+                db.execute(
+                    "SELECT position, length FROM mails WHERE source_id = ?", (parent_id,)
+                ).fetchall()
+            )
+            mapping, at = [], 0
+            for new_position, old_position in enumerate(positions):
+                mapping.append((old_position, new_position, at))
+                at += lengths[old_position]
+            db.execute(
+                "CREATE TEMP TABLE IF NOT EXISTS written "
+                "(old_position INTEGER PRIMARY KEY, new_position INTEGER, new_offset INTEGER)"
+            )
+            db.execute("DELETE FROM written")
+            db.executemany("INSERT INTO written VALUES (?, ?, ?)", mapping)
+            listed = ", ".join(columns)
+            db.execute(
+                f"INSERT INTO mails (source_id, position, offset, {listed}) "
+                f"SELECT ?, w.new_position, w.new_offset, {', '.join('m.' + c for c in columns)} "
+                "FROM mails m JOIN written w ON m.position = w.old_position WHERE m.source_id = ?",
+                (new_id, parent_id),
+            )
+            _sum_senders(db, new_id)
+            db.execute("COMMIT")
+        except BaseException:
+            db.execute("ROLLBACK")
+            raise
+        return new_id
+
     # --- Reading --------------------------------------------------------------------------------
 
     def read(
@@ -599,14 +660,7 @@ class MailIndex:
                 )
                 position += len(rows)
             _thread_keys(db, source_id)
-            db.execute(
-                "INSERT INTO senders (source_id, address, names, mails, size, first_utc, last_utc) "
-                "SELECT source_id, sender_address, "
-                "json_group_array(DISTINCT sender_name) FILTER (WHERE sender_name IS NOT NULL), "
-                "COUNT(*), SUM(length), MIN(date_utc), MAX(date_utc) FROM mails "
-                "WHERE source_id = ? AND sender_address IS NOT NULL GROUP BY sender_address",
-                (source_id,),
-            )
+            _sum_senders(db, source_id)
             db.execute(
                 "UPDATE sources SET account = ?, size = ?, mtime_ns = ?, head_hash = ?, "
                 "status = 'read', read_at = datetime('now'), mails = ? WHERE id = ?",
@@ -730,6 +784,17 @@ def _ranges(path: Path, size: int, range_size: int) -> list[tuple[int, int]]:
                 starts.append(found)
             point = max(found + 1, point + range_size)
     return list(zip(starts, starts[1:] + [size]))
+
+
+def _sum_senders(db: sqlite3.Connection, source_id: int) -> None:
+    db.execute(
+        "INSERT INTO senders (source_id, address, names, mails, size, first_utc, last_utc) "
+        "SELECT source_id, sender_address, "
+        "json_group_array(DISTINCT sender_name) FILTER (WHERE sender_name IS NOT NULL), "
+        "COUNT(*), SUM(length), MIN(date_utc), MAX(date_utc) FROM mails "
+        "WHERE source_id = ? AND sender_address IS NOT NULL GROUP BY sender_address",
+        (source_id,),
+    )
 
 
 def _thread_keys(db: sqlite3.Connection, source_id: int) -> None:

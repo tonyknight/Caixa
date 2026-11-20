@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/mail/write.py`, `write_mbox(index, source_id, keep, tag)`. The mails to keep are
 given by their positions in the source; their byte ranges (from the index) are copied in order,
@@ -79,7 +78,7 @@ source is only ever opened for reading.
   same file; the new file is in the index as a `cleaned` child with the account, and reading it
   again reuses it; a failed check and a cancel leave neither the file nor its `.part`.
 - Verify: `python -m pytest -q tests/test_mail_write.py && python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -91,3 +90,6 @@ source is only ever opened for reading.
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-20
+T02: write_mbox copies runs of neighbouring mails in one go (seek for a plain mbox; read forward through a zip member), fsyncs the .part, checks its size and every mail's SHA-256 (workers share the mails), then renames. record_written copies the kept mails' index rows (flags, protections and thread keys included) with new positions and offsets, so a Cleaned or Reduced mbox is never read again and keeps its account and lineage. This completes ticket 02's 'a Cleaned or Reduced file gets its parent's account'.
