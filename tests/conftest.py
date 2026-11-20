@@ -11,7 +11,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING, Iterator
 
 import pytest
 
@@ -83,3 +83,15 @@ def chattr_archive(
         commands.convert(settings, "mail", paths["mbox"])
         commands.convert(settings, "googlevoice", paths["google_voice"])
     yield ChattrArchive(root, commands.central_database(settings), owner.name)
+
+
+@pytest.fixture(scope="session")
+def noisy_mail(tmp_path_factory: pytest.TempPathFactory) -> "NoisyMail":
+    """The noisy mailbox fixture (two accounts, zips, the catalogue). Read-only: copy to change."""
+    from fixtures.builders.noisy_mbox import build_noisy_mbox
+
+    return build_noisy_mbox(tmp_path_factory.mktemp("noisy-mail"))
+
+
+if TYPE_CHECKING:
+    from fixtures.builders.noisy_mbox import NoisyMail
