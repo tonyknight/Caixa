@@ -215,8 +215,10 @@ def classify(
     names = {n.strip().casefold() for n in known_names if n.strip()}
     keep = {a.lower() for a in kept or ()}
     wrote: dict[str, int] = {}
-    for sender, recipients in db.execute(
-        "SELECT sender_address, recipients FROM mails WHERE sender_address IS NOT NULL"
+    # Once per mail: a Cleaned or Reduced copy holds the same mails as its source.
+    for _, sender, recipients in db.execute(
+        "SELECT DISTINCT sha256, sender_address, recipients FROM mails "
+        "WHERE sender_address IS NOT NULL"
     ):
         if sender in owner:
             for _, _, address in json.loads(recipients):

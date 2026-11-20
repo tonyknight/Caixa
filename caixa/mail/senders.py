@@ -75,8 +75,10 @@ def _owner_wrote(index: "MailIndex", owner: set[str]) -> dict[str, int]:
     if not owner:
         return wrote
     marks = ", ".join("?" for _ in owner)
-    for (recipients,) in index.connection.execute(
-        f"SELECT recipients FROM mails WHERE sender_address IN ({marks})", tuple(owner)
+    # Once per mail: a Cleaned or Reduced copy holds the same mails as its source.
+    for _, recipients in index.connection.execute(
+        f"SELECT DISTINCT sha256, recipients FROM mails WHERE sender_address IN ({marks})",
+        tuple(owner),
     ):
         for _, _, address in json.loads(recipients):
             wrote[address] = wrote.get(address, 0) + 1

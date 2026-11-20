@@ -172,3 +172,28 @@ def test_the_size_and_nothing_for_nobody(source: tuple[MailIndex, int]) -> None:
     assert picked.size == lengths and len(picked.threads) == 2
     nothing = selection(index, source_id, set(), OWNER, PEOPLE)
     assert (nothing.threads, nothing.mails, nothing.size) == ({}, 0, 0)
+
+
+def test_a_cleaned_copy_does_not_count_the_owners_mail_twice(
+    source: tuple[MailIndex, int], tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    import shutil
+
+    from caixa.mail.clean import classify
+    from caixa.mail.write import write_mbox
+
+    index = MailIndex(tmp_path / "copy.sqlite")
+    copy = Path(shutil.copy(noisy_mail.gmail, tmp_path / "gmail.mbox"))
+    (read,) = index.read(copy, account="Gmail")
+    positions = [r[0] for r in index.connection.execute(
+        "SELECT position FROM mails WHERE source_id = ?", (read.source_id,))]  # fmt: skip
+    child = write_mbox(index, read.source_id, positions, "Cleaned").source_id
+    found = {c.key: c for c in listing(index, child, OWNER, KNOWN, NAMES, set(), set(), set())}
+    ana = next(r for r in found["known"].rows if r.address == "ana.costa@example.com")
+    assert ana.owner_wrote == 1
+    classify(index, child, OWNER, set(KNOWN), set(), None)
+    (wrote,) = index.connection.execute(
+        "SELECT owner_wrote FROM senders WHERE source_id = ? AND address = ?",
+        (child, "beatriz.lima@example.net"),
+    ).fetchone()
+    assert wrote == 1

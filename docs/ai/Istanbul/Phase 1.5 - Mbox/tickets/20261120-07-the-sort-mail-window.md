@@ -13,8 +13,7 @@ depends_on:
 - 20261120-05-the-clean-mail-window
 - 20261120-06-senders-known-and-what-a-choice-brings
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `web/src/client/mail/SortMail.tsx`, Caixa's page at `/mail/sort` (`?source=<id>`
 opens an mbox directly), built on ticket 05's `MailList` and `Sources`. Categories Known, To sort,
@@ -79,7 +78,7 @@ category, as on the index page:
   box: clean the noisy mbox, Sort the cleaned mbox, Ana under Known and To import, choose Beatriz,
   ignore Carlos with Delete, the count of what importing would bring; window rebuilt.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -94,3 +93,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: SortMail.tsx on MailList (which gained a note under the name, per-row tools via 'show', a row's name field with a datalist of the box's people, and Delete/Backspace to ignore). Naming an address uses people.link with service 'Mail' (an email names that address on every service). 'Don't import' ignores a known-by-address person (they are imported unless ignored) and forgets anyone else's choice. Clean mail's Written notice links to /mail/sort?source=<cleaned id>.
+
+### 2026-11-20
+T02: e2e-sort-mail.test.ts (clean, then Sort the cleaned mbox; Ana known and chosen; Beatriz chosen; Carlos ignored with Delete; what importing would bring). It found a real bug: the owner's mail was counted once per source, so a Cleaned copy doubled 'you wrote' (and the classifier's owner_wrote counts); both now count each mail once (DISTINCT sha256). Unit test added.
