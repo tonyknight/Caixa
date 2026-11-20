@@ -581,6 +581,7 @@ def _mails() -> tuple[Mail, ...]:
             at(2023, 5, 7, 8, 0, tz=LISBON),
             text="Did anyone find a blue water bottle on the walk?\n",
             headers=HIKERS_HEADERS,
+            labels=("Inbox", "Category Forums"),
             clean="junk:lists",
         ),
         Mail(
@@ -591,6 +592,7 @@ def _mails() -> tuple[Mail, ...]:
             at(2023, 5, 7, 9, 30, tz=LISBON),
             text="Yes, I have it.\n",
             headers=HIKERS_HEADERS,
+            labels=("Inbox", "Category Forums"),
             replies_to=("hikers-bottle-1",),
             clean="junk:lists",
         ),

@@ -69,7 +69,15 @@ def test_the_hard_cases_are_in_the_bytes(noisy: NoisyMail) -> None:
     gmail = _messages(noisy.gmail)
     assert sum(1 for m in gmail if m["Message-ID"] is None) == 1
     labels = ",".join(str(m.get("X-Gmail-Labels", "")) for m in gmail)
-    for label in ("Sent", "Spam", "Trash", "Category Promotions", "Category Updates"):
+    for label in (
+        "Sent",
+        "Spam",
+        "Trash",
+        "Category Promotions",
+        "Category Updates",
+        "Category Social",
+        "Category Forums",
+    ):
         assert label in labels
     assert any(m.get_content_charset() == "iso-8859-1" for m in gmail if not m.is_multipart())
 

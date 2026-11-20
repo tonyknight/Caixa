@@ -6,15 +6,12 @@
 
 Mail without the noise: clean an mbox of junk, sort it by sender, import only the conversations that matter, summarize each one locally, and keep what is left in a smaller mbox
 
-## In progress (1)
+## In progress (0)
 
-- **20261120-01-synthetic-mail-fixtures** Synthetic mail fixtures [high] — plan done · 2/2
-  - checkboxes: 2/9
+_No tickets in progress._
 
-## Blocked (14)
+## Blocked (13)
 
-- **20261120-02-mail-index-and-parallel-reading** Mail index and parallel reading [high]
-  - depends on: 20261120-01-synthetic-mail-fixtures (not yet marked blocked)
 - **20261120-03-junk-classifier-and-the-receipts-guard** Junk classifier and the receipts guard [high]
   - depends on: 20261120-02-mail-index-and-parallel-reading (not yet marked blocked)
 - **20261120-04-the-mbox-writer** The mbox writer [high]
@@ -42,15 +39,15 @@ Mail without the noise: clean an mbox of junk, sort it by sender, import only th
 - **20261120-15-retire-the-blind-mail-import-documentation** Retire the blind mail import; documentation [medium]
   - depends on: 20261120-05-the-clean-mail-window, 20261120-07-the-sort-mail-window, 20261120-13-reduce (not yet marked blocked)
 
-## Up next (0)
+## Up next (1)
 
-_No actionable todo tickets._
+- **20261120-02-mail-index-and-parallel-reading** Mail index and parallel reading [high]
 
-## Recently completed (last 0 of 0)
+## Recently completed (last 1 of 1)
 
-_No completed tickets yet._
+- **20261120-01-synthetic-mail-fixtures** Synthetic mail fixtures (closed 2026-11-20)
 
 ## Stats
 
-- Total: 15 tickets · 0 done · 14 todo · 1 in-progress · 0 blocked
+- Total: 15 tickets · 1 done · 14 todo · 0 in-progress · 0 blocked
 - By type: 12 feature · 2 chore · 1 spike

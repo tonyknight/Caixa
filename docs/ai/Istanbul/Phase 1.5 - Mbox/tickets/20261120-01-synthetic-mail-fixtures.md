@@ -3,11 +3,12 @@ id: 20261120-01-synthetic-mail-fixtures
 title: Synthetic mail fixtures
 type: chore
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: noisy mailbox fixture (2 accounts, zips, catalogue), large-mbox generator,
+  slow marker.'
 parent:
 depends_on: []
 subtasks: []
@@ -91,10 +92,37 @@ reached, for the slow scale test.
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** a noisy mailbox fixture: 56 Gmail mails and 4 Work mails (one shared), each declared
+  with its cleaning outcome and the cases it shows, written byte-identically as two mboxes, a zip
+  and a Takeout-shaped zip; a generator for a multi-gigabyte copy; a `slow` pytest marker kept out
+  of the default run.
+- **Files:** new `tools/chattr/tests/fixtures/builders/noisy_mbox.py`,
+  `tools/chattr/tests/test_noisy_mbox.py`; changed `tools/chattr/tests/fixtures/README.md`,
+  `pyproject.toml`.
+- **Errors:** none in existing code. Review found Gmail's Forums category missing; fixed before
+  closing. Baseline note: in this container `test_the_command_line_prints_the_report` fails only
+  when the whole suite runs with the system Python (an environment variable leaks between tests;
+  it passes alone and in a clean virtual environment), and mypy trips over a preinstalled numpy
+  stub; both are the container's, and verification runs in a clean virtual environment.
+- **Verify:** `python -m pytest -q` → 1304 passed, 1 skipped; `black --check` clean; `mypy` clean.
+
+## Review
+
+### 2026-11-20: 95431f3..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean after one fix; Minor items only.
+
+- **Fixed (Important):** the acceptance criteria name Gmail's Forums category; no mail had it. The
+  list thread without the owner is now labelled `Category Forums`, and the test checks Social and
+  Forums too.
+- **Minor:** cleaning outcomes encode decisions ticket 03 must follow (Feedback-ID → lists,
+  Auto-Submitted → notices, list posts in a thread the owner wrote in → kept); recorded in Notes.
+- **Minor:** List headers, `Auto-Submitted`, receipt wording and Gmail category labels follow
+  documentation, not a real export (said in the fixtures README).
+- **Spec:** every acceptance criterion met; files match the plan.
+- **TDD:** RED (collection error; then the generator test failing; then the Forums check) before
+  GREEN for each change.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
