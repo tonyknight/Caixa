@@ -243,3 +243,33 @@ def write_mbox(
         raise
     new_id = index.record_written(target, tag.lower(), source_id, account, [r[0] for r in rows])
     return WriteResult(target, new_id, len(rows), needed)
+
+
+def extract(index: MailIndex, source_id: int, positions: Iterable[int], target: Path) -> int:
+    """Copy the mails at `positions` (byte for byte, in their order) into a new mbox at `target`,
+    for an import to read; returns its size. Nothing is recorded in the index."""
+    source = index.connection.execute(
+        "SELECT path, member FROM sources WHERE id = ?", (source_id,)
+    ).fetchone()
+    if source is None:
+        raise MailError("That mbox has not been read into the index yet.")
+    wanted = set(positions)
+    rows = [
+        (int(p), int(o), int(n), str(s))
+        for p, o, n, s in index.connection.execute(
+            "SELECT position, offset, length, sha256 FROM mails WHERE source_id = ? "
+            "ORDER BY position",
+            (source_id,),
+        )
+        if p in wanted
+    ]
+    target.parent.mkdir(parents=True, exist_ok=True)
+    path, member = Path(source[0]), str(source[1])
+    with target.open("wb") as out:
+        if member:
+            with zipfile.ZipFile(path) as archive, archive.open(member) as handle:
+                _copy_runs(handle, out, _runs(rows), False, lambda done: None)
+        else:
+            with path.open("rb") as handle:
+                _copy_runs(handle, out, _runs(rows), True, lambda done: None)
+    return sum(n for _, _, n, _ in rows)

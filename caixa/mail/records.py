@@ -14,7 +14,7 @@ import json
 from pathlib import Path
 from typing import Any, Optional
 
-from chattr import commands
+import chattr.commands as commands
 from chattr.config import Settings
 
 from caixa.box import Box

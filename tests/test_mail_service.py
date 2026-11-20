@@ -345,3 +345,76 @@ def test_the_command_line_sorts(
     assert code == 0
     assert "To import: 2 senders" in out and "Ignored: 1 sender" in out
     assert "Importing would bring 8 mails in 5 conversations" in out
+
+
+# --- Importing the chosen conversations (ticket 09) -------------------------------------------------
+
+
+def _subjects(service: Service) -> list[str]:
+    with _box(service).master() as master:
+        return sorted(r[0] for r in master.connection.execute("SELECT subject FROM mail"))
+
+
+def _imported(service: Service, source: int) -> dict:  # type: ignore[type-arg]
+    job = service.call("mail.import", {"source": source})
+    assert job["kind"] == "mail-import"
+    done = service.wait(job["id"], timeout=120)
+    assert done["status"] == "done", done["error"]
+    return done
+
+
+def test_importing_brings_exactly_the_chosen_conversations(service: Service, gmail: Path) -> None:
+    with _box(service).master() as master:
+        master.add_alias(master.add_person("Rui Pereira"), family.RUI.emails[0], "email")
+        master.add_alias(master.add_person("João Costa"), family.JOAO.emails[0], "email")
+        master.commit()
+    source = _read(service, gmail)
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    preview = service.call("mail.import.preview", {"source": source})
+    assert (preview["senders"], preview["conversations"], preview["mails"]) == (3, 6, 14)
+    assert preview["files"] == 5 and preview["size"] > 0
+    done = _imported(service, source)
+    assert done["result"]["mails"] == 14 and done["result"]["conversations"] == 6
+    found = _subjects(service)
+    assert found.count("Lunch next week?") == 1  # the owner's unanswered mail to Rui
+    assert sum("Book club" in s for s in found) == 4
+    assert "Sintra walk on Saturday" not in found  # Pedro's post on the list
+    assert found.count("Re: Sintra walk on Saturday") == 2  # João's and the owner's
+    assert len(found) == 14
+    assert not list((_box(service).caixa_dir / "work" / "mail").glob("*.mbox"))
+
+
+def test_importing_again_adds_nothing_and_the_chosen_are_imported(
+    service: Service, gmail: Path
+) -> None:
+    source = _read(service, gmail)
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    first = _imported(service, source)
+    assert first["result"]["inserted"] == 4
+    reply = service.call("mail.senders", {"source": source})
+    assert "beatriz.lima@example.net" in _categories(reply)["imported"]
+    assert "beatriz.lima@example.net" not in _categories(reply)["to_import"]
+    with pytest.raises(ServiceError, match="Nothing"):
+        service.call("mail.import", {"source": source})
+
+
+def test_an_import_of_mail_can_be_undone(service: Service, gmail: Path) -> None:
+    source = _read(service, gmail)
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    _imported(service, source)
+    assert len(_subjects(service)) == 4
+    done = service.wait(service.call("import.undo")["id"], timeout=120)
+    assert done["status"] == "done", done["error"]
+    assert _subjects(service) == []
+
+
+def test_the_command_line_imports(
+    tmp_path: Path, gmail: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    box = tmp_path / "Box"
+    assert cli.main(["box", "create", str(box), "--name", "Our box"]) == 0
+    assert cli.main(["mail", "choose", "beatriz.lima@example.net", "--box", str(box)]) == 0
+    capsys.readouterr()
+    code = cli.main(["mail", "import", str(gmail), "--account", "Gmail", "--box", str(box)])
+    out = capsys.readouterr().out
+    assert code == 0 and "4 new" in out and "2 conversations" in out

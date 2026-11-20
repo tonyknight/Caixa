@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-06-senders-known-and-what-a-choice-brings
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** importing reuses Phase 1's mail pipeline (Chattr's mail conversion, people, filing,
 pages, the master's adapter, undo) on a small working mbox that holds only the chosen
@@ -99,7 +98,7 @@ the box's files and pages to ticket 10.
   owner's mail); the preview's counts; importing again adds nothing; the chosen are then Imported;
   undo takes the import back; the command.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -117,3 +116,6 @@ T01: Chattr: a mail's id is 'mail:<hash of its Message-ID>' (other services unch
 
 ### 2026-11-20
 T02: master migration 4 (accounts, mail, mail_accounts, mail_threads); caixa/mail/records.py record_mail(master, chattr_db, account, seen). Found and fixed: Phase 1's group rule (a group the owner never wrote in is removed) dropped a chosen mail thread where the owner was only a recipient; DatabaseManager.tidy_groups(keep=('Mail',)) spares mail conversations (mail now only comes in as the owner chose it). A mail met again in another account is unchanged in Chattr, so its second account comes from the import job (seen = the working mbox's Message-IDs). Master.delete_items also deletes an item's mail rows.
+
+### 2026-11-20
+T03: mail.import.preview, mail.import (a mail-import job: the chosen threads copied into .caixa/work/mail/import-<job>.mbox, the Mail collector run with the account and workers inside an undo snapshot, record_mail with the mails seen, the working mbox removed), caixa mail import. Imported in Sort mail = senders (and the owner's correspondents) all of whose mail in this mbox is in the box, so a newer export with new mail from someone keeps them to import. Sort mail gained its Import button (asks with the preview's counts, follows the job, shows Imported, asks for the senders again); Jobs label and failure toast for mail-import; window rebuilt. mypy: import chattr.commands as a module, as the collector does.

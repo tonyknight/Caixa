@@ -3,10 +3,12 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SortMail } from '../src/client/mail/SortMail.tsx'
 import type { SortReply, SortRow } from '../src/client/mail/types.ts'
-import { ok, type FakeApi } from './fake-api.ts'
+import { job, ok, type FakeApi } from './fake-api.ts'
 import { renderWith } from './render.tsx'
 
 afterEach(cleanup)
+
+const job9 = job({ id: 9, kind: 'mail-import', collector: 'mail', source: '/exports/x.mbox', result: { inserted: 5, updated: 0, unchanged: 0, pages: 2, unresolved: [], warnings: [], mails: 5, conversations: 2, senders: 1 } as never })
 
 const SOURCE = { id: 4, path: '/exports/(2026-11-20) All mail [Cleaned].mbox', member: '', kind: 'cleaned', account: 'Gmail', status: 'read', mails: 33, size: 20_000, parent_id: 1 }
 
@@ -142,6 +144,24 @@ describe('the Sort mail window', () => {
     await view.flush()
     expect(view.api.calls).toContainEqual(['call', 'mail.owner.set', { source: 4, addresses: ['maria.costa@example.com'] }])
     expect(screen.queryByRole('region', { name: 'Your addresses' })).toBeNull()
+  })
+
+  it('imports what the chosen bring, after asking, and follows the job', async () => {
+    const view = await opened()
+    view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+    view.api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    const ask = screen.getByRole('dialog', { name: /Import 5 mails in 2 conversations/ })
+    expect(ask.textContent).toContain('1 file')
+    fireEvent.click(within(ask).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.import', { source: 4 }])
+    const asked = view.api.calls.filter(c => c[1] === 'mail.senders').length
+    await view.emit('job.finished', { ...job9, status: 'done', job: 9 })
+    await view.flush()
+    expect(within(screen.getByRole('main')).getByRole('status', { name: 'Imported' }).textContent).toContain('5 mails in 2 conversations')
+    expect(view.api.calls.filter(c => c[1] === 'mail.senders').length).toBeGreaterThan(asked)
   })
 
   it('opens the mbox named in its address', async () => {

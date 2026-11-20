@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { CaixaResult, Person } from '../api.ts'
-import { useStore, useT } from '../hooks.tsx'
+import type { CaixaResult, Job, Person } from '../api.ts'
+import { IMPORT_STAGES, ProgressView } from '../components/Progress.tsx'
+import { useCaixa, useStore, useT } from '../hooks.tsx'
 import { MailList, useCounts, type Category, type RowTool } from './MailList.tsx'
 import { Preview } from './Preview.tsx'
 import { Sources } from './Sources.tsx'
-import { size, sourceName, type OwnerAddresses, type SenderRow, type SortReply, type SortRow } from './types.ts'
+import { size, sourceName, type ImportPreview, type OwnerAddresses, type SenderRow, type SortReply, type SortRow } from './types.ts'
 import css from './mail.module.css'
 
 const DOTS: Record<string, string> = { known: 'dotReceipts', to_sort: 'dotUnsubscribe', to_import: 'dotLists', ignored: 'dotSpam', imported: 'dotKept' }
@@ -33,6 +34,11 @@ export function SortMail() {
   const [naming, setNaming] = useState<string | undefined>()
   const [people, setPeople] = useState<readonly string[]>([])
   const [owner, setOwner] = useState<OwnerAddresses | undefined>()
+  const [asking, setAsking] = useState<ImportPreview | undefined>()
+  const [importing, setImporting] = useState<number | undefined>()
+  const [started, setStarted] = useState(0)
+  const { jobs } = useCaixa()
+  const job = jobs.find(j => j.id === importing)
 
   useEffect(() => { document.title = `${t('mail.sort.title')} — Caixa` }, [t])
 
@@ -50,6 +56,15 @@ export function SortMail() {
     if (listed.ok) setPeople(listed.result.people.filter((p: Person) => !p.is_owner).map((p: Person) => p.name).sort((a: string, b: string) => a.localeCompare(b)))
   }, [store, refresh])
   useEffect(() => { const chosen = named(); if (chosen !== undefined) void open(chosen) }, [open])
+  // Once the import is done, the senders it brought are Imported: ask again.
+  const status = job?.status
+  useEffect(() => { if (status === 'done' && source !== undefined) void refresh(source) }, [status, source, refresh])
+  useEffect(() => {
+    if (!asking) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setAsking(undefined) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [asking])
 
   if (source === undefined || !reply) {
     return (
@@ -80,6 +95,16 @@ export function SortMail() {
     if (!linked.ok) { setFailure(linked.error.message); return }
     if (!people.includes(person)) setPeople([...people, person].sort((a, b) => a.localeCompare(b)))
     await refresh(source)
+  }
+  const askImport = async () => {
+    const preview = await store.api.call<ImportPreview>('mail.import.preview', { source })
+    if (preview.ok) setAsking(preview.result)
+    else setFailure(preview.error.message)
+  }
+  const startImport = async () => {
+    setAsking(undefined)
+    const started = await store.api.call<Job>('mail.import', { source })
+    if (started.ok) { setImporting(started.result.id); setStarted(Date.now()) } else setFailure(started.error.message)
   }
   const confirmOwner = async () => {
     if (!owner) return
@@ -127,12 +152,29 @@ export function SortMail() {
   const picked = reply.selection
   const conversations = picked.threads === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: picked.threads.toLocaleString('en') })
   const unconfirmed = owner && owner.confirmed.length === 0 && owner.proposed.length > 0
+  const done = job?.status === 'done' ? (job.result as unknown as { mails: number; conversations: number }) : undefined
+  const busy = job !== undefined && !done && job.status !== 'failed'
+  const threads = (n: number) => (n === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: n.toLocaleString('en') }))
 
   return (
     <>
       <MailList
         notice={<>
           {failure && <p className={css.problemBar} role="alert">{t('mail.failed', { message: failure })}</p>}
+          {done && (
+            <div className={css.written} role="status" aria-label={t('mail.imported')}>
+              <strong>{t('mail.imported')}</strong>
+              <span>{t('mail.imported.line', { mails: counts.mails(done.mails), threads: threads(done.conversations) })}</span>
+            </div>
+          )}
+          {busy && job && (
+            <div className={css.writingBar}>
+              <span>{t('mail.import.importing')}</span>
+              <ProgressView step={job.stage ? { stage: job.stage, current: job.current, total: job.total, message: job.message ?? '' } : undefined}
+                            stages={IMPORT_STAGES} startedAt={started} />
+            </div>
+          )}
+          {job?.status === 'failed' && <p className={css.problemBar} role="alert">{t('mail.failed', { message: job.error ?? '' })}</p>}
           {unconfirmed && (
             <section className={css.ownerBar} aria-label={t('mail.owner.region')}>
               <span>{t('mail.owner.text', { addresses: owner.proposed.join(', '), account: owner.account })}</span>
@@ -159,10 +201,25 @@ export function SortMail() {
               : view === 'to_import' ? pill(t('mail.dontImport'), () => dontImport(selected), done)
                 : view === 'ignored' ? pill(t('mail.unignore'), () => void decide('mail.ignore', selected, false), done) : null
         )}
-        primary={<span className={css.bring}>{t('mail.bring', { mails: counts.mails(picked.mails), threads: conversations, size: size(picked.size) })}</span>}
-        quiet={looking !== undefined || naming !== undefined}
+        primary={<>
+          <span className={css.bring}>{t('mail.bring', { mails: counts.mails(picked.mails), threads: conversations, size: size(picked.size) })}</span>{' '}
+          <button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={picked.mails === 0 || busy} onClick={() => void askImport()}>{t('mail.import')}</button>
+        </>}
+        quiet={looking !== undefined || naming !== undefined || asking !== undefined}
       />
       {looking && <Preview source={source} sender={looking} onClose={() => setLooking(undefined)} />}
+      {asking && (
+        <div className={css.backdrop} onClick={() => setAsking(undefined)}>
+          <div className={css.confirm} role="dialog" aria-modal="true" aria-labelledby="import-ask" onClick={(event) => event.stopPropagation()}>
+            <h2 id="import-ask">{t('mail.import.ask', { mails: counts.mails(asking.mails), threads: threads(asking.conversations) })}</h2>
+            <p>{t('mail.import.explain', { senders: counts.senders(asking.senders), files: asking.files === 1 ? t('mail.count.file') : t('mail.count.files', { count: asking.files.toLocaleString('en') }), size: size(asking.size) })}</p>
+            <div className={css.buttons}>
+              <button type="button" className={css.button} onClick={() => setAsking(undefined)}>{t('mail.write.cancel')}</button>
+              <button type="button" className={`${css.button} ${css.primaryButton}`} autoFocus onClick={() => void startImport()}>{t('mail.import.go')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

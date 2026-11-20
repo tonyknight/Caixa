@@ -49,6 +49,7 @@ from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
 from caixa.mail import clean as mail_clean
 from caixa.mail import index as mail_index
+from caixa.mail import records as mail_records
 from caixa.mail import senders as mail_senders
 from caixa.mail import write as mail_write
 from caixa.state import State
@@ -897,6 +898,10 @@ class Service:
             return self._mail_read(box, job, progress)
         if job["kind"] == "mail-clean":
             return self._mail_clean_write(box, job, progress)
+        if job["kind"] == "mail-import":
+            imported = self._mail_import(box, job, progress)
+            undo.note_moves(box, imported.pop("moved", []))
+            return imported
         if job["kind"] == "refresh":
             result = self._refresh_all(box, progress)
         else:
@@ -1056,9 +1061,132 @@ class Service:
             "kept_senders": kept_senders,
         }
 
-    def _mail_imported(self, box: Box) -> set[str]:
-        """Senders whose mail is already in the box (none until the box records imported mail)."""
-        return set()
+    def _mail_imported(
+        self, box: Box, index: mail_index.MailIndex, source: int, owner_addresses: set[str]
+    ) -> set[str]:
+        """The senders (and the owner's correspondents) all of whose mail in this mbox is in the
+        box already: a sender with mail not yet imported stays to be imported."""
+        with box.master(read_only=True) as master:
+            in_box = {
+                str(r[0])
+                for r in master.connection.execute(
+                    "SELECT message_id FROM mail WHERE message_id IS NOT NULL"
+                )
+            }
+        if not in_box:
+            return set()
+        waiting: dict[str, int] = {}
+        for sender, message_id, recipients in index.connection.execute(
+            "SELECT sender_address, message_id, recipients FROM mails WHERE source_id = ?",
+            (source,),
+        ):
+            missing = int(message_id not in in_box)
+            people = [sender] if sender not in owner_addresses else []
+            if sender in owner_addresses:
+                people += [a for _, _, a in json.loads(recipients)]
+            for address in people:
+                if address:
+                    waiting[address] = waiting.get(address, 0) + missing
+        return {address for address, left in waiting.items() if left == 0}
+
+    def _mail_choice(
+        self, box: Box, index: mail_index.MailIndex, source: int
+    ) -> tuple[set[str], set[str], set[str], mail_senders.Selection]:
+        """(the chosen senders, the owner's addresses, the box's people's addresses, what the
+        chosen bring) for an mbox, as Sort mail shows them."""
+        reply = self._senders_reply(box, index, source)
+        chosen = {
+            r["address"] for c in reply["categories"] if c["key"] == "to_import" for r in c["rows"]
+        }
+        owner_addresses = self._mail_owner(box, index, source)
+        _, addresses, _ = self._mail_people(box)
+        return (
+            chosen,
+            owner_addresses,
+            addresses,
+            mail_senders.selection(index, source, chosen, owner_addresses, addresses),
+        )
+
+    @method("mail.import.preview")
+    def mail_import_preview(self, source: int) -> dict[str, Any]:
+        """What importing an mbox's chosen senders would bring: senders, conversations, mails, the
+        files they carry, and their size."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            chosen, _, _, picked = self._mail_choice(box, index, int(source))
+            positions = [p for mails in picked.threads.values() for p in mails]
+            files = 0
+            for start in range(0, len(positions), 500):
+                chunk = positions[start : start + 500]
+                marks = ", ".join("?" for _ in chunk)
+                files += int(
+                    index.connection.execute(
+                        f"SELECT COALESCE(SUM(attachments), 0) FROM mails WHERE source_id = ? "
+                        f"AND position IN ({marks})",
+                        (int(source), *chunk),
+                    ).fetchone()[0]
+                )
+        return {
+            "senders": len(chosen),
+            "conversations": len(picked.threads),
+            "mails": picked.mails,
+            "files": files,
+            "size": picked.size,
+        }
+
+    @method("mail.import", write=True)
+    def mail_import(self, source: int) -> dict[str, Any]:
+        """Import the conversations an mbox's chosen senders bring, as a job (it can be undone)."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            info = self._mail_source(index, int(source))
+            picked = self._mail_choice(box, index, int(source))[3]
+        if not picked.mails:
+            raise ServiceError("input", "Nothing is chosen to import from this mbox.")
+        return self._enqueue("mail-import", "mail", str(info["path"]), {"source": int(source)})
+
+    def _mail_import(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
+        source = int(job["options"]["source"])
+        workers = int(settings.load(box)["workers"])
+        progress(Progress("preparing", message="Taking the chosen conversations out of the mbox"))
+        target = box.work_dir("mail") / f"import-{job['id']}.mbox"
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            account = str(self._mail_source(index, source)["account"] or "")
+            chosen, _, _, picked = self._mail_choice(box, index, source)
+            positions = sorted(p for mails in picked.threads.values() for p in mails)
+            marks = ", ".join("?" for _ in positions) or "NULL"
+            seen = {
+                str(r[0])
+                for r in index.connection.execute(
+                    f"SELECT message_id FROM mails WHERE source_id = ? AND position IN ({marks}) "
+                    "AND message_id IS NOT NULL",
+                    (source, *positions),
+                )
+            }
+            mail_write.extract(index, source, positions, target)
+        collector = self._collector("mail")
+        undo.begin(box, job["id"], "mail", job["source"])
+        try:
+            result = asdict(
+                collector.run(box, target, {"account": account, "workers": workers}, progress)
+            )
+            with box.master() as master:
+                recorded = mail_records.record_mail(
+                    master, mail_records.chattr_database(box), account, seen
+                )
+        finally:
+            undo.finish(box, job["id"])
+            target.unlink(missing_ok=True)
+        return {
+            **result,
+            "mails": picked.mails,
+            "recorded": recorded["new"],
+            "conversations": len(picked.threads),
+            "senders": len(chosen),
+            "account": account,
+        }
 
     def _senders_reply(self, box: Box, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
         info = self._mail_source(index, source)
@@ -1080,7 +1208,7 @@ class Service:
             {n.casefold(): n for n in names},
             set(decided["chosen"]),
             set(decided["ignored"]),
-            self._mail_imported(box),
+            self._mail_imported(box, index, source, owner_addresses),
         )
         chosen = {r.address for c in categories if c.key == "to_import" for r in c.rows}
         picked = mail_senders.selection(index, source, chosen, owner_addresses, addresses)

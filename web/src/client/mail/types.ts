@@ -126,3 +126,12 @@ export interface OwnerAddresses {
   readonly confirmed: readonly string[]
   readonly proposed: readonly string[]
 }
+
+/** What importing an mbox's chosen senders would bring. */
+export interface ImportPreview {
+  readonly senders: number
+  readonly conversations: number
+  readonly mails: number
+  readonly files: number
+  readonly size: number
+}
