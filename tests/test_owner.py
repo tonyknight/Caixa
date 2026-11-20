@@ -42,7 +42,7 @@ def test_a_missing_file_reads_as_empty_and_a_damaged_one_is_set_aside(service: S
         "names": [],
         "categories": {},
         "removed": [],
-        "mail": {"kept": [], "ignored": [], "accounts": {}},
+        "mail": {"kept": [], "chosen": [], "ignored": [], "accounts": {}},
     }
     owner.path(box).write_text("{not json", encoding="utf-8")
     assert owner.load(box)["names"] == []
@@ -221,3 +221,27 @@ def test_texts_google_voice_forwarded_to_messages_are_kept_once(
             )
         ]
     assert services == ["Google Voice"]
+
+
+def test_mail_decisions_and_the_owners_addresses_are_kept(service: Service) -> None:
+    box = service._require_box()
+    owner.set_mail_decision(
+        box, ["Beatriz.Lima@example.net", "carlos.mendes@example.net"], "chosen"
+    )
+    owner.set_mail_decision(box, ["carlos.mendes@example.net"], "ignored")  # moves him
+    mail = owner.load(box)["mail"]
+    assert mail["chosen"] == ["beatriz.lima@example.net"]
+    assert mail["ignored"] == ["carlos.mendes@example.net"]
+    owner.set_mail_decision(box, ["carlos.mendes@example.net"], "chosen")
+    mail = owner.load(box)["mail"]
+    assert mail["chosen"] == ["beatriz.lima@example.net", "carlos.mendes@example.net"]
+    assert mail["ignored"] == []
+    owner.set_mail_decision(box, ["beatriz.lima@example.net"], "chosen", on=False)
+    assert owner.load(box)["mail"]["chosen"] == ["carlos.mendes@example.net"]
+    assert owner.mail_owner(box, "Gmail") == []
+    owner.set_mail_owner(box, "Gmail", ["Maria.Costa@example.com"])
+    assert owner.mail_owner(box, "Gmail") == ["maria.costa@example.com"]
+    assert owner.mail_owner(box, "Work") == []
+    service.call("box.reset", {})
+    assert owner.mail_owner(box, "Gmail") == ["maria.costa@example.com"]
+    assert owner.load(box)["mail"]["chosen"] == ["carlos.mendes@example.net"]

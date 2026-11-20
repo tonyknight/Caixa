@@ -9,8 +9,8 @@ it outlives a reset and applies again at the next import:
 - `removed`: the people (`person`, by name) and identifiers (`identifier`, with the `service`
   it is on) taken out of the box. Their one-to-one conversations are not imported again;
 - `mail`: what the owner decided about mail: the senders `kept` when cleaning (their mail is never
-  left out of a Cleaned mbox), the senders `ignored` when sorting, and the `accounts` with the
-  owner's addresses in each.
+  left out of a Cleaned mbox), the senders `chosen` and `ignored` when sorting, and the `accounts`
+  with the owner's addresses in each (`{"Gmail": {"owner": [...]}}`).
 
 Caixa writes the file whenever one of these changes. It is plain JSON and can be edited by hand
 while Caixa is not running: names and categories added there are taken up at the next import, and
@@ -97,9 +97,48 @@ def _mail(section: Any) -> dict[str, Any]:
     accounts = given.get("accounts")
     return {
         "kept": addresses("kept"),
+        "chosen": addresses("chosen"),
         "ignored": addresses("ignored"),
         "accounts": accounts if isinstance(accounts, dict) else {},
     }
+
+
+def set_mail_decision(box: Box, addresses: Iterable[str], kind: str, on: bool = True) -> None:
+    """Choose senders to import (`chosen`) or ignore them (`ignored`); a sender is never both, so
+    deciding one takes them off the other. `on=False` forgets the decision."""
+    if kind not in ("chosen", "ignored"):
+        raise ValueError("kind must be 'chosen' or 'ignored'")
+    other = "ignored" if kind == "chosen" else "chosen"
+    data = load(box)
+    given = {a.strip().lower() for a in addresses if a.strip()}
+    mine, theirs = set(data["mail"][kind]), set(data["mail"][other])
+    if on:
+        mine |= given
+        theirs -= given
+    else:
+        mine -= given
+    data["mail"][kind], data["mail"][other] = sorted(mine), sorted(theirs)
+    _write(box, data)
+
+
+def mail_owner(box: Box, account: str) -> list[str]:
+    """The owner's addresses the owner confirmed for an account (empty when not confirmed yet)."""
+    entry = load(box)["mail"]["accounts"].get(account)
+    found = entry.get("owner") if isinstance(entry, dict) else None
+    return sorted({str(a).lower() for a in found}) if isinstance(found, list) else []
+
+
+def set_mail_owner(box: Box, account: str, addresses: Iterable[str]) -> list[str]:
+    """Confirm the owner's addresses for an account."""
+    data = load(box)
+    chosen = sorted({a.strip().lower() for a in addresses if a.strip()})
+    entry = data["mail"]["accounts"].get(account)
+    data["mail"]["accounts"][account] = {
+        **(entry if isinstance(entry, dict) else {}),
+        "owner": chosen,
+    }
+    _write(box, data)
+    return chosen
 
 
 def mail_kept(box: Box) -> list[str]:
