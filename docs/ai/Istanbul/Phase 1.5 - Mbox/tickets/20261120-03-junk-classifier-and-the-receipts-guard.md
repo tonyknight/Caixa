@@ -3,11 +3,12 @@ id: 20261120-03-junk-classifier-and-the-receipts-guard
 title: Junk classifier and the receipts guard
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: flags, protections, receipts guard, groups with counts; body signals
+  found in the read.'
 parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
@@ -94,10 +95,38 @@ from, plus any given (ticket 06 adds confirming them). Its result is written to 
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa/mail/clean.py` classifies an indexed mbox: flags (Spam and Trash labels, list
+  headers, Precedence, mass-mail markers, Gmail categories, Auto-Submitted, no-reply senders,
+  unsubscribe links) and protections (owner, box person by address or known name, a sender the
+  owner wrote to, a thread the owner wrote in, receipts and orders in English, Portuguese and
+  Spanish, kept senders); groups with senders, mails and size, and the receipts it keeps. The read
+  now finds unsubscribe links and receipt wording itself (index schema 2), so an mbox is read once.
+- **Files:** new `caixa/mail/clean.py`, `tests/test_mail_clean.py`; changed `caixa/mail/index.py`,
+  `tools/chattr/tests/fixtures/builders/noisy_mbox.py` (school-2's outcome).
+- **Errors:** none in existing code. The fixture expected the owner's plain reply to the school to
+  be "kept"; nothing flags it, so it is "clean".
+- **Verify:** `python -m pytest -q` → 1334 passed, 1 skipped, 1 deselected; black and mypy clean;
+  slow scale test → 2 GB of 40 KB mails in 140.2 s (1 worker) and 35.4 s (4), peak 86 MB.
+
+## Review
+
+### 2026-11-20: 42bbf5c..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** receipt wording errs toward keeping ("booking", "reserva", "pago" can appear in a
+  newsletter); that keeps junk rather than losing a receipt, which is the direction the maintainer
+  asked for. The first real mbox will show how often.
+- **Minor:** the owner's addresses here are those of mail labelled `Sent`; an mbox from a program
+  that does not label sent mail has none until ticket 06 lets the owner confirm them.
+- **Minor:** `classify` takes plain sets; filling them from the box (people, aliases, owner.json
+  keeps) is ticket 05's service wiring.
+- **Minor (performance):** reading now parses each mail's first megabyte; 2 GB of text-heavy mail
+  takes about four times longer than headers alone. The email package's default-policy header
+  parsing is the largest remaining cost.
+- **Spec:** M4 met; every acceptance criterion met.
+- **TDD:** RED then GREEN (failing body-signal tests; collection error for the classifier).
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
