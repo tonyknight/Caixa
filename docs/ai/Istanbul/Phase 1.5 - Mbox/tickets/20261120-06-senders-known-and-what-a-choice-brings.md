@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** `caixa/mail/senders.py` works from the index, plain sets and the owner's decisions,
 like the classifier, so it is tested without a box; the service fills it from the box.
@@ -97,7 +96,7 @@ like the classifier, so it is tested without a box; the service fills it from th
   decisions remembered across a reset and for a Cleaned child; the owner's addresses proposed and
   confirmed; the selection's counts; the commands.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -112,3 +111,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: senders.listing lists every sender but the owner plus the owner's correspondents who never wrote back (decided while planning: otherwise a known person the owner wrote to but who never answered could not be chosen, and the owner's unanswered mail would never reach their page). A known-by-address sender is in Known and To import; an unknown chosen one only in To import. owner.json mail: chosen, ignored (exclusive), accounts[name].owner.
+
+### 2026-11-20
+T03: mail.senders (categories + what the chosen would bring), mail.choose, mail.ignore, mail.selection, mail.owner (confirmed and proposed: master owner aliases, Sent mail's From; failing both, the commonest sender), mail.owner.set; cleaning now uses the confirmed owner addresses when there are any. 'Imported' is empty until ticket 09 records imported mail (_mail_imported). CLI: caixa mail senders|choose|ignore.

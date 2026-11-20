@@ -132,6 +132,17 @@ def build_parser() -> argparse.ArgumentParser:
         "--write", action="store_true", help="write the Cleaned mbox beside the source"
     )
     _box_argument(clean)
+    senders = mail_commands.add_parser(
+        "senders", help="an mbox's senders: known, to sort, to import, ignored, imported"
+    )
+    senders.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
+    senders.add_argument("--account", help="the account the mail comes from (once per mbox)")
+    _box_argument(senders)
+    for name, what in (("choose", "choose senders to import"), ("ignore", "ignore senders")):
+        decide = mail_commands.add_parser(name, help=what)
+        decide.add_argument("addresses", nargs="+", help="the senders' addresses")
+        decide.add_argument("--forget", action="store_true", help="forget the decision")
+        _box_argument(decide)
     keep = mail_commands.add_parser("keep", help="never leave a sender's mail out when cleaning")
     keep.add_argument("addresses", nargs="+", help="the senders' addresses")
     keep.add_argument("--forget", action="store_true", help="stop keeping them")
@@ -374,7 +385,45 @@ def _clean_text(reply: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _senders_text(reply: dict[str, Any]) -> str:
+    source = reply["source"]
+    name = source["member"] or Path(source["path"]).name
+    lines = [f"{name} ({source['account']}): {_plural(source['mails'], 'mail')}"]
+    for category in reply["categories"]:
+        lines.append(
+            f"{category['label']}: {_plural(category['senders'], 'sender')}, "
+            f"{_plural(category['mails'], 'mail')}"
+        )
+        for row in category["rows"][:10]:
+            how = {"address": "known", "name": f"by name: {row['person']}?"}.get(
+                row["known_by"] or "", ""
+            )
+            wrote = f"you wrote {row['owner_wrote']}" if row["owner_wrote"] else ""
+            notes = ", ".join(n for n in (how, wrote) if n)
+            lines.append(
+                f"  {row['mails']:>6}  {row['name']} <{row['address']}>"
+                + (f"  ({notes})" if notes else "")
+            )
+        if len(category["rows"]) > 10:
+            lines.append(f"  … and {len(category['rows']) - 10} more")
+    picked = reply["selection"]
+    lines.append(
+        f"Importing would bring {_plural(picked['mails'], 'mail')} in "
+        f"{_plural(picked['threads'], 'conversation')} ({mail_write.human_size(picked['size'])})."
+    )
+    return "\n".join(lines)
+
+
 def _cmd_mail(args: argparse.Namespace) -> int:
+    if args.action in ("choose", "ignore"):
+        service = _open(args)
+        box = Box.open(service.box_status()["root"])
+        kind = "chosen" if args.action == "choose" else "ignored"
+        owner_file.set_mail_decision(box, args.addresses, kind, on=not args.forget)
+        decided = owner_file.load(box)["mail"][kind]
+        print(json.dumps({kind: decided}, indent=2) if args.json else
+              f"{kind.capitalize()}: " + (", ".join(decided) or "nobody"))  # fmt: skip
+        return 0
     if args.action == "keep":
         service = _open(args)
         box = Box.open(service.box_status()["root"])
@@ -411,6 +460,10 @@ def _cmd_mail(args: argparse.Namespace) -> int:
     service.subscribe(show)
     try:
         for source in done["result"]["sources"]:
+            if args.action == "senders":
+                listed = service.mail_senders(source["source_id"])
+                print(json.dumps(listed, indent=2) if args.json else _senders_text(listed))
+                continue
             reply = service.mail_clean(source["source_id"])
             if not args.write:
                 print(json.dumps(reply, indent=2) if args.json else _clean_text(reply))

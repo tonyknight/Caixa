@@ -261,3 +261,87 @@ def test_the_command_line_cleans(
     out = capsys.readouterr().out
     assert code == 0 and "[Cleaned].mbox" in out
     assert len(list(gmail.parent.glob("*[[]Cleaned[]].mbox"))) == 1
+
+
+# --- Sorting through the service (ticket 06) --------------------------------------------------------
+
+
+def _categories(reply: dict) -> dict[str, set[str]]:  # type: ignore[type-arg]
+    return {c["key"]: {r["address"] for r in c["rows"]} for c in reply["categories"]}
+
+
+def test_the_senders_are_sorted_with_the_boxs_people(service: Service, gmail: Path) -> None:
+    _with_family(service)
+    source = _read(service, gmail)
+    reply = service.call("mail.senders", {"source": source})
+    found = _categories(reply)
+    assert [c["key"] for c in reply["categories"]] == [
+        "known", "to_sort", "to_import", "ignored", "imported"
+    ]  # fmt: skip
+    assert found["to_import"] == {
+        "ana.costa@example.com", "joao.costa@example.org", "rui.pereira@example.org"
+    }  # fmt: skip
+    home = next(
+        r for c in reply["categories"] for r in c["rows"] if r["address"] == "rui.home@example.net"
+    )
+    assert (home["known_by"], home["person"], home["chosen"]) == ("name", "Rui Pereira", False)
+    assert reply["selection"] == {
+        "threads": 7, "mails": 14, "size": reply["selection"]["size"], "senders": 3
+    }  # fmt: skip
+
+
+def test_choices_and_ignores_are_remembered(service: Service, gmail: Path) -> None:
+    _with_family(service)
+    source = _read(service, gmail)
+    reply = service.call(
+        "mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]}
+    )
+    assert "beatriz.lima@example.net" in _categories(reply)["to_import"]
+    assert reply["selection"]["mails"] == 18
+    reply = service.call("mail.ignore", {"source": source, "addresses": ["ana.costa@example.com"]})
+    assert "ana.costa@example.com" in _categories(reply)["ignored"]
+    assert reply["selection"]["mails"] == 14
+    service.call("box.reset", {})
+    _with_family(service)
+    source = _read(service, gmail)
+    service.call("mail.clean", {"source": source})
+    done = service.wait(service.call("mail.clean.write", {"source": source})["id"], timeout=60)
+    child = done["result"]["source_id"]
+    found = _categories(service.call("mail.senders", {"source": child}))
+    assert "beatriz.lima@example.net" in found["to_import"]
+    assert "ana.costa@example.com" in found["ignored"]
+    undone = service.call(
+        "mail.ignore", {"source": child, "addresses": ["ana.costa@example.com"], "ignore": False}
+    )
+    assert "ana.costa@example.com" in _categories(undone)["to_import"]
+
+
+def test_the_owners_addresses_are_proposed_and_confirmed(service: Service, gmail: Path) -> None:
+    source = _read(service, gmail)
+    proposed = service.call("mail.owner", {"source": source})
+    assert proposed == {
+        "account": "Gmail", "confirmed": [], "proposed": ["maria.costa@example.com"]
+    }  # fmt: skip
+    confirmed = service.call(
+        "mail.owner.set", {"source": source, "addresses": ["maria.costa@example.com"]}
+    )
+    assert confirmed["confirmed"] == ["maria.costa@example.com"]
+    assert owner.mail_owner(_box(service), "Gmail") == ["maria.costa@example.com"]
+
+
+def test_the_command_line_sorts(
+    tmp_path: Path, gmail: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    box = tmp_path / "Box"
+    assert cli.main(["box", "create", str(box), "--name", "Our box"]) == 0
+    with Box.open(box).master() as master:
+        master.add_alias(master.add_person("Ana Costa"), "ana.costa@example.com", "email")
+        master.commit()
+    assert cli.main(["mail", "choose", "beatriz.lima@example.net", "--box", str(box)]) == 0
+    assert cli.main(["mail", "ignore", "news@dailyfold.example.com", "--box", str(box)]) == 0
+    capsys.readouterr()
+    code = cli.main(["mail", "senders", str(gmail), "--account", "Gmail", "--box", str(box)])
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "To import: 2 senders" in out and "Ignored: 1 sender" in out
+    assert "Importing would bring 8 mails in 5 conversations" in out

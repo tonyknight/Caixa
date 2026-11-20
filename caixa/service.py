@@ -49,6 +49,7 @@ from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
 from caixa.mail import clean as mail_clean
 from caixa.mail import index as mail_index
+from caixa.mail import senders as mail_senders
 from caixa.mail import write as mail_write
 from caixa.state import State
 
@@ -986,13 +987,30 @@ class Service:
             names = {p.name for p in people.values() if not p.is_owner}
         return owner_addresses, addresses, names
 
-    def _classify(self, box: Box, index: mail_index.MailIndex, source: int) -> None:
-        if not index.connection.execute(
-            "SELECT 1 FROM sources WHERE id = ? AND status = 'read'", (source,)
-        ).fetchone():
+    def _mail_source(self, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
+        row = index.connection.execute(
+            "SELECT id, path, member, kind, account, mails, size FROM sources "
+            "WHERE id = ? AND status = 'read'",
+            (source,),
+        ).fetchone()
+        if row is None:
             raise ServiceError("not_found", "That mbox has not been read into the box's index.")
-        owner_addresses, addresses, names = self._mail_people(box)
-        owner_addresses |= mail_clean.owner_addresses_from_sent(index)
+        return dict(zip(("id", "path", "member", "kind", "account", "mails", "size"), row))
+
+    def _mail_owner(self, box: Box, index: mail_index.MailIndex, source: int) -> set[str]:
+        """The owner's addresses for this mbox: the ones confirmed for its account (with the
+        master's), else the master's and those the owner's Sent mail came from."""
+        account = str(self._mail_source(index, source)["account"] or "")
+        owner_addresses = self._mail_people(box)[0]
+        confirmed = owner_file.mail_owner(box, account)
+        if confirmed:
+            return owner_addresses | set(confirmed)
+        return owner_addresses | mail_clean.owner_addresses_from_sent(index)
+
+    def _classify(self, box: Box, index: mail_index.MailIndex, source: int) -> None:
+        self._mail_source(index, source)
+        _, addresses, names = self._mail_people(box)
+        owner_addresses = self._mail_owner(box, index, source)
         mail_clean.classify(
             index, source, owner_addresses, addresses, names, set(owner_file.mail_kept(box))
         )
@@ -1009,11 +1027,7 @@ class Service:
     def _clean_reply(self, box: Box, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
         db = index.connection
         found = mail_clean.groups(index, source)
-        row = db.execute(
-            "SELECT id, path, member, kind, account, mails, size FROM sources WHERE id = ?",
-            (source,),
-        ).fetchone()
-        info = dict(zip(("id", "path", "member", "kind", "account", "mails", "size"), row))
+        info = self._mail_source(index, source)
         junk = [g for g in found if g.key != "receipts"]
         left_mails = sum(g.mails for g in junk)
         left_senders = len({r.address for g in junk for r in g.rows})
@@ -1041,6 +1055,103 @@ class Service:
             "kept": {"mails": int(info["mails"]) - left_mails, "senders": everyone - left_senders},
             "kept_senders": kept_senders,
         }
+
+    def _mail_imported(self, box: Box) -> set[str]:
+        """Senders whose mail is already in the box (none until the box records imported mail)."""
+        return set()
+
+    def _senders_reply(self, box: Box, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
+        info = self._mail_source(index, source)
+        owner_addresses = self._mail_owner(box, index, source)
+        _, addresses, names = self._mail_people(box)
+        with box.master(read_only=True) as master:
+            people = {p.id: p.name for p in master.people() if not p.is_owner}
+            known = {
+                a.normalized: people[a.person_id]
+                for a in master.aliases()
+                if a.kind == "email" and a.person_id in people
+            }
+        decided = owner_file.load(box)["mail"]
+        categories = mail_senders.listing(
+            index,
+            source,
+            owner_addresses,
+            known,
+            {n.casefold(): n for n in names},
+            set(decided["chosen"]),
+            set(decided["ignored"]),
+            self._mail_imported(box),
+        )
+        chosen = {r.address for c in categories if c.key == "to_import" for r in c.rows}
+        picked = mail_senders.selection(index, source, chosen, owner_addresses, addresses)
+        return {
+            "source": info,
+            "categories": [asdict(c) for c in categories],
+            "selection": {
+                "threads": len(picked.threads),
+                "mails": picked.mails,
+                "size": picked.size,
+                "senders": len(chosen),
+            },
+        }
+
+    @method("mail.senders")
+    def mail_senders(self, source: int) -> dict[str, Any]:
+        """An mbox's senders in the Sort mail window's categories (Known, To sort, To import,
+        Ignored, Imported), and what importing the chosen ones would bring."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            return self._senders_reply(box, index, int(source))
+
+    @method("mail.choose", write=True)
+    def mail_choose(self, source: int, addresses: list[str], choose: bool = True) -> dict[str, Any]:
+        """Choose senders to import (or forget the choice); remembered in `owner.json`."""
+        owner_file.set_mail_decision(self._require_box(), [str(a) for a in addresses], "chosen",
+                                     on=bool(choose))  # fmt: skip
+        return self.mail_senders(int(source))
+
+    @method("mail.ignore", write=True)
+    def mail_ignore(self, source: int, addresses: list[str], ignore: bool = True) -> dict[str, Any]:
+        """Ignore senders (or stop ignoring them); remembered in `owner.json`. Their mail stays in
+        the mbox (a Reduced mbox keeps it)."""
+        owner_file.set_mail_decision(self._require_box(), [str(a) for a in addresses], "ignored",
+                                     on=bool(ignore))  # fmt: skip
+        return self.mail_senders(int(source))
+
+    @method("mail.selection")
+    def mail_selection(self, source: int) -> dict[str, Any]:
+        """What importing the chosen senders of an mbox would bring: threads, mails and size."""
+        return dict(self.mail_senders(int(source))["selection"])
+
+    @method("mail.owner")
+    def mail_owner(self, source: int) -> dict[str, Any]:
+        """The owner's addresses for an mbox's account: the ones confirmed, and the ones proposed
+        (the box's owner aliases and the addresses of the owner's Sent mail; failing both, the
+        commonest sender)."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            account = str(self._mail_source(index, int(source))["account"] or "")
+            proposed = self._mail_people(box)[0] | mail_clean.owner_addresses_from_sent(index)
+            if not proposed:
+                row = index.connection.execute(
+                    "SELECT address FROM senders WHERE source_id = ? ORDER BY mails DESC LIMIT 1",
+                    (int(source),),
+                ).fetchone()
+                proposed = {str(row[0])} if row else set()
+        return {
+            "account": account,
+            "confirmed": owner_file.mail_owner(box, account),
+            "proposed": sorted(proposed),
+        }
+
+    @method("mail.owner.set", write=True)
+    def mail_owner_set(self, source: int, addresses: list[str]) -> dict[str, Any]:
+        """Confirm the owner's addresses for an mbox's account."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            account = str(self._mail_source(index, int(source))["account"] or "")
+        owner_file.set_mail_owner(box, account, [str(a) for a in addresses])
+        return self.mail_owner(int(source))
 
     @method("mail.keep", write=True)
     def mail_keep(self, source: int, addresses: list[str], keep: bool = True) -> dict[str, Any]:
