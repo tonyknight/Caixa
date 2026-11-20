@@ -294,7 +294,7 @@ folder if you prefer; it is listed in the interface.
 `caixa worker [--box PATH] [--read-only]` serves the same operations over standard input and
 output as JSON-RPC 2.0, one JSON object per line. That is how the browser interface talks to
 Python; it is not a network service. Its methods (`box.*`, `collectors.list`, `import.*`,
-`jobs.*`, `people.*`, `browse.*`, `files.list`, `inbox.list`, `settings.*`), notifications
+`jobs.*`, `mail.*`, `people.*`, `browse.*`, `files.list`, `inbox.list`, `settings.*`), notifications
 (`job.progress`, `job.finished`, `inbox.changed`) and error codes are described at the top of
 [`caixa/worker.py`](caixa/worker.py). With `--read-only`, every method that would change the box is
 refused, and nothing is written.

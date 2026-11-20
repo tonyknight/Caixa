@@ -13,7 +13,7 @@ depends_on:
 - 20261120-01-synthetic-mail-fixtures
 subtasks: []
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -44,7 +44,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:** a new package `caixa/mail/` (the mail workflow lives in Caixa, beside the
 collectors). `caixa/mail/index.py` holds `MailIndex`, a SQLite file at
@@ -100,7 +100,7 @@ callback raising, as for imports; the pool is shut down and the source left unre
 - Tests (`tests/test_mail_service.py`): the job reads and reports; the account comes back for a
   known file; the setting's default and limits; the command line prints the counts.
 - Verify: `python -m pytest -q tests/test_mail_service.py tests/test_mail_index.py && python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ### T04: The scale test
 
@@ -127,3 +127,6 @@ T01: caixa/mail/index.py. Workers are spawned processes (spawn, not fork: Caixa 
 
 ### 2026-11-20
 T02: zips are read as one stream per .mbox member, batches (16 MB) parsed by the workers with at most two per worker waiting; a zip member is identified by the zip's time and the member's size and CRC. Folders give every .mbox and zip with one, and Apple Mail's '<name>.mbox/mbox' (added: Apple Mail exports each mailbox as such a folder).
+
+### 2026-11-20
+T03: 'workers' box setting; mail.read (write: queues a 'mail-read' job; account checked at once, and needed unless the index knows the file) and mail.sources (opens the index read-only, never creating it); 'caixa mail read'. The documented method list is the one in tests/test_worker_protocol.py and README.md (worker.py's docstring lists no methods). Added to the window, beyond the plan: the Jobs page names a mail-read job 'Mail read' and shows '60 mails read' as its result instead of import counts (it would have shown 'undefined new'); window rebuilt (with Node 22; esbuild's output does not depend on Node's version).

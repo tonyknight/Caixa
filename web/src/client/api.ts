@@ -144,6 +144,12 @@ export interface ImportResult {
   readonly undone?: boolean
 }
 
+/** What reading an mbox into the mail index found (the result of a `mail-read` job). */
+export interface MailReadResult {
+  readonly mails: number
+  readonly sources: readonly { readonly path: string; readonly member: string; readonly account: string; readonly mails: number; readonly reused: boolean }[]
+}
+
 /** The import that can be undone now (the newest), or why none can. */
 export interface UndoInfo {
   readonly job: number | null

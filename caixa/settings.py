@@ -98,6 +98,18 @@ SCHEMA: dict[str, Any] = {
                 "charge for it. Leave off to keep translation on this computer."
             ),
         },
+        "workers": {
+            "type": "integer",
+            "default": min(os.cpu_count() or 1, 12),
+            "minimum": 1,
+            "maximum": 12,
+            "title": "Workers",
+            "description": (
+                "How many processes work at once where work can be shared out: reading, cleaning "
+                "and importing mail. Starts at this computer's number of processors (at most 12). "
+                "Fewer leaves the computer freer for other things."
+            ),
+        },
         "speech.model": {
             "type": "string",
             "default": "",

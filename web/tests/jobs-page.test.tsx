@@ -52,6 +52,16 @@ describe('the jobs page', () => {
     expect(onSelect).toHaveBeenLastCalledWith(undefined) // choosing the open one closes it
   })
 
+  it('names a mail reading and says how many mails it read', async () => {
+    const reading = job({ id: 4, kind: 'mail-read', collector: null, source: '/exports/takeout.zip', options: { account: 'Gmail' }, result: { mails: 60, sources: [] } as never })
+    await renderWith(<JobsPage selected={4} onSelect={() => undefined} />, (api) => { api.jobList = [reading] })
+    const row = screen.getAllByRole('row')[1]!
+    expect(within(row).getByText('Mail read')).toBeTruthy()
+    const details = screen.getByRole('region', { name: 'Details of job 4' })
+    expect(within(details).getByText('60 mails read')).toBeTruthy()
+    expect(within(details).queryByText(/new,/)).toBeNull()
+  })
+
   it('shows the result of a finished job and the options it ran with', async () => {
     await renderWith(<JobsPage selected={1} onSelect={() => undefined} />, (api) => { api.jobList = [job({ id: 1, options: { owner: 'Maria Costa' } })] })
     const details = screen.getByRole('region', { name: 'Details of job 1' })

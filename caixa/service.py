@@ -42,6 +42,7 @@ from caixa.collectors.registry import Registry, discover
 from caixa.master import CATEGORIES
 from caixa.reset import reset_box
 from caixa.jobs import FINISHED, JobStore
+from caixa.mail import index as mail_index
 from caixa.state import State
 
 PathLike = Union[str, Path]
@@ -884,6 +885,8 @@ class Service:
     ) -> dict[str, Any]:
         if job["kind"] == "undo":
             return self._undo(box, int(job["options"]["job"]), progress)
+        if job["kind"] == "mail-read":
+            return self._mail_read(box, job, progress)
         if job["kind"] == "refresh":
             result = self._refresh_all(box, progress)
         else:
@@ -924,6 +927,52 @@ class Service:
         for aware in self._people_aware():
             result = asdict(aware.refresh(box, progress))
         return result
+
+    # --- Mail -------------------------------------------------------------------------------
+
+    @method("mail.read", write=True)
+    def mail_read(
+        self, source: str, account: Optional[str] = None, workers: Optional[int] = None
+    ) -> dict[str, Any]:
+        """Read an mbox (a file, a zip holding mboxes, or a folder) into the box's mail index, as
+        a job. Nothing is imported. The account is needed unless the index already knows it."""
+        box = self._require_box()
+        path = Path(source).expanduser()
+        if not path.exists():
+            raise ServiceError("input", f"Not found: {path}")
+        try:
+            given = mail_index.check_account(account) if account is not None else None
+        except mail_index.MailError as error:
+            raise ServiceError("invalid_params", str(error)) from None
+        if given is None:
+            with mail_index.MailIndex.for_box(box, read_only=True) as index:
+                if index.known_account(path) is None:
+                    raise ServiceError(
+                        "invalid_params", "An account name is needed (for example Gmail or Work)."
+                    )
+        options: dict[str, Any] = {"account": given}
+        if workers is not None:
+            options["workers"] = int(workers)
+        return self._enqueue("mail-read", None, str(path), options)
+
+    @method("mail.sources")
+    def mail_sources(self) -> dict[str, Any]:
+        """Every mbox read into the box's mail index."""
+        box = self._require_box()
+        with mail_index.MailIndex.for_box(box, read_only=True) as index:
+            return {"sources": index.sources()}
+
+    def _mail_read(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
+        options = job["options"]
+        workers = int(options.get("workers") or settings.load(box)["workers"])
+        try:
+            with mail_index.MailIndex.for_box(box) as index:
+                results = index.read(job["source"], options.get("account"), workers, progress)
+        except mail_index.MailError as error:
+            raise ServiceError("input", str(error)) from None
+        return {"mails": sum(r.mails for r in results), "sources": [asdict(r) for r in results]}
 
     # --- People -----------------------------------------------------------------------------
 

@@ -317,8 +317,17 @@ Report = Optional[Callable[[Progress], None]]
 
 
 class MailIndex:
-    def __init__(self, path: PathLike) -> None:
+    def __init__(self, path: PathLike, read_only: bool = False) -> None:
         self.path = Path(path)
+        self.read_only = read_only
+        if read_only:  # look, never change (and never create): a missing index reads as empty
+            if self.path.is_file():
+                uri = f"{self.path.resolve().as_uri()}?mode=ro"
+                self.connection = sqlite3.connect(uri, uri=True, check_same_thread=False)
+            else:
+                self.connection = sqlite3.connect(":memory:", check_same_thread=False)
+                self.connection.executescript(SCHEMA)
+            return
         self.path.parent.mkdir(parents=True, exist_ok=True)
         os.chmod(self.path.parent, 0o700)
         self.connection = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False)
@@ -326,8 +335,29 @@ class MailIndex:
         self._schema()
 
     @classmethod
-    def for_box(cls, box: Box) -> "MailIndex":
-        return cls(box.caixa_dir / "mail" / "index.sqlite")
+    def for_box(cls, box: Box, read_only: bool = False) -> "MailIndex":
+        return cls(box.caixa_dir / "mail" / "index.sqlite", read_only=read_only)
+
+    def __enter__(self) -> "MailIndex":
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
+
+    def known_account(self, source: PathLike) -> Optional[str]:
+        """The account the index already has for every mbox `source` stands for, if one."""
+        path = Path(source).expanduser()
+        if not path.exists():
+            return None
+        accounts = {
+            row[1] if row else None
+            for file, member in _mboxes(path.resolve())
+            for row in [self._known(str(file), member)]
+        }
+        if len(accounts) == 1:
+            (account,) = accounts
+            return str(account) if account else None
+        return None
 
     def close(self) -> None:
         self.connection.close()

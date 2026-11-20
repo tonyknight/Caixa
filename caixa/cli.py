@@ -111,6 +111,16 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("target", type=int, help="the person who stays")
     _box_argument(merge)
 
+    mail = commands.add_parser("mail", help="read, clean and sort mail before importing it")
+    mail_commands = mail.add_subparsers(dest="action", metavar="action", required=True)
+    read = mail_commands.add_parser(
+        "read", help="read an mbox (or a zip or folder of them) into the box's mail index"
+    )
+    read.add_argument("source", help="an .mbox file, a .zip holding mboxes, or a folder")
+    read.add_argument("--account", help="the account the mail comes from, such as Gmail or Work")
+    read.add_argument("--workers", type=int, help="processes at once (default: the setting)")
+    _box_argument(read)
+
     serve = commands.add_parser("serve", help="start the browser interface and open it")
     serve.add_argument("--box", help="open this box when it starts")
     serve.add_argument("--read-only", action="store_true", help="refuse every change to the box")
@@ -315,6 +325,39 @@ def _cmd_import(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mail_read_text(result: dict[str, Any]) -> str:
+    lines = []
+    for source in result["sources"]:
+        name = source["member"] or Path(source["path"]).name
+        how = "already read" if source["reused"] else f"read in {source['seconds']:.1f} s"
+        lines.append(f"{name} ({source['account']}): {_plural(source['mails'], 'mail')}, {how}.")
+    return "\n".join(lines)
+
+
+def _cmd_mail(args: argparse.Namespace) -> int:
+    service = _open(args)
+    screen = sys.stderr  # a running job redirects sys.stderr to its log; keep the real one
+
+    def show(name: str, payload: dict[str, Any]) -> None:
+        if name == "job.progress" and payload.get("message"):
+            print(f"{payload['stage']}: {payload['message']}", file=screen)
+
+    service.subscribe(show)
+    try:
+        job = service.mail_read(args.source, account=args.account, workers=args.workers)
+        done = service.wait(job["id"])
+    except KeyboardInterrupt:
+        print("caixa: cancelled.", file=sys.stderr)
+        return 130
+    finally:
+        service.close()
+    if done["status"] != "done":
+        print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+        return 1
+    print(json.dumps(done["result"], indent=2) if args.json else _mail_read_text(done["result"]))
+    return 0
+
+
 def _follow(service: Service, job: dict[str, Any], as_json: bool) -> int:
     """Wait for a job, showing its stages; print its result. The exit code says how it ended."""
     try:
@@ -490,6 +533,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "reset": _cmd_reset,
         "import": _cmd_import,
         "jobs": _cmd_jobs,
+        "mail": _cmd_mail,
         "people": _cmd_people,
         "serve": _cmd_serve,
     }
