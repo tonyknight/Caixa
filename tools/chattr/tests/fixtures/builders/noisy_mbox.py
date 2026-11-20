@@ -21,12 +21,15 @@ Everyone else is invented, on reserved `example.*` domains. Never add real perso
 
 from __future__ import annotations
 
+import io
 import mailbox
+import re
 import zipfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from email import encoders
 from email.charset import QP, Charset
+from email.generator import BytesGenerator
 from email.header import Header
 from email.message import Message
 from email.mime.base import MIMEBase
@@ -953,3 +956,42 @@ def build_noisy_mbox(out_dir: Path) -> NoisyMail:
         },
     )
     return NoisyMail(gmail, work, plain, takeout, dict(by_key))
+
+
+# --- A large mailbox, for the scale test --------------------------------------------------------
+
+_COPY = "~N~"
+
+
+def _entry(message: Message) -> bytes:
+    """One mbox entry: its `From ` line, the message with `From ` lines in bodies escaped, a blank
+    line (as `mailbox.mbox` writes it)."""
+    buffer = io.BytesIO()
+    BytesGenerator(buffer, mangle_from_=True, maxheaderlen=0).flatten(message, unixfrom=True)
+    data = buffer.getvalue().replace(b"\r\n", b"\n")
+    return data + (b"\n" if data.endswith(b"\n") else b"\n\n")
+
+
+def write_large_mbox(path: Path, size_bytes: int) -> int:
+    """Numbered copies of the Gmail account's mails (new Message-IDs and thread ids per copy),
+    streamed to `path` until it holds at least `size_bytes`. Returns the number of mails."""
+    by_key = {m.key: m for m in MAILS}
+    templates = [
+        _entry(render(m, by_key, copy=_COPY))
+        for m in sorted(_account("gmail"), key=lambda m: m.moment)
+    ]
+    token = re.escape(_COPY.encode())
+    written = count = copy = 0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as out:
+        while written < size_bytes:
+            copy += 1
+            number = str(copy).encode()
+            for template in templates:
+                data = re.sub(token, number, template)
+                out.write(data)
+                written += len(data)
+                count += 1
+                if written >= size_bytes:
+                    break
+    return count

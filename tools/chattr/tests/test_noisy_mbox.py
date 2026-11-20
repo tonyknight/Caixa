@@ -130,3 +130,19 @@ def test_the_zips(noisy: NoisyMail) -> None:
             [f"Takeout/Mail/{MAILBOX_NAME}", f"Takeout/Mail/{WORK_MAILBOX_NAME}"]
         )
         assert takeout.getinfo(f"Takeout/Mail/{MAILBOX_NAME}").compress_type == zipfile.ZIP_DEFLATED
+
+
+def test_a_large_mbox_is_valid_deterministic_and_big_enough(tmp_path: Path) -> None:
+    from fixtures.builders.noisy_mbox import write_large_mbox
+
+    size = 3_000_000
+    first = tmp_path / "large-1.mbox"
+    count = write_large_mbox(first, size)
+    assert first.stat().st_size >= size
+    messages = _messages(first)
+    assert len(messages) == count > 56
+    ids = [str(m["Message-ID"]) for m in messages if m["Message-ID"]]
+    assert len(ids) == len(set(ids))
+    second = tmp_path / "large-2.mbox"
+    assert write_large_mbox(second, size) == count
+    assert first.read_bytes() == second.read_bytes()

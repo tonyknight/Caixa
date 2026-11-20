@@ -51,7 +51,9 @@ warn_return_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tools/chattr/tests"]
-addopts = "-ra --import-mode=importlib"
+addopts = "-ra --import-mode=importlib -m 'not slow'"
+# Scale tests (a multi-gigabyte synthetic mbox) run only when asked: `python -m pytest -m slow …`.
+markers = ["slow: a long-running scale test, left out of the default run"]
 
 # Third-party libraries without type information.
 [[tool.mypy.overrides]]

@@ -11,8 +11,7 @@ notes: ''
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -42,8 +41,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** a new builder, `tools/chattr/tests/fixtures/builders/noisy_mbox.py`, beside Phase 1's
 `mbox.py` (which stays as it is for the existing tests). Mails are declared as data (`Mail`
@@ -88,7 +87,7 @@ reached, for the slow scale test.
 - Tests: a few-megabyte file is a valid mbox with the expected count and unique Message-IDs, is
   identical on a second run, and is at least the size asked for.
 - Verify: `python -m pytest -q tools/chattr/tests/test_noisy_mbox.py && python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -103,3 +102,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-20
 T01: noisy_mbox.py declares 56 Gmail mails and 4 Work mails (one shared) as data, each with its cleaning outcome and cases; builds are byte-identical (fixed boundaries, From lines, zip entries). Group slugs chosen: lists, notices, unsubscribe, spam_trash. Feedback-ID (bulk mail service) is expected under lists, Auto-Submitted under notices. Mailing-list posts in a thread the owner wrote in are expected kept:protected (cleaning rule: owner wrote in its thread); the list rule for import is ticket 06's.
+
+### 2026-11-20
+T02: write_large_mbox renders the Gmail mails once with a copy token in Message-IDs and thread ids and streams numbered copies; a 3 MB file is valid, deterministic, with unique ids. pyproject: 'slow' marker, left out by default (-m 'not slow' in addopts; a later -m slow wins).
