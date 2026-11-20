@@ -6,10 +6,9 @@
 
 Mail without the noise: clean an mbox of junk, sort it by sender, import only the conversations that matter, summarize each one locally, and keep what is left in a smaller mbox
 
-## In progress (1)
+## In progress (0)
 
-- **20261120-07-the-sort-mail-window** The Sort mail window [high] — plan done · 2/2
-  - checkboxes: 2/8
+_No tickets in progress._
 
 ## Blocked (6)
 
@@ -24,14 +23,14 @@ Mail without the noise: clean an mbox of junk, sort it by sender, import only th
 - **20261120-14-attachments-folders-for-every-source** Attachments folders for every source [medium]
   - depends on: 20261120-10-conversation-pages-and-attachments (not yet marked blocked)
 - **20261120-15-retire-the-blind-mail-import-documentation** Retire the blind mail import; documentation [medium]
-  - depends on: 20261120-07-the-sort-mail-window, 20261120-13-reduce (not yet marked blocked)
+  - depends on: 20261120-13-reduce (not yet marked blocked)
 
 ## Up next (2)
 
 - **20261120-08-how-mail-bodies-look** How mail bodies look [high]
 - **20261120-09-import-the-chosen-conversations** Import the chosen conversations [high]
 
-## Recently completed (last 6 of 6)
+## Recently completed (last 7 of 7)
 
 - **20261120-01-synthetic-mail-fixtures** Synthetic mail fixtures (closed 2026-11-20)
 - **20261120-02-mail-index-and-parallel-reading** Mail index and parallel reading (closed 2026-11-20)
@@ -39,8 +38,9 @@ Mail without the noise: clean an mbox of junk, sort it by sender, import only th
 - **20261120-04-the-mbox-writer** The mbox writer (closed 2026-11-20)
 - **20261120-05-the-clean-mail-window** The Clean mail window (closed 2026-11-20)
 - **20261120-06-senders-known-and-what-a-choice-brings** Senders, Known and what a choice brings (closed 2026-11-20)
+- **20261120-07-the-sort-mail-window** The Sort mail window (closed 2026-11-20)
 
 ## Stats
 
-- Total: 15 tickets · 6 done · 8 todo · 1 in-progress · 0 blocked
+- Total: 15 tickets · 7 done · 8 todo · 0 in-progress · 0 blocked
 - By type: 12 feature · 2 chore · 1 spike

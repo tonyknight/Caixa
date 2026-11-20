@@ -3,11 +3,12 @@ id: 20261120-07-the-sort-mail-window
 title: The Sort mail window
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: Sort mail window (categories, choose/ignore, names, owner addresses,
+  what an import would bring).'
 parent:
 depends_on:
 - 20261120-05-the-clean-mail-window
@@ -82,10 +83,38 @@ category, as on the index page:
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** the Sort mail window at `/mail/sort` (`?source=` opens an mbox directly; Clean
+  mail's Written notice links to it): Known, To sort, To import, Ignored and Imported with senders,
+  mails and size; notes under names ("known", "by name: Rui Pereira?", "you wrote 3"); Choose,
+  Ignore, Don't import and Stop ignoring by row tools, status-bar pills, dragging onto To import or
+  Ignored, and Delete; a name-only match confirmed, and an address named with the box's people as
+  suggestions (`people.link`); the owner's addresses confirmed from a bar; "Importing would bring
+  N mails in M conversations" in the status bar.
+- **Files:** new `web/src/client/mail/SortMail.tsx`, `web/tests/{sort-mail.test.tsx,
+  e2e-sort-mail.test.ts}`; changed `web/src/client/mail/{MailList.tsx,CleanMail.tsx,types.ts,
+  mail.module.css}`, `web/src/app/main.tsx`, `web/src/client/locales.ts`, `caixa/data/web/*`,
+  `caixa/mail/{senders,clean}.py` (the double count), `tests/test_mail_senders.py`,
+  `web/tests/clean-mail.test.tsx`.
+- **Errors:** the owner's mail was counted once per source in the index, so a Cleaned copy doubled
+  "you wrote" (found by the browser test); fixed by counting each mail once.
+- **Verify:** `python -m pytest -q` → 1369 passed, 1 skipped, 1 deselected; black, mypy, tsc clean;
+  `vitest run` → 246 passed, including Clean then Sort mail end to end in Chromium.
+
+## Review
+
+### 2026-11-20: b94eca3..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean after one fix; Minor items only.
+
+- **Fixed (Important):** "you wrote" and the classifier's owner_wrote counted the owner's mail once
+  per source; a Cleaned copy doubled them. Counted once per mail now, with a unit test.
+- **Minor:** the name field offers suggestions through the browser's own datalist rather than the
+  index page's hand-made list; it is keyboard-friendly and needs no script of its own, but it looks
+  like the browser's, not the index page's.
+- **Minor:** naming an address redraws the box's pages (as on the index page), a job of its own.
+- **Spec:** M7 met; every acceptance criterion met (the Import button itself is ticket 09's).
+- **TDD:** RED then GREEN for each task.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
