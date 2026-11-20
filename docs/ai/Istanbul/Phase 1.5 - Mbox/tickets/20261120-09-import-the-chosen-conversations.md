@@ -3,11 +3,12 @@ id: 20261120-09-import-the-chosen-conversations
 title: Import the chosen conversations
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-20
-closed:
-notes: ''
+closed: 2026-11-20
+notes: 'Done: import of chosen conversations (job, undo), master mail tables, Message-ID
+  ids, workers, Import button.'
 parent:
 depends_on:
 - 20261120-06-senders-known-and-what-a-choice-brings
@@ -102,10 +103,46 @@ the box's files and pages to ticket 10.
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** importing the chosen conversations: `mail.import.preview` and `mail.import` (a
+  `mail-import` job, undoable) copy the chosen threads' mails into a working mbox and run Phase 1's
+  Mail collector on it with the account and the Workers setting; the master's new tables
+  (migration 4: `accounts`, `mail`, `mail_accounts`, `mail_threads`) record every mail's facts and
+  account and each conversation's counts. Chattr keys mail by Message-ID alone (a mail is never
+  imported twice; a mail re-threaded by a later export moves, so conversations merge), keeps the
+  account with each mail and builds records in worker processes. Mail conversations are spared
+  Phase 1's group rule. Sort mail has its Import button; senders whose mail is all in the box are
+  Imported. `caixa mail import`.
+- **Files:** new `caixa/mail/records.py`, `tests/test_mail_records.py`,
+  `tools/chattr/tests/test_mbox_accounts.py`; changed `caixa/{schema,master,service,cli}.py`,
+  `caixa/mail/write.py` (`extract`), `caixa/collectors/chattr.py`,
+  `tools/chattr/src/chattr/{records,database_manager,commands}.py`,
+  `tools/chattr/src/chattr/parsers/mbox_parser.py`, `web/src/client/{mail/SortMail.tsx,
+  mail/types.ts,Toasts.tsx,locales.ts}`, `caixa/data/web/*`, tests (`test_mail_service`,
+  `test_worker_protocol`, `sort-mail`, `jobs-page`).
+- **Errors:** Phase 1's group rule removed a chosen mail thread the owner had not written in;
+  mail conversations are now spared it. A mail met again in a second account is unchanged in Chattr,
+  so the import job tells the master which mails the mbox held.
+- **Verify:** `python -m pytest -q` → 1392 passed, 1 skipped, 1 deselected; black, mypy, tsc clean;
+  `vitest run` → 247 passed.
+
+## Review
+
+### 2026-11-20: 9f37697..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** mail ids changed form (`mail:<hash>`); a box that imported mail with Phase 1's blind
+  import would get that mail again under the new ids. No box holds real mail yet (the completion
+  report of Phase 1 says mail was never tried on real data).
+- **Minor:** pages and files are still Phase 1's (`Mail/<year>/…`) until ticket 10, which waits for
+  the maintainer's choice of body style (ticket 08).
+- **Minor:** the working mbox is read by Chattr's parser through `mailbox`, which builds its own
+  table of contents; it holds only the chosen mails, so this is small.
+- **Minor:** `chattr-cli convert mail` on its own is unchanged in use; it now also spares mail
+  conversations from no rule (Chattr standalone never ran `tidy_groups`).
+- **Spec:** M9 met; every acceptance criterion met.
+- **TDD:** RED then GREEN for each task.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
