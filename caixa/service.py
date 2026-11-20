@@ -584,6 +584,18 @@ class Service:
 
     # --- Imports ----------------------------------------------------------------------------
 
+    #: Mail is never imported whole: it is read, cleaned and sorted first, and only the chosen
+    #: conversations come in (`mail.import`, which runs the Mail collector itself).
+    WHOLE_MBOX = (
+        "Mail is cleaned and sorted first, so an mbox is never imported whole: open Clean mail "
+        "from the Mail card (or use 'caixa mail read', 'caixa mail clean', 'caixa mail senders' "
+        "and 'caixa mail import')."
+    )
+
+    def _whole(self, collector_id: str) -> None:
+        if collector_id == "mail":
+            raise ServiceError("input", self.WHOLE_MBOX)
+
     def _collector(self, collector_id: str) -> Collector:
         try:
             return self.registry.get(collector_id)
@@ -619,6 +631,7 @@ class Service:
         `preview.progress` carrying that token, and `import.preview.cancel` can stop it.
         """
         box = self._require_box()
+        self._whole(collector)
         found = self._collector(collector)
         checked = self._options(found, options)
         extra: dict[str, Any] = {}
@@ -676,6 +689,7 @@ class Service:
     ) -> dict[str, Any]:
         """Queue an import; it runs in the background (one at a time) and is followed as a job."""
         self._require_box()
+        self._whole(collector)
         found = self._collector(collector)
         checked = self._options(found, options)
         path = Path(source).expanduser()

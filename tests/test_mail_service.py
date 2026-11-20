@@ -470,3 +470,24 @@ def test_the_command_line_reduces(
     assert cli.main(["mail", "reduce", str(gmail), "--box", str(box)]) == 0
     out = capsys.readouterr().out
     assert "[Reduced].mbox" in out and "52 mails kept, 4 mails left out" in out
+
+
+# --- No whole-mbox import (ticket 15) ----------------------------------------------------------------
+
+
+def test_a_whole_mbox_is_never_imported(service: Service, gmail: Path) -> None:
+    for method in ("import.preview", "import.start"):
+        with pytest.raises(ServiceError, match="cleaned and sorted first"):
+            service.call(method, {"collector": "mail", "source": str(gmail)})
+    assert service.call("box.status")["items"] == 0
+
+
+def test_the_command_line_says_how_mail_is_imported(
+    tmp_path: Path, gmail: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    box = tmp_path / "Box"
+    assert cli.main(["box", "create", str(box), "--name", "Our box"]) == 0
+    capsys.readouterr()
+    assert cli.main(["import", "mail", str(gmail), "--box", str(box)]) == 1
+    said = capsys.readouterr().err
+    assert "cleaned and sorted first" in said and "caixa mail" in said

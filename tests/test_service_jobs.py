@@ -161,7 +161,7 @@ def test_an_import_runs_as_a_job_and_ends_done(
 def test_progress_is_stored_and_announced_in_order(service: Service, fixture_family) -> None:
     events: list[tuple[str, dict[str, Any]]] = []
     service.subscribe(lambda name, payload: events.append((name, payload)))
-    job = service.import_start("mail", str(fixture_family.paths["mbox"]))
+    job = service.import_start("whatsapp", _whatsapp(fixture_family))
     service.wait(job["id"], timeout=60)
     names = [n for n, _ in events]
     assert names[-1] == "job.finished" and set(names) == {"job.progress", "job.finished"}

@@ -111,7 +111,7 @@ def test_a_cli_import_gives_the_same_rows_and_files_as_the_service(
 ) -> None:
     sources = [
         ("whatsapp", _whatsapp(fixture_family)),
-        ("mail", str(fixture_family.paths["mbox"])),
+        ("voicemail", str(fixture_family.paths["iphone_voicemail"])),  # (mail is never whole)
         ("googlevoice", str(fixture_family.paths["google_voice"])),
     ]
     for collector, source in sources:
@@ -122,7 +122,7 @@ def test_a_cli_import_gives_the_same_rows_and_files_as_the_service(
         job = other.import_start(collector, source)
         assert other.wait(job["id"], 60)["status"] == "done"
     other.close()
-    assert _rows(box) == _rows(tmp_path / "Other") and len(_rows(box)) == 7 + 4 + 6
+    assert _rows(box) == _rows(tmp_path / "Other") and len(_rows(box)) == 7 + 2 + 6
     assert _files(box) == _files(tmp_path / "Other")
 
 
