@@ -5,7 +5,7 @@ import { useCaixa, useStore, useT } from '../hooks.tsx'
 import { MailList, useCounts, type Category, type RowTool } from './MailList.tsx'
 import { Preview } from './Preview.tsx'
 import { Sources } from './Sources.tsx'
-import { size, sourceName, type ImportPreview, type OwnerAddresses, type SenderRow, type SortReply, type SortRow } from './types.ts'
+import { size, sourceName, type CleanWritten, type ImportPreview, type OwnerAddresses, type SenderRow, type SortReply, type SortRow } from './types.ts'
 import css from './mail.module.css'
 
 const DOTS: Record<string, string> = { known: 'dotReceipts', to_sort: 'dotUnsubscribe', to_import: 'dotLists', ignored: 'dotSpam', imported: 'dotKept' }
@@ -37,8 +37,12 @@ export function SortMail() {
   const [asking, setAsking] = useState<ImportPreview | undefined>()
   const [importing, setImporting] = useState<number | undefined>()
   const [started, setStarted] = useState(0)
+  const [reducing, setReducing] = useState<number | undefined>()
+  const [askReduce, setAskReduce] = useState(false)
   const { jobs } = useCaixa()
   const job = jobs.find(j => j.id === importing)
+  const reduceJob = jobs.find(j => j.id === reducing)
+  const reduced = reduceJob?.status === 'done' ? (reduceJob.result as unknown as CleanWritten) : undefined
 
   useEffect(() => { document.title = `${t('mail.sort.title')} — Caixa` }, [t])
 
@@ -59,6 +63,12 @@ export function SortMail() {
   // Once the import is done, the senders it brought are Imported: ask again.
   const status = job?.status
   useEffect(() => { if (status === 'done' && source !== undefined) void refresh(source) }, [status, source, refresh])
+  useEffect(() => {
+    if (!askReduce) return
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setAskReduce(false) }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [askReduce])
   useEffect(() => {
     if (!asking) return
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setAsking(undefined) }
@@ -105,6 +115,11 @@ export function SortMail() {
     setAsking(undefined)
     const started = await store.api.call<Job>('mail.import', { source })
     if (started.ok) { setImporting(started.result.id); setStarted(Date.now()) } else setFailure(started.error.message)
+  }
+  const reduce = async () => {
+    setAskReduce(false)
+    const started = await store.api.call<Job>('mail.reduce', { source })
+    if (started.ok) { setReducing(started.result.id); setStarted(Date.now()) } else setFailure(started.error.message)
   }
   const confirmOwner = async () => {
     if (!owner) return
@@ -165,6 +180,22 @@ export function SortMail() {
             <div className={css.written} role="status" aria-label={t('mail.imported')}>
               <strong>{t('mail.imported')}</strong>
               <span>{t('mail.imported.line', { mails: counts.mails(done.mails), threads: threads(done.conversations) })}</span>
+              {!reducing && <button type="button" className={`${css.pill} ${css.pillPrimary}`} onClick={() => setAskReduce(true)}>{t('mail.reduce')}</button>}
+            </div>
+          )}
+          {reduceJob && !reduced && reduceJob.status !== 'failed' && (
+            <div className={css.writingBar}>
+              <span>{t('mail.reduce.writing')}</span>
+              <ProgressView step={reduceJob.stage ? { stage: reduceJob.stage, current: reduceJob.current, total: reduceJob.total, message: reduceJob.message ?? '' } : undefined}
+                            stages={['writing', 'checking']} startedAt={started} />
+            </div>
+          )}
+          {reduceJob?.status === 'failed' && <p className={css.problemBar} role="alert">{t('mail.failed', { message: reduceJob.error ?? '' })}</p>}
+          {reduced && (
+            <div className={css.written} role="status" aria-label={t('mail.written')}>
+              <strong>{t('mail.written')}</strong> <code>{reduced.path}</code>
+              <span>{t('mail.written.line', { mails: reduced.mails.toLocaleString('en'), left: reduced.left_out.toLocaleString('en'), size: size(reduced.left_out_size) })}</span>
+              <a className={`${css.pill} ${css.pillPrimary}`} href={`/mail/sort?source=${reduced.source_id}`}>{t('mail.sortReduced')}</a>
             </div>
           )}
           {busy && job && (
@@ -205,9 +236,21 @@ export function SortMail() {
           <span className={css.bring}>{t('mail.bring', { mails: counts.mails(picked.mails), threads: conversations, size: size(picked.size) })}</span>{' '}
           <button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={picked.mails === 0 || busy} onClick={() => void askImport()}>{t('mail.import')}</button>
         </>}
-        quiet={looking !== undefined || naming !== undefined || asking !== undefined}
+        quiet={looking !== undefined || naming !== undefined || asking !== undefined || askReduce}
       />
       {looking && <Preview source={source} sender={looking} onClose={() => setLooking(undefined)} />}
+      {askReduce && (
+        <div className={css.backdrop} onClick={() => setAskReduce(false)}>
+          <div className={css.confirm} role="dialog" aria-modal="true" aria-labelledby="reduce-ask" onClick={(event) => event.stopPropagation()}>
+            <h2 id="reduce-ask">{t('mail.reduce.ask')}</h2>
+            <p>{t('mail.reduce.explain', { source: sourceName(reply.source) })}</p>
+            <div className={css.buttons}>
+              <button type="button" className={css.button} onClick={() => setAskReduce(false)}>{t('mail.write.cancel')}</button>
+              <button type="button" className={`${css.button} ${css.primaryButton}`} autoFocus onClick={() => void reduce()}>{t('mail.write.go')}</button>
+            </div>
+          </div>
+        </div>
+      )}
       {asking && (
         <div className={css.backdrop} onClick={() => setAsking(undefined)}>
           <div className={css.confirm} role="dialog" aria-modal="true" aria-labelledby="import-ask" onClick={(event) => event.stopPropagation()}>

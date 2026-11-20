@@ -154,6 +154,8 @@ describe('the toasts', () => {
     expect(screen.getByText('Writing the cleaned mbox failed: no room')).toBeTruthy()
     await view.emit('job.finished', finished(12, { kind: 'mail-import', collector: 'mail', status: 'failed', error: 'gone', result: null }))
     expect(screen.getByText('Importing the mail failed: gone')).toBeTruthy()
+    await view.emit('job.finished', finished(13, { kind: 'mail-reduce', collector: null, status: 'failed', error: 'no room', result: null }))
+    expect(screen.getByText('Writing the reduced mbox failed: no room')).toBeTruthy()
   })
 
   it('speak Chinese when asked', async () => {

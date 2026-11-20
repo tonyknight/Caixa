@@ -1,7 +1,7 @@
 // Sort mail in a browser, against the real `caixa serve`: clean the noisy mbox, go on to sort the
 // cleaned one, and choose and ignore senders the way the index page sorts people.
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -61,9 +61,26 @@ run('sorting an mbox, in a browser', () => {
       await groups.getByRole('link', { name: /Ignored/ }).click()
       expect(await page.getByRole('row', { name: /Carlos Mendes/ }).count()).toBe(1)
       await shot(page, 'sort-mail-ignored')
+
+      await footer.getByRole('button', { name: 'Import' }).click()
+      await page.getByRole('dialog', { name: /Import 8 mails in 5 conversations/ }).getByRole('button', { name: 'Import them' }).click()
+      const imported = page.getByRole('status', { name: 'Imported' })
+      await imported.waitFor({ timeout: 120_000 })
+      expect(await imported.textContent()).toContain('8 mails in 5 conversations')
+      await groups.getByRole('link', { name: /Imported/ }).click()
+      await page.getByRole('row', { name: /Beatriz Lima/ }).waitFor({ timeout: 15_000 })
+
+      await imported.getByRole('button', { name: 'Write the reduced mbox' }).click()
+      await page.getByRole('dialog', { name: 'Write the reduced mbox?' }).getByRole('button', { name: 'Write it' }).click()
+      const written = page.getByRole('status', { name: 'Written' })
+      await written.waitFor({ timeout: 60_000 })
+      const reduced = (await written.locator('code').textContent())!
+      expect(reduced).toMatch(/\[Reduced\]\.mbox$/)
+      expect(existsSync(reduced)).toBe(true)
+      await shot(page, 'sort-mail-reduced')
       expect(problems).toEqual([])
     } finally {
       await browser.close()
     }
-  }, 180_000)
+  }, 300_000)
 })
