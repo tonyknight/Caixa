@@ -111,6 +111,9 @@ def _stem(renderer: Renderer, spec: PageSpec, message: dict[str, Any], row: dict
     sender = message["sender_handle_id"]
     who = renderer.label(sender) if sender else ("Me" if message["is_from_owner"] else "Unknown")
     stem = f"({local:%Y-%m-%d}) {local:%H-%M-%S} {safe_name(who)}"
+    if spec.kind == "mail" and spec.account:  # Caixa's mail: (date) and the file's own name
+        original = Path(row["original_filename"] or "attachment").stem
+        return f"({local:%Y-%m-%d}) {safe_name(original, 'attachment', 80)}"
     if spec.kind == "mail":
         original = Path(row["original_filename"] or "attachment").stem
         return f"{stem} — {safe_name(original, 'attachment', 60)}"
@@ -297,6 +300,7 @@ def file_attachments(
         ),
         key=lambda item: (item[1]["local"].replace(tzinfo=None), item[1]["id"]),
     )
+    signatures = _mail_noise(renderer, work, everywhere, staging)
     # Where each filed attachment is now: a name is free unless other content holds it.
     taken: dict[str, str] = {}
     # One copy of each content: the row it is filed for. An already filed copy stays where it is;
@@ -334,6 +338,12 @@ def file_attachments(
             done += 1
             if progress and done % 25 == 0:
                 progress(done, total)
+            if row.get("_noise") == "pixel":
+                if row["_info"].get("dropped") != "tracking pixel":
+                    _record(db, row, None, {"dropped": "tracking pixel"})  # type: ignore[arg-type]
+                continue
+            if row.get("_noise") == "signature":
+                continue  # linked to the first copy afterwards
             key = (row["sha256"], mail)
             if key in homes and homes[key][1] != id(row):
                 links.append((key, row))  # another message has the copy: link to it afterwards
@@ -422,6 +432,16 @@ def file_attachments(
                 kept = {k: v for k, v in row["_info"].items() if k != "shared"}
                 _record(db, row, target_rel, kept or {"filed": True})
 
+    for row, first in signatures:
+        if not _locate(first["storage_path"], [out]):
+            continue
+        own = _locate(row["storage_path"], staging) or _staged(row["sha256"], staging)
+        if own:
+            own[0].unlink()
+            _tidy(own[0].parent, own[1])
+        filed.shared += 1
+        if row["storage_path"] != first["storage_path"]:
+            _record(db, row, first["storage_path"], {"shared": True, "signature": True})
     for key, row in links:
         home = home_rows.get(key)
         if home is None or not _locate(home["storage_path"], [out]):
@@ -445,6 +465,63 @@ def file_attachments(
     if progress:
         progress(total, total)
     return filed
+
+
+#: An inline picture this size or smaller, sent again by its sender with the same name and pixel
+#: size, is a signature (kept once). Provisional, until it is tried on real mail.
+SIGNATURE_BYTES = 40 * 1024
+
+
+def _pixels(file: Path) -> Optional[tuple[int, int]]:
+    try:
+        from PIL import Image
+
+        with Image.open(file) as opened:
+            return (int(opened.size[0]), int(opened.size[1]))
+    except Exception:  # not a picture Pillow knows
+        return None
+
+
+def _mail_noise(
+    renderer: Renderer,
+    work: list[tuple[PageSpec, dict[str, Any], list[dict[str, Any]]]],
+    everywhere: list[Path],
+    staging: list[Path],
+) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    """Mark the noise among the pictures of Caixa's mail: tracking pixels (one pixel; not filed)
+    and repeated signatures (a small picture a sender sends again with the same name and size:
+    every later copy is linked to the first). Returns (later copy, first copy) pairs."""
+    firsts: dict[tuple[Any, str, tuple[int, int]], dict[str, Any]] = {}
+    later: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    for spec, message, rows in work:
+        if not (spec.kind == "mail" and spec.account):
+            continue
+        for row in rows:
+            if not str(row.get("mime_type") or "").startswith("image/"):
+                continue
+            found = _locate(row["storage_path"], everywhere) or _staged(row["sha256"], staging)
+            if found is None:
+                continue
+            size = _pixels(found[0])
+            if size is None:
+                continue
+            if size == (1, 1):
+                row["_noise"] = "pixel"
+                continue
+            if (row.get("size") or found[0].stat().st_size) > SIGNATURE_BYTES:
+                continue
+            key = (
+                message["sender_handle_id"],
+                str(row.get("original_filename") or "").lower(),
+                size,
+            )
+            first = firsts.get(key)
+            if first is None:
+                firsts[key] = row
+            elif first["sha256"] != row["sha256"]:
+                row["_noise"] = "signature"
+                later.append((row, first))
+    return later
 
 
 def _info(row: dict[str, Any]) -> dict[str, Any]:

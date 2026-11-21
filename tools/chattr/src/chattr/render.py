@@ -6,6 +6,8 @@ Pages are organized for people, not platforms (see the Requirements):
     People/<Person>/<Service>/…                      the files each source brought (see `filing`)
     Groups/<Group>/<Group>.html, <Service>/…
     Mail/<YYYY>/(YYYY-MM-DD) <sender> — <subject>.html     one page per mail thread
+    People/<Person>/Mail/<Account>/(YYYY-MM-DD) <subject>.html  the same, for mail that came
+                                                     through Caixa's mail workflow (with an account)
 
 A conversation belongs to its *counterpart*: the non-owner person behind its handles, or the handle
 itself while it has no person, so one person's iMessage, WhatsApp, Google Voice, voicemail and
@@ -109,6 +111,8 @@ class PageSpec:
     filename: str
     conversation_ids: list[str] = field(default_factory=list)
     message_ids: list[str] = field(default_factory=list)
+    #: A mail conversation's account (Caixa's mail workflow); None for mail drawn the Phase 1 way.
+    account: Optional[str] = None
 
     @property
     def path(self) -> str:
@@ -198,6 +202,10 @@ class Renderer:
             conversation = self.conversations[conversation_id]
             if conversation["service"] == MAIL_SERVICE:
                 spec = self._mail_page(conversation, messages)
+                number, stem = 2, spec.filename[: -len(".html")]
+                while ("mail", spec.path) in pages:  # the same day and subject: a number
+                    spec.filename = f"{stem} ({number}).html"
+                    number += 1
                 pages[("mail", spec.path)] = spec
                 continue
             group = conversation["type"] == "group"
@@ -222,8 +230,47 @@ class Renderer:
                 spec.year = min(self.messages[m]["local"].year for m in spec.message_ids)
         return sorted(pages.values(), key=lambda p: (p.folder, p.filename))
 
+    def _mail_home(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> str:
+        """The person a mail conversation is filed with: the non-owner who wrote most of it (the
+        first, on a tie); for mail only the owner wrote, the person it was written to."""
+        counts: dict[str, int] = {}
+        for message in messages:
+            handle = message["sender_handle_id"]
+            if handle and handle not in self.owner_handles and not message["is_from_owner"]:
+                label = _handle_label(self.handles[handle])
+                counts[label] = counts.get(label, 0) + 1
+        if counts:
+            most = max(counts.values())
+            return next(label for label, n in counts.items() if n == most)
+        for handle in self.participants.get(conversation["id"], []):
+            if handle not in self.owner_handles:
+                return _handle_label(self.handles[handle])
+        return "Unknown"
+
     def _mail_page(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> PageSpec:
         first = messages[0]
+        account = next(
+            (
+                json.loads(m["service_specific"] or "{}").get("account")
+                for m in messages
+                if json.loads(m["service_specific"] or "{}").get("account")
+            ),
+            None,
+        )
+        if account:  # Caixa's mail workflow: with its person, in its account's folder
+            subject = conversation["name"] or "(no subject)"
+            date = first["local"]
+            home = safe_name(self._mail_home(conversation, messages), "Unknown")
+            return PageSpec(
+                "mail",
+                subject,
+                date.year,
+                f"{PEOPLE}/{home}/Mail/{safe_name(str(account), 'Mail')}",
+                f"({date:%Y-%m-%d}) {safe_name(subject, '(no subject)', 100)}.html",
+                [conversation["id"]],
+                [m["id"] for m in messages],
+                account=str(account),
+            )
         sender_id = first["sender_handle_id"]
         sender = _handle_label(self.handles[sender_id]) if sender_id else "unknown sender"
         subject = conversation["name"] or "(no subject)"

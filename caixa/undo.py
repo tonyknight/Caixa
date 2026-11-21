@@ -231,7 +231,7 @@ def restore(box: Box, job: int) -> dict[str, int]:
         else:
             live.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(saved, live)
-    for name in ("People", "Groups", "Mail"):  # the folders a box always has
+    for name in ("People", "Groups"):  # the folders a box always has
         (root / name).mkdir(exist_ok=True)
     shutil.rmtree(folder, ignore_errors=True)
     return {"files_removed": removed, "files_put_back": back}

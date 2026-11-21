@@ -14,7 +14,7 @@ depends_on:
 - 20261120-09-import-the-chosen-conversations
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -41,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** mail that came through the mail workflow carries its account (ticket 09); Chattr draws
 and files it the new way, and mail without an account (Chattr on its own) keeps Phase 1's
@@ -83,7 +83,7 @@ and files it the new way, and mail without an account (Chattr on its own) keeps 
   numbered; Beatriz's three logos filed once; the tracking pixels not filed; mail without an
   account still under `Mail/<year>/`.
 - Verify: `python -m pytest -q tools/chattr/tests/test_mail_filing.py tools/chattr/tests/test_render_mail.py tools/chattr/tests/test_filing.py`
-- [ ] done
+- [x] done
 
 ### T03: The conversation page, and the master's record of it
 
@@ -108,3 +108,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: caixa/mail/render.py moved to chattr/mail_html.py (Chattr draws the pages; Chattr must not import Caixa); caixa.mail.render re-exports it. MboxParser keeps service_specific.content_ids (Content-ID → SHA-256, for the cid: pictures) and service_specific.headers (the top-level header block, up to 20,000 characters).
+
+### 2026-11-21
+T02: mail with an account is planned at People/<home>/Mail/<Account>/(date) subject.html (home: the non-owner who wrote most, else the person written to; ' (2)' on a clash), its files at .../Attachments/(date) <own name> (filing's free-name rule numbers clashes; one copy per content). Filing pre-pass for Caixa's mail: one-pixel pictures are not filed (processing_info dropped: tracking pixel); a picture of at most 40 KB that a sender repeats with the same name and pixel size is filed once and later copies linked (signature). New boxes have no top-level Mail/ folder (box.FOLDERS, undo's always-there folders); the contract test updated. Tests moved to tests/test_mail_filing.py (they need Caixa's collector). Mail without an account is still drawn the Phase 1 way.

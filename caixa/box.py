@@ -2,7 +2,7 @@
 
     <Box name>/
       README.md            plain language: what this is, and how to use it with or without Caixa
-      People/  Groups/  Mail/          the generated, durable files
+      People/  Groups/                 the generated, durable files
       Inbox/               drop exports here for Caixa to import
       .caixa/
         caixa.sqlite       the master database
@@ -27,7 +27,7 @@ from caixa.master import Master
 
 PathLike = Union[str, Path]
 INBOX = "Inbox"
-FOLDERS = ("People", "Groups", "Mail", INBOX)
+FOLDERS = ("People", "Groups", INBOX)
 README = """# {name}
 
 This folder is a box made with Caixa: a person's messages, mail and other records, kept in plain
@@ -37,7 +37,8 @@ files that open without any special software.
   year and every source, and a folder for each source (iMessage, WhatsApp, Voicemail, …) with the
   files it brought, named by date.
 - `Groups/` is the same for group conversations.
-- `Mail/` has one page per mail conversation, by year, with its attachments.
+- Mail lives with its people: `People/<Person>/Mail/<Account>/`, one page per conversation, with
+  its attachments in `Attachments/` beside them.
 - `Inbox/` is where you drop an export (a .zip or a folder) for Caixa to import.
 - `.caixa/` is Caixa's own working data. Everything above it is yours to keep, copy and open.
 
