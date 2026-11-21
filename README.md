@@ -116,9 +116,9 @@ attachment of their own database, never by writing into each other.
 <Box name>/
   README.md        plain language: what this folder is
   index.html       start here: every person
-  People/          <Person>/<Person>.html (everything, one page), <Source>/(date) time sender.ext
+  People/          <Person>/<Person>.html (everything, one page), <Source>/Attachments/(date) time sender.ext,
+                   Mail/<Account>/(date) subject.html (a page per conversation) + Attachments/
   Groups/          <Group>/  the same, for group conversations
-  Mail/            <YYYY>/(YYYY-MM-DD) Sender — Subject.html  +  Attachments/
   Inbox/           drop exports here
   .caixa/          Caixa's own working files: the databases, logs, working copies
 ```
@@ -209,7 +209,7 @@ Caixa is in early development; version 0.5.0 closes its first project (Phase 1, 
 | | Status |
 | --- | --- |
 | **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice and iPhone voicemail also tried by the maintainer on real exports; mail not yet |
-| **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, the Reduced mbox | Built and tested on a synthetic noisy mailbox, in a real browser too; not yet tried on real mail. Conversation pages per person, the overlay on the person's page and local summaries are being built |
+| **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, the Reduced mbox | Built and tested on a synthetic noisy mailbox, in a real browser too, with conversation pages filed with each person, an entry on their page that shows the conversation over it, and summaries by a model you choose; not yet tried on real mail |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
 | **Browser interface**: create a box, import wizard, jobs, people, browse, settings, Clean mail and Sort mail | Built, and tested in a real browser against the real `caixa serve` |
