@@ -41,6 +41,8 @@ def test_a_missing_file_reads_as_empty_and_a_damaged_one_is_set_aside(service: S
         "schema": 1,
         "names": [],
         "categories": {},
+        "subcategories": [],
+        "placed": {},
         "removed": [],
         "mail": {"kept": [], "chosen": [], "ignored": [], "accounts": {}},
     }

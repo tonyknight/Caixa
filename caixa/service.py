@@ -1763,10 +1763,14 @@ class Service:
 
     @method("people.categorize", write=True)
     def people_categorize(
-        self, people: list[Union[int, str]], category: Optional[str]
+        self,
+        people: list[Union[int, str]],
+        category: Optional[str],
+        subcategory: Optional[int] = None,
     ) -> dict[str, Any]:
-        """Sort people (by id or by name) into a category, or back to none (`category` null).
-        The pages are redrawn by one refresh job, shared by changes made while it waits."""
+        """Sort people (by id or by name) into a category, or back to none (`category` null), and
+        into one of its subcategories when given. The pages are redrawn by one refresh job, shared
+        by changes made while it waits."""
         box = self._require_box()
         if category is not None and category not in CATEGORIES:
             raise ServiceError(
@@ -1780,10 +1784,60 @@ class Service:
                 if found is None or not any(p.id == found for p in master.people()):
                     raise ServiceError("not_found", f"There is no person '{who}' in this box.")
                 ids.append(found)
-            changed = master.set_category(ids, category)
+            try:
+                changed = master.set_category(ids, category, subcategory)
+            except ValueError as error:
+                raise ServiceError("invalid_params", str(error)) from None
             master.commit()
             owner_file.save(box, master)
-        return {"changed": changed, "category": category, "job": self._redraw()}
+        return {
+            "changed": changed,
+            "category": category,
+            "subcategory": subcategory,
+            "job": self._redraw(),
+        }
+
+    @method("people.subcategories")
+    def people_subcategories(self) -> dict[str, Any]:
+        """Every subcategory, each category's in order, with how many people are in it."""
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            return {"subcategories": master.subcategories()}
+
+    def _subcategory_change(self, change: Callable[[Any], Any]) -> dict[str, Any]:
+        box = self._require_box()
+        with box.master() as master:
+            try:
+                done = change(master)
+            except ValueError as error:
+                raise ServiceError("invalid_params", str(error)) from None
+            master.commit()
+            owner_file.save(box, master)
+        return {**done, "job": self._redraw()}
+
+    @method("people.subcategory.add", write=True)
+    def people_subcategory_add(
+        self, category: str, name: str, parent: Optional[int] = None
+    ) -> dict[str, Any]:
+        """Add a subcategory under a category, or under one of its subcategories (two levels)."""
+        return self._subcategory_change(
+            lambda master: {"id": master.add_subcategory(category, parent, name)}
+        )
+
+    @method("people.subcategory.rename", write=True)
+    def people_subcategory_rename(self, id: int, name: str) -> dict[str, Any]:
+        def rename(master: Any) -> dict[str, Any]:
+            master.rename_subcategory(int(id), name)
+            return {"id": int(id)}
+
+        return self._subcategory_change(rename)
+
+    @method("people.subcategory.delete", write=True)
+    def people_subcategory_delete(self, id: int) -> dict[str, Any]:
+        """Delete a subcategory and its own; their people move up to its parent."""
+        return self._subcategory_change(
+            lambda master: {"deleted": master.delete_subcategory(int(id))}
+        )
 
     @method("people.merge", write=True)
     def people_merge(self, source: int, target: int) -> dict[str, Any]:

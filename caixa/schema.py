@@ -169,11 +169,25 @@ CREATE TABLE mail_threads (
 );
 """
 
+# Version 5: subcategories of the four categories people are sorted into (two levels at most), and
+# the subcategory a person is in (NULL: the category itself).
+MIGRATION_5 = """
+CREATE TABLE subcategories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    category TEXT NOT NULL,
+    parent_id INTEGER REFERENCES subcategories (id),
+    name TEXT NOT NULL COLLATE NOCASE
+);
+CREATE UNIQUE INDEX subcategories_unique ON subcategories (category, COALESCE(parent_id, 0), name);
+ALTER TABLE people ADD COLUMN subcategory_id INTEGER REFERENCES subcategories (id);
+"""
+
 MIGRATIONS: list[tuple[int, str]] = [
     (1, MIGRATION_1),
     (2, MIGRATION_2),
     (3, MIGRATION_3),
     (4, MIGRATION_4),
+    (5, MIGRATION_5),
 ]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 

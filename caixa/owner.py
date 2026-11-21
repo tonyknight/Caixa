@@ -6,6 +6,9 @@ it outlives a reset and applies again at the next import:
 - `names`: who a number, an address or a name really is (what was linked, renamed or merged by
   hand). At import these come first, before Contacts and before the names a source gives;
 - `categories`: the category each person was sorted into;
+- `subcategories`: the subcategories made under the categories (each with its `category` and its
+  `path` of names from the top, two at most), and `placed`: the path of the subcategory each person
+  is in, within their category;
 - `removed`: the people (`person`, by name) and identifiers (`identifier`, with the `service`
   it is on) taken out of the box. Their one-to-one conversations are not imported again;
 - `mail`: what the owner decided about mail: the senders `kept` when cleaning (their mail is never
@@ -32,7 +35,7 @@ from typing import Any, Callable, Iterable, Optional
 from chattr.people import normalize_identifier
 
 from caixa.box import Box
-from caixa.master import ALIAS_KINDS, CATEGORIES, Master
+from caixa.master import ALIAS_KINDS, CATEGORIES, SORTED, Master
 
 NAME = "owner.json"
 SCHEMA = 1
@@ -49,6 +52,8 @@ def load(box: Box) -> dict[str, Any]:
         "schema": SCHEMA,
         "names": [],
         "categories": {},
+        "subcategories": [],
+        "placed": {},
         "removed": [],
         "mail": _mail({}),
     }
@@ -75,10 +80,23 @@ def load(box: Box) -> dict[str, Any]:
         if isinstance(r, dict) and (r.get("identifier") or r.get("person"))
     ]  # fmt: skip
     mail = _mail(data.get("mail"))
+    subcategories = [
+        {"category": s["category"], "path": [str(n) for n in s["path"]][:2]}
+        for s in data.get("subcategories", [])
+        if isinstance(s, dict) and s.get("category") in SORTED
+        and isinstance(s.get("path"), list) and s["path"]
+    ]  # fmt: skip
+    placed = {
+        str(k): [str(n) for n in v][:2]
+        for k, v in (data.get("placed") or {}).items()
+        if isinstance(v, list) and v
+    }
     return {
         "schema": SCHEMA,
         "names": names,
         "categories": categories,
+        "subcategories": subcategories,
+        "placed": placed,
         "removed": removed,
         "mail": mail,
     }
@@ -188,10 +206,22 @@ def apply(box: Box, master: Master) -> int:
         master.connection.execute("UPDATE aliases SET source = 'human' WHERE id = ?", (alias,))
         if tuple(row) not in known:
             learned += 1
+    for entry in data["subcategories"]:
+        try:
+            master.ensure_subcategory(entry["category"], entry["path"])
+        except ValueError:
+            continue  # (a path the file got wrong is left out)
     for name, category in data["categories"].items():
         person = master.add_person(name)  # (the person, new or already there)
         if master.category(person) is None:
-            master.set_category([person], category)
+            path = data["placed"].get(name)
+            sub = None
+            if path and category in SORTED:
+                try:
+                    sub = master.ensure_subcategory(category, path)
+                except ValueError:
+                    sub = None
+            master.set_category([person], category, sub)
     master.commit()
     return learned
 
@@ -212,13 +242,23 @@ def save(box: Box, master: Master) -> None:
         key=lambda n: (str(n["person"]).casefold(), str(n["identifier"])),
     )  # fmt: skip
     data["categories"] = dict(sorted(master.categories().items(), key=lambda i: i[0].casefold()))
+    tree = master.subcategories()
+    data["subcategories"] = [
+        {"category": category, "path": path}
+        for category, path in (master.subcategory_path(s["id"]) for s in tree)
+    ]
+    data["placed"] = {
+        p.name: master.subcategory_path(sub)[1]
+        for p in sorted(master.people(), key=lambda p: p.name.casefold())
+        if (sub := master.subcategory(p.id)) is not None
+    }
     _write(box, data)
 
 
 def forget_names(box: Box) -> None:
     """Drop the names and categories (the removed list stays)."""
     data = load(box)
-    data["names"], data["categories"] = [], {}
+    data["names"], data["categories"], data["placed"] = [], {}, {}
     _write(box, data)
 
 

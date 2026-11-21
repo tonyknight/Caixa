@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from types import TracebackType
-from typing import Iterable, Optional, Union
+from typing import Any, Iterable, Optional, Union
 
 from caixa.schema import CURRENT_VERSION, apply_migrations, current_version
 
@@ -41,6 +41,13 @@ def normalize_alias(value: str, kind: str) -> str:
 #: The categories a person can be sorted into, in the order the index lists them. A person in none
 #: is "unassigned".
 CATEGORIES = ("family", "friends", "business", "acquaintance", "unrecognized")
+#: The categories that have subcategories, and their names as the index shows them.
+SORTED = {
+    "family": "Family",
+    "friends": "Friends",
+    "business": "Business",
+    "acquaintance": "Acquaintances",
+}
 
 
 @dataclass(frozen=True)
@@ -179,17 +186,155 @@ class Master:
         row = self._db.execute("SELECT category FROM people WHERE id = ?", (person_id,)).fetchone()
         return str(row[0]) if row and row[0] else None
 
-    def set_category(self, person_ids: Iterable[int], category: Optional[str]) -> int:
-        """Sort people into a category (None: back to unassigned); returns how many changed."""
+    def set_category(
+        self,
+        person_ids: Iterable[int],
+        category: Optional[str],
+        subcategory: Optional[int] = None,
+    ) -> int:
+        """Sort people into a category (None: back to unassigned), and into one of its
+        subcategories when given (else the category itself); returns how many changed."""
         if category is not None and category not in CATEGORIES:
             raise ValueError(f"Unknown category '{category}'; use one of {', '.join(CATEGORIES)}.")
+        if subcategory is not None:
+            row = self._subcategory_row(subcategory)
+            if category is None or row["category"] != category:
+                raise ValueError(
+                    f"That subcategory is under {SORTED.get(row['category'], row['category'])}, "
+                    f"not {SORTED.get(category or '', category or 'Unassigned')}."
+                )
         changed = 0
         for person_id in person_ids:
             changed += self._db.execute(
-                "UPDATE people SET category = ? WHERE id = ? AND category IS NOT ?",
-                (category, person_id, category),
+                "UPDATE people SET category = ?, subcategory_id = ? WHERE id = ? "
+                "AND (category IS NOT ? OR subcategory_id IS NOT ?)",
+                (category, subcategory, person_id, category, subcategory),
             ).rowcount
         return changed
+
+    # --- Subcategories (two levels under Family, Friends, Business and Acquaintances) --------
+
+    def _subcategory_row(self, subcategory: int) -> Any:
+        row = self._db.execute(
+            "SELECT * FROM subcategories WHERE id = ?", (subcategory,)
+        ).fetchone()
+        if row is None:
+            raise ValueError(f"There is no subcategory {subcategory} in this box.")
+        return row
+
+    def add_subcategory(self, category: str, parent: Optional[int], name: str) -> int:
+        """A new subcategory of `category`, directly under it or under `parent` (which must itself
+        be directly under the category: two levels at most). Returns its id."""
+        clean = re.sub(r"\s+", " ", name).strip()
+        if category not in SORTED:
+            raise ValueError(
+                f"Subcategories belong to a category: {', '.join(SORTED.values())}; not '{category}'."
+            )
+        if not clean:
+            raise ValueError("A subcategory needs a name; the name was empty.")
+        if parent is not None:
+            above = self._subcategory_row(parent)
+            if above["category"] != category:
+                raise ValueError(
+                    f"'{above['name']}' is under {SORTED[above['category']]}, not {SORTED[category]}."
+                )
+            if above["parent_id"] is not None:
+                raise ValueError(
+                    f"'{above['name']}' is a subcategory's subcategory: it cannot have its own."
+                )
+        try:
+            cursor = self._db.execute(
+                "INSERT INTO subcategories (category, parent_id, name) VALUES (?, ?, ?)",
+                (category, parent, clean),
+            )
+        except sqlite3.IntegrityError:
+            raise ValueError(f"'{clean}' is already there.") from None
+        return int(cursor.lastrowid or 0)
+
+    def rename_subcategory(self, subcategory: int, name: str) -> None:
+        clean = re.sub(r"\s+", " ", name).strip()
+        if not clean:
+            raise ValueError("A subcategory needs a name; the name was empty.")
+        self._subcategory_row(subcategory)
+        try:
+            self._db.execute("UPDATE subcategories SET name = ? WHERE id = ?", (clean, subcategory))
+        except sqlite3.IntegrityError:
+            raise ValueError(f"'{clean}' is already there.") from None
+
+    def delete_subcategory(self, subcategory: int) -> int:
+        """Delete a subcategory and its own subcategories; their people move up to its parent (or
+        the category itself). Returns how many subcategories went."""
+        row = self._subcategory_row(subcategory)
+        gone = [subcategory] + [
+            int(r[0])
+            for r in self._db.execute(
+                "SELECT id FROM subcategories WHERE parent_id = ?", (subcategory,)
+            )
+        ]
+        marks = ", ".join("?" for _ in gone)
+        self._db.execute(
+            f"UPDATE people SET subcategory_id = ? WHERE subcategory_id IN ({marks})",
+            (row["parent_id"], *gone),
+        )
+        self._db.execute(f"DELETE FROM subcategories WHERE parent_id IN ({marks})", gone)
+        self._db.execute("DELETE FROM subcategories WHERE id = ?", (subcategory,))
+        return len(gone)
+
+    def subcategory(self, person_id: int) -> Optional[int]:
+        row = self._db.execute(
+            "SELECT subcategory_id FROM people WHERE id = ?", (person_id,)
+        ).fetchone()
+        return int(row[0]) if row and row[0] is not None else None
+
+    def subcategories(self) -> list[dict[str, Any]]:
+        """Every subcategory, by category (in the index's order), each followed by its own, by
+        name; `people` counts the people in it and in its own subcategories."""
+        rows = [dict(r) for r in self._db.execute("SELECT * FROM subcategories")]
+        direct: dict[int, int] = {
+            int(r[0]): int(r[1])
+            for r in self._db.execute(
+                "SELECT subcategory_id, COUNT(*) FROM people WHERE subcategory_id IS NOT NULL "
+                "GROUP BY subcategory_id"
+            )
+        }
+        for row in rows:
+            row["people"] = direct.get(row["id"], 0) + sum(
+                direct.get(c["id"], 0) for c in rows if c["parent_id"] == row["id"]
+            )
+        order = {name: n for n, name in enumerate(CATEGORIES)}
+
+        def by_name(row: dict[str, Any]) -> str:
+            return str(row["name"]).casefold()
+
+        listed: list[dict[str, Any]] = []
+        for top in sorted(
+            (r for r in rows if r["parent_id"] is None),
+            key=lambda r: (order.get(r["category"], 9), by_name(r)),
+        ):
+            listed.append(top)
+            listed.extend(sorted((r for r in rows if r["parent_id"] == top["id"]), key=by_name))
+        return listed
+
+    def subcategory_path(self, subcategory: int) -> tuple[str, list[str]]:
+        """(category, [names from the top]) of a subcategory."""
+        row = self._subcategory_row(subcategory)
+        if row["parent_id"] is None:
+            return row["category"], [row["name"]]
+        above = self._subcategory_row(row["parent_id"])
+        return row["category"], [above["name"], row["name"]]
+
+    def ensure_subcategory(self, category: str, path: list[str]) -> int:
+        """The subcategory at `path` under `category`, made when it is not there yet."""
+        parent: Optional[int] = None
+        for name in path[:2]:
+            found = self._db.execute(
+                "SELECT id FROM subcategories WHERE category = ? AND parent_id IS ? AND name = ?",
+                (category, parent, name),
+            ).fetchone()
+            parent = int(found[0]) if found else self.add_subcategory(category, parent, name)
+        if parent is None:
+            raise ValueError("A subcategory's path was empty.")
+        return parent
 
     def categories(self) -> dict[str, str]:
         """{person's name: their category}, for everyone who has one."""
@@ -210,9 +355,10 @@ class Master:
                 "aliases": r["aliases"],
                 "items": r["items"],
                 "category": r["category"],
+                "subcategory": r["subcategory_id"],
             }
             for r in self._db.execute(
-                "SELECT p.id, p.name, p.is_owner, p.category, "
+                "SELECT p.id, p.name, p.is_owner, p.category, p.subcategory_id, "
                 "(SELECT COUNT(*) FROM aliases a WHERE a.person_id = p.id) AS aliases, "
                 "(SELECT COUNT(DISTINCT item_id) FROM item_people i WHERE i.person_id = p.id) "
                 "AS items FROM people p ORDER BY p.name COLLATE NOCASE"
@@ -268,8 +414,8 @@ class Master:
         self._db.execute("DELETE FROM item_people WHERE person_id = ?", (source_id,))
         if source["category"]:  # the one who stays keeps theirs, or takes the other's
             self._db.execute(
-                "UPDATE people SET category = ? WHERE id = ? AND category IS NULL",
-                (source["category"], target_id),
+                "UPDATE people SET category = ?, subcategory_id = ? WHERE id = ? AND category IS NULL",
+                (source["category"], source["subcategory_id"], target_id),
             )
         if source["notes"]:
             self._db.execute(
