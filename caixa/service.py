@@ -38,7 +38,7 @@ from chattr.translation import TranslationError, is_local_endpoint
 
 from caixa import owner as owner_file
 from caixa import settings, summaries, translation, undo
-from caixa.box import Box, BoxError
+from caixa.box import LAYOUT, Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
 from caixa.collectors.messages import alias_kind
@@ -315,6 +315,18 @@ class Service:
         else:
             self.jobs = JobStore(path)
             self.jobs.mark_interrupted()
+            if box.layout < LAYOUT:
+                self._move_files(box)
+
+    def _move_files(self, box: Box) -> None:
+        """A box built before every source had an Attachments folder: draw its pages again, which
+        moves its files there (filing follows where files belong); the box is marked once that has
+        finished. Stopped or failed, it is started again the next time the box is opened."""
+        chattr_db = box.caixa_dir / "work" / "chattr" / "Database" / "chattr.sqlite"
+        if not chattr_db.is_file():
+            box.mark_layout(LAYOUT)  # nothing filed yet
+            return
+        self._enqueue("refresh", None, None, {"layout": LAYOUT})
 
     @method("box.reset", write=True)
     def box_reset(self, forget_names: bool = False) -> dict[str, Any]:
@@ -927,7 +939,12 @@ class Service:
             undo.note_moves(box, imported.pop("moved", []))
             return imported
         if job["kind"] == "refresh":
+            moving = int((job.get("options") or {}).get("layout") or 0)
+            if moving:
+                progress(Progress("preparing", message="Moving files into Attachments folders"))
             result = self._refresh_all(box, progress)
+            if moving:
+                box.mark_layout(moving)
         else:
             collector = self._collector(job["collector"])
             undo.begin(box, job["id"], job["collector"], job["source"])

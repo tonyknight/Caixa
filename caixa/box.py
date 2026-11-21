@@ -28,6 +28,9 @@ from caixa.master import Master
 PathLike = Union[str, Path]
 INBOX = "Inbox"
 FOLDERS = ("People", "Groups", INBOX)
+#: How the box's files are laid out. 2: every source keeps its files in an `Attachments` folder
+#: (Phase 1.5). A box without the mark is 1, and is moved once when it is opened (see the service).
+LAYOUT = 2
 README = """# {name}
 
 This folder is a box made with Caixa: a person's messages, mail and other records, kept in plain
@@ -73,6 +76,7 @@ class Box:
             "name": title,
             "created": datetime.now(timezone.utc).isoformat(),
             "caixa_version": __version__,
+            "layout": LAYOUT,
         }
         (folder / ".caixa" / "box.yaml").write_text(json.dumps(settings, indent=2) + "\n", "utf-8")
         box = cls(folder, title)
@@ -89,6 +93,29 @@ class Box:
         except (OSError, ValueError) as error:
             raise BoxError(f"{folder} is not a Caixa box (no readable .caixa/box.yaml).") from error
         return cls(folder, str(settings.get("name") or folder.name))
+
+    # --- How its files are laid out -----------------------------------------------------
+
+    def _settings(self) -> dict[str, Any]:
+        data = json.loads((self.caixa_dir / "box.yaml").read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else {}
+
+    @property
+    def layout(self) -> int:
+        """How the box's files are laid out (see `LAYOUT`); 1 for a box made before the mark."""
+        try:
+            return int(self._settings().get("layout") or 1)
+        except (OSError, ValueError, TypeError):
+            return 1
+
+    def mark_layout(self, layout: int) -> None:
+        """Record that the box's files are now laid out as `layout`."""
+        data = self._settings()
+        data["layout"] = layout
+        path = self.caixa_dir / "box.yaml"
+        part = path.with_name("box.yaml.part")
+        part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+        part.replace(path)
 
     # --- Where things are ---------------------------------------------------------------
 

@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-10-conversation-pages-and-attachments
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -39,8 +38,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** filing already moves a filed file when its place changes (that is how a renamed person's
 files follow them) and records the new place in `chattr.sqlite`, and Caixa notes every move for
@@ -81,7 +80,7 @@ again.
   started again on the next opening and finishes; an import made before the move can still be
   undone (links resolve after), and importing again after the move adds nothing.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -96,3 +95,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: filing._folder puts every chat source's files in <Source>/Attachments/ (mail unchanged). Filing commits its records every 200 files, and a filed file whose move was not recorded (stopped between the two) is recovered from its new folder by name, extension and content (any content when it was converted at first filing), then recorded. Files filed the old way move on the next drawing (the existing rename mechanism). Tests: 3 new in test_filing.py (new folders; old layout moves, links resolve; a drawing interrupted after two moves is finished by the next with every file once and every link resolving), RED then GREEN; old-path expectations in test_filing.py, test_imessage_attachments.py and tests/test_chattr_collectors.py updated. Full suite 1431 passed.
+
+### 2026-11-21
+T02: box.yaml gains layout (Box.LAYOUT = 2 for new boxes; missing = 1; Box.layout, Box.mark_layout). Opening a layout-1 box (not read-only) enqueues one refresh job with options {layout: 2} ('Moving files into Attachments folders'), which marks the box when it finishes; stopped or failed, the next opening starts it again; a box with no Chattr store is marked at once. tests/test_attachments_move.py (5): new boxes marked; an old box (imported with the old folder rule) is moved by one job, links resolve, opening again starts nothing; an empty box is marked; a cancelled move restarts and finishes; re-import adds nothing and every import (from before the move too) can be undone with links resolving. RED (LAYOUT missing) then GREEN. Collector.md: the box tree, the filing rule, older boxes, iMessage path, links and the summary table.

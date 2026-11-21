@@ -801,26 +801,26 @@ Our Box/
   People/
     Ana Costa/
       Ana Costa.html              everything from Ana on one page: every year, every source
-      WhatsApp/
+      WhatsApp/Attachments/
         (2024-03-01) 14-05-09 Ana Costa.png
-      Voicemail/
+      Voicemail/Attachments/
         (2018-12-21) 15-02-31 Ana Costa.m4a      the recording, in a format any browser plays
-      Google Voice/
+      Google Voice/Attachments/
         (2018-09-08) 10-22-45 Ana Costa.m4a
+      Mail/Gmail/                 each mail conversation filed with Ana, one page each
+        (2025-01-15) Wedding update.html
+        Attachments/(2025-01-15) convite.pdf
     +15550101/                    a number nobody has named yet (it moves when you name it)
   Groups/
     Costa Family/
-      Costa Family.html, WhatsApp/…
-  Mail/
-    2019/(2019-11-02) João Costa — Fotos de São Martinho.html
-    2019/Attachments/(2019-11-02) 16-00-00 João Costa — familia.png
+      Costa Family.html, WhatsApp/Attachments/…
   Inbox/                          drop exports here to find them in the browser
   .caixa/                         Caixa's own working files (below)
 ```
 
 The top level is **people**. Each person's folder has **one page**, named after them, that brings every
-source and every year together in time order, and one folder per source holding the files that source
-brought.
+source and every year together in time order, and one folder per source whose `Attachments` folder holds
+the files that source brought (mail: one folder per account, with a page per conversation).
 
 **One page, however long.** The page starts with a summary (how much, from when to when, from which
 sources, the groups they are in and the mail they sent), then a bar of years that stays at the top while
@@ -904,12 +904,13 @@ While an export is being read, its files wait in a working folder inside `.caixa
 drawn, every file is **filed** beside the person it came from:
 
 ```
-People/<Person>/<Source>/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
-Groups/<Group>/<Source>/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
-Mail/<YYYY>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> — <its own name>.<extension>
+People/<Person>/<Source>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
+Groups/<Group>/<Source>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender>.<extension>
+People/<Person>/Mail/<Account>/Attachments/(YYYY-MM-DD) <its own name>.<extension>
 ```
 
-For example `People/Ana Costa/WhatsApp/(2024-03-01) 14-05-09 Ana Costa.png`. The pieces:
+For example `People/Ana Costa/WhatsApp/Attachments/(2024-03-01) 14-05-09 Ana Costa.png`. (Mail keeps
+each file's own name after its date; see [Mail](#mail).) The pieces:
 
 - **Person or group.** Whose conversation it is. A number nobody has named yet has a folder under its
   number; when you name it, its pages *and its files* move to the person's folder.
@@ -920,6 +921,14 @@ For example `People/Ana Costa/WhatsApp/(2024-03-01) 14-05-09 Ana Costa.png`. The
 - **A number**, only when it is needed: ` 1`, ` 2`… when one message carried several files, and ` (2)` if
   two different files would otherwise get the same name. Names come out the same on every run.
 - **Extension.** Kept as it was, in lower case.
+
+**Boxes made before the Attachments folders.** Before Phase 1.5 a source's files sat directly in its
+folder (`People/Ana Costa/WhatsApp/(2024-03-01) …`). The first time Caixa opens such a box it draws the
+pages again, which moves every file into its `Attachments` folder and updates the pages and both
+databases; the job is called **Pages redrawn** and says "Moving files into Attachments folders". It
+happens once. If it is stopped (cancelled, or the computer is switched off), nothing is lost: the next
+time the box is opened it starts again and finishes the move, finding any file that was moved but not
+yet recorded. An import made before the move can still be undone afterwards.
 
 The original export is never touched: files are copied out of it. Importing the same export again leaves
 one copy of each file, and a file Caixa did not put there is never overwritten. The same picture sent in
@@ -986,7 +995,7 @@ camera data but no date; without it such a file is left as it is.
 ### iMessage attachments
 
 Attachments are **copied** from the Mac's store (`~/Library/Messages/Attachments`, never changed) and
-filed like every other source's: `People/<Person>/iMessage/(date) time sender.ext`.
+filed like every other source's: `People/<Person>/iMessage/Attachments/(date) time sender.ext`.
 
 **Files that are still in iCloud.** Messages fetches an attachment from iCloud only when its part of the
 conversation has been shown on this Mac, so a database usually names files that are not on disk (often a
@@ -1009,7 +1018,7 @@ third or more). Caixa cannot fetch them. It tells you:
 
 ### How pages link to files
 
-Pages use ordinary relative links (`WhatsApp/(2024-03-01) 14-05-09 Ana Costa.png`), so the box keeps
+Pages use ordinary relative links (`WhatsApp/Attachments/(2024-03-01) 14-05-09 Ana Costa.png`), so the box keeps
 working if you move or copy the folder. A photo is shown inline, audio and video get a player, and any
 other file is a link. If the file is not in the box the page says so rather than showing a broken link.
 
@@ -1017,11 +1026,11 @@ other file is a link. If the file is not in the box the page says so rather than
 
 | Source | Where the files go | Converted? |
 | --- | --- | --- |
-| WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/` (or `Groups/<Group>/<Source>/`) | pictures to JPEG, voice notes to `.m4a` |
-| Google Voice | `People/<Person>/Google Voice/` | voicemail `.mp3` to `.m4a`, pictures to JPEG |
-| iPhone voicemail | `People/<Person>/Voicemail/` | `.amr` to `.m4a` |
-| Mail | `Mail/<year>/Attachments/` | never |
-| iMessage | `People/<Person>/iMessage/` | pictures to JPEG, `.caf` voice notes to `.m4a` |
+| WhatsApp, Messenger, Instagram | `People/<Person>/<Source>/Attachments/` (or `Groups/<Group>/<Source>/Attachments/`) | pictures to JPEG, voice notes to `.m4a` |
+| Google Voice | `People/<Person>/Google Voice/Attachments/` | voicemail `.mp3` to `.m4a`, pictures to JPEG |
+| iPhone voicemail | `People/<Person>/Voicemail/Attachments/` | `.amr` to `.m4a` |
+| Mail | `People/<Person>/Mail/<Account>/Attachments/` | never |
+| iMessage | `People/<Person>/iMessage/Attachments/` | pictures to JPEG, `.caf` voice notes to `.m4a` |
 
 ## How to measure success
 
