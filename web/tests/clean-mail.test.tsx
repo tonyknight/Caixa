@@ -163,6 +163,17 @@ describe('the Clean mail window', () => {
     expect(within(done).getByRole('link', { name: 'Sort the cleaned mbox' }).getAttribute('href')).toBe('/mail/sort?source=12')
   })
 
+  it('shows a meter beside Write and keeps it disabled until the job ends', async () => {
+    const view = await opened()
+    view.api.generic['mail.clean.write'] = () => ok(job({ id: 9, kind: 'mail-clean', collector: null, status: 'queued', result: null }))
+    fireEvent.click(screen.getByRole('button', { name: 'Write the cleaned mbox' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: /Leave out 11 mails/ })).getByRole('button', { name: 'Write it' }))
+    await view.flush()
+    const bar = screen.getByRole('contentinfo')
+    expect((within(bar).getByRole('button', { name: 'Write the cleaned mbox' }) as HTMLButtonElement).disabled).toBe(true)
+    expect(within(bar).getByRole('status', { name: 'Writing progress' }).textContent).toContain('Starting')
+  })
+
   it('reads another mbox with its account, then cleans what it read', async () => {
     const view = await renderWith(<CleanMail />, api => scripted(api))
     fireEvent.change(screen.getByLabelText('The mbox'), { target: { value: '/exports/takeout.zip' } })

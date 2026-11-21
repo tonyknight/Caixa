@@ -192,6 +192,35 @@ describe('the Sort mail window', () => {
     expect(view.api.calls.filter(c => c[1] === 'mail.senders').length).toBeGreaterThan(asked)
   })
 
+  it('shows a meter beside Import from the click to the end of the job, and keeps it disabled', async () => {
+    const view = await opened()
+    let answer: (value: unknown) => void = () => undefined
+    view.api.generic['mail.import.preview'] = () => new Promise(resolve => { answer = resolve }) as never
+    view.api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    const bar = () => screen.getByRole('contentinfo')
+    const button = () => within(bar()).getByRole('button', { name: 'Import' }) as HTMLButtonElement
+    fireEvent.click(button())
+    await view.flush()
+    expect(within(bar()).getByRole('status', { name: 'Import progress' }).textContent).toContain('Counting')
+    expect(button().disabled).toBe(true)
+    answer(ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 }))
+    await view.flush()
+    fireEvent.click(within(screen.getByRole('dialog', { name: /Import 5 mails/ })).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    // the window has not heard of the job yet: still busy, the meter says it is starting
+    expect(button().disabled).toBe(true)
+    expect(within(bar()).getByRole('status', { name: 'Import progress' }).textContent).toContain('Starting')
+    view.api.jobList = [{ ...job9, status: 'running', stage: 'filing', current: 3, total: 12, result: null }]
+    await view.emit('job.progress', { job: 9, stage: 'filing', current: 3, total: 12, message: '' })
+    const meter = within(bar()).getByRole('status', { name: 'Import progress' })
+    expect(meter.textContent).toContain('Filing')
+    expect(meter.textContent).toContain('3 of 12')
+    expect(button().disabled).toBe(true)
+    await view.emit('job.finished', { ...job9, status: 'done', job: 9 })
+    await view.flush()
+    expect(within(bar()).queryByRole('status', { name: 'Import progress' })).toBeNull()
+  })
+
   it('writes the reduced mbox after an import, after asking', async () => {
     const view = await opened()
     view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })

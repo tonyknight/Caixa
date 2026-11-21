@@ -4,6 +4,7 @@ import { ProgressView } from '../components/Progress.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import { MailList, useCounts, type Category, type RowTool } from './MailList.tsx'
 import { Preview } from './Preview.tsx'
+import { InlineProgress, ended } from './InlineProgress.tsx'
 import { Sources } from './Sources.tsx'
 import { size, sourceName, type CleanReply, type CleanWritten, type SenderRow } from './types.ts'
 import css from './mail.module.css'
@@ -55,7 +56,7 @@ export function CleanMail() {
     setAsking(false)
     if (source === undefined) return
     const started = await store.api.call<Job>('mail.clean.write', { source })
-    if (started.ok) { setWriting(started.result.id); setStarted(Date.now()) } else setFailure(started.error.message)
+    if (started.ok) { setWriting(started.result.id); setStarted(Date.now()); void store.refreshJobs() } else setFailure(started.error.message)
   }
 
   if (source === undefined || !reply) {
@@ -124,8 +125,11 @@ export function CleanMail() {
         actions={(selected, done) => view === KEPT
           ? <button type="button" className={css.pill} onClick={() => { done(); void keep(selected, false) }}>{t('mail.unkeep')}</button>
           : junk ? <button type="button" className={css.pill} onClick={() => { done(); void keep(selected, true) }}>{t('mail.keep')}</button> : null}
-        primary={<button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={job !== undefined && !written && job.status !== 'failed'}
-                         onClick={() => setAsking(true)}>{t('mail.write')}</button>}
+        primary={<>
+          <button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={writing !== undefined && !ended(job)}
+                  onClick={() => setAsking(true)}>{t('mail.write')}</button>
+          {writing !== undefined && !ended(job) && <InlineProgress label={t('mail.write.progress')} counting={false} job={job} startedAt={started} />}
+        </>}
         quiet={looking !== undefined || asking}
       />
       {looking && <Preview source={source} sender={looking} onClose={() => setLooking(undefined)} />}

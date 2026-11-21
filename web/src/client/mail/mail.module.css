@@ -131,3 +131,5 @@
 }
 
 .selectAll { margin: 0; cursor: pointer; accent-color: var(--accent, #5e81ac); }
+.inlineProgress { display: inline-flex; align-items: center; gap: .5rem; margin-left: .6rem; font-size: .82rem; color: var(--muted, #4c566a); white-space: nowrap; }
+.inlineProgress progress { width: 7rem; height: .5rem; }

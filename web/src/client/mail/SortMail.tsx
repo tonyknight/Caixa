@@ -4,6 +4,7 @@ import { IMPORT_STAGES, ProgressView } from '../components/Progress.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import { MailList, useCounts, type Category, type RowTool } from './MailList.tsx'
 import { Preview } from './Preview.tsx'
+import { InlineProgress, ended } from './InlineProgress.tsx'
 import { Sources } from './Sources.tsx'
 import { size, sourceName, type CleanWritten, type ImportPreview, type OwnerAddresses, type SenderRow, type SortReply, type SortRow } from './types.ts'
 import css from './mail.module.css'
@@ -36,6 +37,7 @@ export function SortMail() {
   const [owner, setOwner] = useState<OwnerAddresses | undefined>()
   const [asking, setAsking] = useState<ImportPreview | undefined>()
   const [importing, setImporting] = useState<number | undefined>()
+  const [counting, setCounting] = useState(false)
   const [started, setStarted] = useState(0)
   const [reducing, setReducing] = useState<number | undefined>()
   const [askReduce, setAskReduce] = useState(false)
@@ -107,14 +109,17 @@ export function SortMail() {
     await refresh(source)
   }
   const askImport = async () => {
+    setCounting(true)
+    setStarted(Date.now())
     const preview = await store.api.call<ImportPreview>('mail.import.preview', { source })
+    setCounting(false)
     if (preview.ok) setAsking(preview.result)
     else setFailure(preview.error.message)
   }
   const startImport = async () => {
     setAsking(undefined)
     const started = await store.api.call<Job>('mail.import', { source })
-    if (started.ok) { setImporting(started.result.id); setStarted(Date.now()) } else setFailure(started.error.message)
+    if (started.ok) { setImporting(started.result.id); setStarted(Date.now()); void store.refreshJobs() } else setFailure(started.error.message)
   }
   const reduce = async () => {
     setAskReduce(false)
@@ -168,7 +173,9 @@ export function SortMail() {
   const conversations = picked.threads === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: picked.threads.toLocaleString('en') })
   const unconfirmed = owner && owner.confirmed.length === 0 && owner.proposed.length > 0
   const done = job?.status === 'done' ? (job.result as unknown as { mails: number; conversations: number }) : undefined
-  const busy = job !== undefined && !done && job.status !== 'failed'
+  // busy from the click until the job is known to have ended (the window may not have heard of it yet)
+  const running = importing !== undefined && !ended(job)
+  const busy = counting || running
   const threads = (n: number) => (n === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: n.toLocaleString('en') }))
 
   return (
@@ -198,7 +205,7 @@ export function SortMail() {
               <a className={`${css.pill} ${css.pillPrimary}`} href={`/mail/sort?source=${reduced.source_id}`}>{t('mail.sortReduced')}</a>
             </div>
           )}
-          {busy && job && (
+          {running && job && (
             <div className={css.writingBar}>
               <span>{t('mail.import.importing')}</span>
               <ProgressView step={job.stage ? { stage: job.stage, current: job.current, total: job.total, message: job.message ?? '' } : undefined}
@@ -235,6 +242,7 @@ export function SortMail() {
         primary={<>
           <span className={css.bring}>{t('mail.bring', { mails: counts.mails(picked.mails), threads: conversations, size: size(picked.size) })}</span>{' '}
           <button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={picked.mails === 0 || busy} onClick={() => void askImport()}>{t('mail.import')}</button>
+          {busy && <InlineProgress label={t('mail.import.progress')} counting={counting} job={job} startedAt={started} />}
         </>}
         quiet={looking !== undefined || naming !== undefined || asking !== undefined || askReduce}
       />
