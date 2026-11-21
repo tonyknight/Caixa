@@ -72,6 +72,17 @@ _COMMON_OPTIONS: dict[str, Any] = {
         "title": "Your name",
         "description": "Who 'me' is. Leave empty to use the owner of this box.",
     },
+    # No fixed default: when a caller does not say, the box's translation setting decides.
+    "translate": {
+        "type": "boolean",
+        "title": "Translate",
+        "description": (
+            "Translate the messages that need it during this import, with the translation set up "
+            "in Settings. Turn off for an export you know needs none, to save time; a later "
+            "import with it on catches up."
+        ),
+        "x-setting": "translation.enabled",
+    },
 }
 
 
@@ -577,7 +588,9 @@ class _Chattr:
 
         progress(Progress("linking", message="Matching people"))
         notes += self._name_people(settings, opts, owner, aliases)
-        translated, said = self._translate(box, settings, progress)
+        translated, said = (
+            self._translate(box, settings, progress) if opts.get("translate") else (0, [])
+        )
         result = self._publish(box, settings, progress)
         result.translated = translated
         result.warnings[:0] = [*notes, *said]

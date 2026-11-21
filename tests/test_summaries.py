@@ -305,3 +305,41 @@ def test_an_endpoint_that_fails_does_not_fail_the_import(
     assert any("ummar" in w for w in done["result"]["warnings"])
     assert all(t[1] is None for t in _threads(service))
     assert re.search(r"Hi Maria, we meet on the 9th", _beatriz(service))
+
+
+# --- Summarize, or not, for each import, and why none were written (hot fix 18) -------------------
+
+
+def _import_with(service: Service, source: int, **switches: bool) -> dict[str, Any]:
+    done = service.wait(
+        service.call("mail.import", {"source": source, **switches})["id"], timeout=120
+    )
+    assert done["status"] == "done", done["error"]
+    return done
+
+
+def test_an_import_with_summarize_off_writes_none_and_says_so(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    server.respond = _summary_for
+    _turn_on(service, server)
+    done = _import_with(service, _source(service, tmp_path, noisy_mail), summarize=False)
+    assert server.requests == [] and done["result"]["summaries"]["reason"] == "off_for_job"
+    assert done["options"]["summarize"] is False
+
+
+def test_an_import_says_summaries_are_off_in_settings(
+    service: Service, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    done = _import_with(service, _source(service, tmp_path, noisy_mail))
+    assert done["result"]["summaries"]["written"] == 0
+    assert done["result"]["summaries"]["reason"] == "off"
+
+
+def test_a_failing_endpoint_is_the_reason(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    server.status = 500
+    _turn_on(service, server)
+    done = _import_with(service, _source(service, tmp_path, noisy_mail))
+    assert done["result"]["summaries"]["reason"] == "failed"

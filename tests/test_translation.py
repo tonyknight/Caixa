@@ -217,3 +217,36 @@ def test_a_translation_service_that_is_down_does_not_fail_the_import(
     assert result.inserted > 0 and result.translated == 0
     (note,) = [w for w in result.warnings if "ranslat" in w]
     assert "Could not reach the translation server" in note and "Test" in note
+
+
+# --- Translate, or not, for each import (hot fix 18) ----------------------------------------------
+
+
+def test_an_import_with_translate_off_sends_nothing_while_translation_is_on(
+    messenger: Collector, fixture_family, box: Box, server: StubServer
+) -> None:
+    _on(box, server.endpoint)
+    events: list[Progress] = []
+    result = messenger.run(
+        box, fixture_family.paths["messenger"], {"translate": False}, events.append
+    )
+    assert result.inserted > 0 and result.translated == 0 and server.requests == []
+    assert "translating" not in [e.stage for e in events]
+
+
+def test_the_wizard_offers_translate_starting_from_the_setting(
+    tmp_path: Path, server: StubServer
+) -> None:
+    service = Service(roots=[tmp_path])
+    service.box_create(str(tmp_path / "Box"), name="Box", owner=family.OWNER.name)
+
+    def offered() -> dict:  # type: ignore[type-arg]
+        whatsapp = next(c for c in service.call("collectors.list") if c["id"] == "whatsapp")
+        return whatsapp["options_schema"]["properties"]["translate"]
+
+    assert offered()["type"] == "boolean" and offered()["default"] is False
+    service.call("settings.set", {"values": {"translation.enabled": True,
+                                             "translation.endpoint": server.endpoint,
+                                             "translation.model": "m"}})  # fmt: skip
+    assert offered()["default"] is True
+    service.close()

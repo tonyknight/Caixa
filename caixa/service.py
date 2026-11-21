@@ -1236,15 +1236,24 @@ class Service:
         }
 
     @method("mail.import", write=True)
-    def mail_import(self, source: int) -> dict[str, Any]:
-        """Import the conversations an mbox's chosen senders bring, as a job (it can be undone)."""
+    def mail_import(
+        self, source: int, translate: Optional[bool] = None, summarize: Optional[bool] = None
+    ) -> dict[str, Any]:
+        """Import the conversations an mbox's chosen senders bring, as a job (it can be undone).
+        `translate` and `summarize` choose for this job; left out, the box's settings decide."""
         box = self._require_box()
+        saved = settings.load(box)
         with mail_index.MailIndex.for_box(box, read_only=True) as index:
             info = self._mail_source(index, int(source))
             picked = self._mail_choice(box, index, int(source))[3]
         if not picked.mails:
             raise ServiceError("input", "Nothing is chosen to import from this mbox.")
-        return self._enqueue("mail-import", "mail", str(info["path"]), {"source": int(source)})
+        options = {
+            "source": int(source),
+            "translate": bool(saved.get("translation.enabled")) if translate is None else translate,
+            "summarize": bool(saved.get("summaries.enabled")) if summarize is None else summarize,
+        }
+        return self._enqueue("mail-import", "mail", str(info["path"]), options)
 
     def _mail_import(
         self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
@@ -1271,7 +1280,16 @@ class Service:
         undo.begin(box, job["id"], "mail", job["source"])
         try:
             result = asdict(
-                collector.run(box, target, {"account": account, "workers": workers}, progress)
+                collector.run(
+                    box,
+                    target,
+                    {
+                        "account": account,
+                        "workers": workers,
+                        "translate": job["options"].get("translate", True),
+                    },
+                    progress,
+                )
             )
             with box.master() as master:
                 recorded = mail_records.record_mail(
@@ -1286,7 +1304,9 @@ class Service:
                 [(source, p, int(job["id"])) for p in positions],
             )
         warnings = list(result.get("warnings") or [])
-        result["summaries"] = self._summarize(box, progress, warnings, after_import=True)
+        result["summaries"] = self._summarize(
+            box, progress, warnings, after_import=True, wanted=job["options"].get("summarize", True)
+        )
         result["warnings"] = warnings
         return {
             **result,
@@ -1316,13 +1336,21 @@ class Service:
         progress: Callable[[Progress], None],
         warnings: list[str],
         after_import: bool = False,
+        wanted: bool = True,
     ) -> dict[str, Any]:
         """Write the summaries that are missing, then redraw the pages when any was written.
         After an import nothing here fails it: what went wrong is a warning, the entries show
         the opening words, and `mail.summarize` can add the summaries later."""
-        values = settings.load(box)
-        if not summaries.ready(values):
-            return {"written": 0, "left": len(summaries.pending(box)), "model": "", "error": None}
+        # this job's switch decides; Settings say what it starts as and how summaries are reached
+        values = {**settings.load(box), "summaries.enabled": True}
+        reason = None
+        if not wanted:
+            reason = "off_for_job" if settings.load(box).get("summaries.enabled") else "off"
+        elif not summaries.ready(values):
+            reason = "not_set_up"
+        if reason:
+            left = len(summaries.pending(box))
+            return {"written": 0, "left": left, "model": "", "error": None, "reason": reason}
         later = " The entries show each conversation's first words until then; Summarize mail adds the summaries later."
         try:
             outcome = summaries.run(box, values, progress, self._keys())
@@ -1335,6 +1363,7 @@ class Service:
                 "left": len(summaries.pending(box)),
                 "model": "",
                 "error": "stopped",
+                "reason": "failed",
             }
         except TranslationError as error:  # (the settings could not make a client)
             outcome = {
@@ -1347,6 +1376,10 @@ class Service:
             warnings.append(f"Some summaries could not be written: {outcome['error']}." + later)
         if outcome["written"]:
             self._refresh_all(box, progress)  # the pages, with the summaries
+        outcome["reason"] = (
+            "failed" if outcome["error"] and not outcome["written"]
+            else "nothing_new" if not outcome["written"] else None
+        )  # fmt: skip
         return outcome
 
     def _mail_summarize(self, box: Box, progress: Callable[[Progress], None]) -> dict[str, Any]:
