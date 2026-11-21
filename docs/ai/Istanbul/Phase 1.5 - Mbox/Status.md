@@ -6,27 +6,24 @@
 
 Mail without the noise: clean an mbox of junk, sort it by sender, import only the conversations that matter, summarize each one locally, and keep what is left in a smaller mbox
 
-## In progress (1)
+## In progress (0)
 
-- **20261120-10-conversation-pages-and-attachments** Conversation pages and attachments [high] — plan done · 3/3
-  - checkboxes: 3/8
+_No tickets in progress._
 
-## Blocked (3)
+## Blocked (1)
 
-- **20261120-11-the-person-page-s-entry-and-the-overlay** The person page's entry and the overlay [high]
-  - depends on: 20261120-10-conversation-pages-and-attachments (not yet marked blocked)
 - **20261120-12-local-summaries** Local summaries [medium]
   - depends on: 20261120-11-the-person-page-s-entry-and-the-overlay (not yet marked blocked)
+
+## Up next (2)
+
+- **20261120-11-the-person-page-s-entry-and-the-overlay** The person page's entry and the overlay [high]
 - **20261120-14-attachments-folders-for-every-source** Attachments folders for every source [medium]
-  - depends on: 20261120-10-conversation-pages-and-attachments (not yet marked blocked)
 
-## Up next (0)
-
-_No actionable todo tickets._
-
-## Recently completed (last 10 of 11)
+## Recently completed (last 10 of 12)
 
 - **20261120-08-how-mail-bodies-look** How mail bodies look (closed 2026-11-21)
+- **20261120-10-conversation-pages-and-attachments** Conversation pages and attachments (closed 2026-11-21)
 - **20261120-01-synthetic-mail-fixtures** Synthetic mail fixtures (closed 2026-11-20)
 - **20261120-02-mail-index-and-parallel-reading** Mail index and parallel reading (closed 2026-11-20)
 - **20261120-03-junk-classifier-and-the-receipts-guard** Junk classifier and the receipts guard (closed 2026-11-20)
@@ -35,9 +32,8 @@ _No actionable todo tickets._
 - **20261120-06-senders-known-and-what-a-choice-brings** Senders, Known and what a choice brings (closed 2026-11-20)
 - **20261120-07-the-sort-mail-window** The Sort mail window (closed 2026-11-20)
 - **20261120-09-import-the-chosen-conversations** Import the chosen conversations (closed 2026-11-20)
-- **20261120-13-reduce** Reduce (closed 2026-11-20)
 
 ## Stats
 
-- Total: 15 tickets · 11 done · 3 todo · 1 in-progress · 0 blocked
+- Total: 15 tickets · 12 done · 3 todo · 0 in-progress · 0 blocked
 - By type: 12 feature · 2 chore · 1 spike

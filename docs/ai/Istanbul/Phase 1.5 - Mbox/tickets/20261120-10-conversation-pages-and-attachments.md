@@ -3,11 +3,12 @@ id: 20261120-10-conversation-pages-and-attachments
 title: Conversation pages and attachments
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: conversation pages as cards with their person, attachments dated, master
+  knows page and home.'
 parent:
 depends_on:
 - 20261120-08-how-mail-bodies-look
@@ -22,11 +23,11 @@ attachments in `Attachments/`, and retire Phase 1's mail pages.
 
 ## Acceptance criteria
 
-- [ ] One page per conversation, named `(YYYY-MM-DD) <subject>.html` (` (2)` on a clash), in its home person's folder
-- [ ] Cards in date order: subject on the top border; date and time with offset; sender and recipients by name and address; the body drawn the way chosen in ticket 8; attachments; a closed All headers fold. Nord light and dark, no script, readable from disk
-- [ ] Attachments in `Mail/<Account>/Attachments/` named `(YYYY-MM-DD) <original name>`; same content once; a different file of the same name that day numbered
-- [ ] One-pixel images dropped; a small inline image repeated once by a sender (same name and pixel size) kept once and linked
-- [ ] The top-level `Mail/` folder and the per-thread pages of Phase 1 gone; their tests updated
+- [x] One page per conversation, named `(YYYY-MM-DD) <subject>.html` (` (2)` on a clash), in its home person's folder
+- [x] Cards in date order: subject on the top border; date and time with offset; sender and recipients by name and address; the body drawn the way chosen in ticket 8; attachments; a closed All headers fold. Nord light and dark, no script, readable from disk
+- [x] Attachments in `Mail/<Account>/Attachments/` named `(YYYY-MM-DD) <original name>`; same content once; a different file of the same name that day numbered
+- [x] One-pixel images dropped; a small inline image repeated once by a sender (same name and pixel size) kept once and linked
+- [x] The top-level `Mail/` folder and the per-thread pages of Phase 1 gone; their tests updated
 
 ## Context
 
@@ -96,10 +97,18 @@ and files it the new way, and mail without an account (Chattr on its own) keeps 
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Mail imported through the mail workflow is filed with its person: one page per conversation at `People/<Person>/Mail/<Account>/(YYYY-MM-DD) <subject>.html`, drawn as cards (subject on the top border, names and addresses, date and offset, the mail's own HTML made safe in a frame that runs nothing with its inline pictures embedded, files, a closed All headers fold), attachments in `Attachments/` as `(YYYY-MM-DD) <original name>`, tracking pixels dropped, repeated signature pictures kept once. The master's `mail_threads` rows know their page and home person. New boxes have no top-level `Mail/`; mail without an account (Chattr on its own) keeps Phase 1's pages.
+- **Files:** `tools/chattr/src/chattr/{mail_html.py,render.py,filing.py,pages.py,parsers/mbox_parser.py,templates/conversation.html}`, `caixa/mail/{render.py,records.py}`, `caixa/box.py`, `caixa/undo.py`; tests `tests/test_mail_{filing,records,render}.py`, `tests/test_collector_contract.py`, `tools/chattr/tests/test_mbox_accounts.py`.
+- **Errors:** mypy refused `safe_name` through `chattr.filing` (not re-exported); imported from `chattr.attachment_manager`. The offset test used an ASCII hyphen; the pages use the minus sign (U+2212), as Phase 1's do.
+- **Verify:** `python -m pytest -q` 1405 passed, 1 skipped; black clean; mypy clean (76 files); web `tsc` clean, vitest 248 passed.
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: times on mail cards show seconds (`19:00:00`), as Phase 1's mail pages do; minutes would read better for mail.
+- Minor: a picture sent inline but larger than 4 MB is listed with the files rather than shown in the mail's frame (by design; noted for the first real mbox).
+- Spec: files touched match the plan; acceptance criteria met; RED then GREEN recorded per task (the T03 tests failed on the missing cards and the empty `page` before the code).
 
 ## Notes
 
