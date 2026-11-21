@@ -3,11 +3,12 @@ id: 20261120-12-local-summaries
 title: Local summaries
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: summaries after import and on demand, 30-50 words, shown on entries
+  with the model''s name.'
 parent:
 depends_on:
 - 20261120-09-import-the-chosen-conversations
@@ -22,12 +23,12 @@ import by an OpenAI-compatible endpoint.
 
 ## Acceptance criteria
 
-- [ ] Settings → Summaries: on/off, endpoint (translation's by default), model, allow a service on the internet, Test with a fixed synthetic conversation
-- [ ] Quoted history and signatures removed; long conversations within a size budget
-- [ ] Answers checked for 30–50 words (one retry, then cut at a sentence); stored in `mail_threads` with model and date; the entry says it was written by a model
-- [ ] A job stage with progress that resumes after a cancel and redoes only conversations that gained mails
-- [ ] Without an endpoint the import completes and entries show the opening words; summaries are added later
-- [ ] Tests use a stand-in endpoint only
+- [x] Settings → Summaries: on/off, endpoint (translation's by default), model, allow a service on the internet, Test with a fixed synthetic conversation
+- [x] Quoted history and signatures removed; long conversations within a size budget
+- [x] Answers checked for 30–50 words (one retry, then cut at a sentence); stored in `mail_threads` with model and date; the entry says it was written by a model
+- [x] A job stage with progress that resumes after a cancel and redoes only conversations that gained mails
+- [x] Without an endpoint the import completes and entries show the opening words; summaries are added later
+- [x] Tests use a stand-in endpoint only
 
 ## Context
 
@@ -105,10 +106,20 @@ call, which `translate` now uses) and the same "a service on the internet needs 
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Each imported mail conversation gets a 30–50-word summary in its own language from the endpoint and model in Settings → Summaries (translation's when left empty; a service on the internet needs its own yes). What is sent leaves out quoted earlier mail and signatures and stays within 12,000 characters (the first and last mails when longer). The answer is held to 30–50 words (one retry, then cut at a sentence) and stored in `mail_threads` with its model, date and the hash of its mails. The mail import summarizes after recording (progress shown; a failure or a cancel is a warning, never a failed import) and redraws the pages; `mail.summarize` (Summarize mail now) does it later, resuming where a run stopped and redoing only conversations that gained mails. The person page's entry shows the summary with "Summary written by <model>", or the opening words until there is one.
+- **Files:** `caixa/summaries.py` (new), `caixa/settings.py`, `caixa/service.py`, `caixa/collectors/chattr.py`, `tools/chattr/src/chattr/{translation.py,commands.py,pages.py}`, `tools/chattr/src/chattr/templates/{page.html,base.html}`, `web/src/client/{api.ts,locales.ts,Toasts.tsx}`, `web/src/client/pages/{SettingsPage,JobsPage}.tsx`, `caixa/data/web/*`; tests `tests/test_summaries.py` (new), `tests/test_worker_protocol.py`, `tools/chattr/tests/stub_server.py`, `web/tests/{settings-page,jobs-page}.test.tsx`, `web/tests/fake-api.ts`, `web/tests/e2e-translation.test.ts`.
+- **Errors:** black could not format a `# fmt: skip` inside a split string (rewritten plainly); mypy: `Collector` has no `refresh` (the pages are redrawn through `_refresh_all`); the translation e2e test's label lookup became ambiguous (made exact).
+- **Verify:** `python -m pytest -q` 1428 passed, 1 skipped; black and mypy clean (77 files); web `tsc` clean, vitest 253 passed (after the e2e fix).
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: the API key is translation's and is sent only to the host it was saved for, so a summaries endpoint on another paid host has no key (a model on this computer, or the translation service, needs none extra).
+- Minor: redrawing the pages after summarizing records itself as an import that changed nothing, as every redraw does.
+- Minor: whether a summary is in the conversation's language rests on the model; the stand-in endpoint cannot show it. Check on the first real mbox.
+- Minor: the Jobs page and toast tests were written after their code.
+- Spec: files touched match the plan; all acceptance criteria met.
 
 ## Notes
 
