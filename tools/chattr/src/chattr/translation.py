@@ -243,28 +243,34 @@ class OpenAICompatibleTranslator:
         handlers = [] if not is_local_endpoint(endpoint) else [urllib.request.ProxyHandler({})]
         self._opener = urllib.request.build_opener(*handlers)
 
-    def translate(self, text: str) -> Translation:
-        payload = {
-            "model": self.model,
-            "temperature": 0,
-            "messages": [
-                {"role": "system", "content": INSTRUCTION.format(language=self.target_language)},
-                {"role": "user", "content": text},
-            ],
-        }
+    #: What the server is called in what goes wrong ("the translation server", "the summary
+    #: server"), so a person knows which setting to look at.
+    server_name = "translation server"
+
+    def chat(
+        self, messages: list[dict[str, str]], temperature: float = 0
+    ) -> tuple[str, dict[str, Any]]:
+        """Send a conversation (`[{role, content}, …]`); the reply's text and its `usage`."""
+        payload = {"model": self.model, "temperature": temperature, "messages": messages}
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
-        body = json.dumps(payload).encode("utf-8")
-        data = self._post(body, headers)
+        data = self._post(json.dumps(payload).encode("utf-8"), headers)
         try:
             reply = str(data["choices"][0]["message"]["content"])
         except (KeyError, IndexError, TypeError) as error:
-            raise TranslationError("The translation server's reply had no translation.") from error
-        translated = clean_reply(text, reply)
-        usage = data.get("usage") or {}
+            raise TranslationError(f"The {self.server_name}'s reply had no text.") from error
+        return reply, (data.get("usage") or {}) if isinstance(data, dict) else {}
+
+    def translate(self, text: str) -> Translation:
+        reply, usage = self.chat(
+            [
+                {"role": "system", "content": INSTRUCTION.format(language=self.target_language)},
+                {"role": "user", "content": text},
+            ]
+        )
         return Translation(
-            translated,
+            clean_reply(text, reply),
             int(usage.get("prompt_tokens") or 0),
             int(usage.get("completion_tokens") or 0),
         )
@@ -285,7 +291,7 @@ class OpenAICompatibleTranslator:
                         pause = 0.0
                     self._wait(min(30.0, pause or 2.0 * attempt))
                     continue
-                why = _WHY.get(error.code, "The translation server answered with an error")
+                why = _WHY.get(error.code, f"The {self.server_name} answered with an error")
                 said = _server_said(error)
                 raise TranslationError(
                     f"{why} (HTTP {error.code})" + (f": {said}" if said else ".")
@@ -293,10 +299,10 @@ class OpenAICompatibleTranslator:
             except (urllib.error.URLError, TimeoutError, OSError) as error:
                 reason = getattr(error, "reason", error)
                 raise TranslationError(
-                    f"Could not reach the translation server: {reason}"
+                    f"Could not reach the {self.server_name}: {reason}"
                 ) from error
             except ValueError as error:
-                raise TranslationError("The translation server did not send JSON.") from error
+                raise TranslationError(f"The {self.server_name} did not send JSON.") from error
 
 
 def make_translator(

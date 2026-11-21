@@ -3,7 +3,7 @@
 Everything here is a plain value with a default, described by a JSON Schema so the Settings page
 can render a form without knowing any of it. Nothing is ever sent anywhere unless a person turns it
 on and names the place; and a place on the internet needs a second, explicit yes
-(`translation.allow_remote`). The key a paid translation service needs is not a setting and is not
+(`translation.allow_remote`, `summaries.allow_remote`). The key a paid service needs is not a setting and is not
 kept in the box: see `caixa.translation.Keys`.
 """
 
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from caixa.box import Box
-from caixa import translation
+from caixa import summaries, translation
 from caixa.collectors.options import OptionsError, defaults, validate
 
 SCHEMA: dict[str, Any] = {
@@ -98,6 +98,45 @@ SCHEMA: dict[str, Any] = {
                 "charge for it. Leave off to keep translation on this computer."
             ),
         },
+        "summaries.enabled": {
+            "type": "boolean",
+            "default": False,
+            "title": "Summarize mail conversations",
+            "description": (
+                "Off by default. When on, each mail import asks the model below for a summary of "
+                "30 to 50 words of every conversation it brought in, in the conversation's own "
+                "language, shown on the person pages and marked as written by a model. Mail text "
+                "is sent only to the endpoint below."
+            ),
+        },
+        "summaries.endpoint": {
+            "type": "string",
+            "default": "",
+            "title": "Summaries endpoint",
+            "description": (
+                "An OpenAI-compatible address, as for translation. Leave empty to use the "
+                "translation endpoint."
+            ),
+        },
+        "summaries.model": {
+            "type": "string",
+            "default": "",
+            "title": "Summaries model",
+            "description": (
+                "The model's name as the endpoint knows it. Leave empty to use the translation "
+                "model."
+            ),
+        },
+        "summaries.allow_remote": {
+            "type": "boolean",
+            "default": False,
+            "title": "Allow a service on the internet for summaries",
+            "description": (
+                "Needed for a summaries endpoint that is not on this computer: the text of the "
+                "mails being summarized is sent to that service, and it may charge for it. "
+                "When summaries use the translation endpoint, translation's yes is enough."
+            ),
+        },
         "workers": {
             "type": "integer",
             "default": min(os.cpu_count() or 1, 12),
@@ -142,7 +181,7 @@ def load(box: Box) -> dict[str, Any]:
 def save(box: Box, values: Mapping[str, Any]) -> dict[str, Any]:
     """Change settings (raises `OptionsError` listing every problem, saving nothing)."""
     merged = validate(SCHEMA, {**load(box), **values}, subject="the settings")
-    wrong = translation.problems(merged)
+    wrong = translation.problems(merged) + summaries.problems(merged)
     contacts_file = str(merged.get("contacts.file") or "").strip()
     if contacts_file and not Path(contacts_file).expanduser().is_file():
         wrong.append(f"Contacts file: there is no file at {contacts_file}.")

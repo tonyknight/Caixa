@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+from typing import Any, Callable
 
 
 class StubServer:
@@ -17,6 +17,8 @@ class StubServer:
         }
         self.status = 200
         self.raw: bytes | None = None
+        #: When set, the answer to each request (its JSON in, the reply out), instead of `reply`.
+        self.respond: Callable[[dict[str, Any]], Any] | None = None
         owner = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -25,7 +27,8 @@ class StubServer:
                 owner.requests.append(
                     {"path": self.path, "headers": dict(self.headers), "json": json.loads(body)}
                 )
-                payload = owner.raw if owner.raw is not None else json.dumps(owner.reply).encode()
+                reply = owner.respond(json.loads(body)) if owner.respond else owner.reply
+                payload = owner.raw if owner.raw is not None else json.dumps(reply).encode()
                 self.send_response(owner.status)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(payload)))

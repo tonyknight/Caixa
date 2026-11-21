@@ -37,7 +37,7 @@ from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import is_local_endpoint
 
 from caixa import owner as owner_file
-from caixa import settings, translation, undo
+from caixa import settings, summaries, translation, undo
 from caixa.box import Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
@@ -480,6 +480,12 @@ class Service:
         """Try the endpoint, model and key (the saved key unless one is given) with one fixed
         sentence. Nothing from the box is sent."""
         return translation.check(values, self._keys(), key or None)
+
+    @method("summaries.test")
+    def summaries_test(self, values: dict[str, Any], key: str = "") -> dict[str, Any]:
+        """Try the summaries endpoint and model (translation's when empty) on a made-up
+        conversation. Nothing from the box is sent."""
+        return summaries.check(values, self._keys(), key or None)
 
     @method("settings.set", write=True)
     def settings_set(self, values: dict[str, Any]) -> dict[str, Any]:

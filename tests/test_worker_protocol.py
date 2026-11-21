@@ -31,6 +31,7 @@ ALL_METHODS = {
     "contacts.check",
     "translation.key",
     "translation.test",
+    "summaries.test",
     "import.preview",
     "import.preview.cancel",
     "import.start",
