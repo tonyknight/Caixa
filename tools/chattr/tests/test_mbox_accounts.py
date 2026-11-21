@@ -82,3 +82,15 @@ def test_one_or_three_workers_build_the_same_records(tmp_path: Path) -> None:
         p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()
     )  # noqa: E731
     assert stored(tmp_path / "files-1") == stored(tmp_path / "files-3") != []
+
+
+def test_the_parser_keeps_content_ids_and_the_header_block(tmp_path: Path) -> None:
+    noisy = build_noisy_mbox(tmp_path / "noisy")
+    batches = MboxParser(attachments_dir=tmp_path / "files", account="Gmail").parse(noisy.gmail)
+    records = {r.source_id: r for b in batches for r in b.records}
+    logo = records["beatriz-1@example.net"]
+    ids = logo.service_specific["content_ids"]
+    assert ids == {"logo.png.beatriz-1@noisy.example": logo.attachments[0].sha256}
+    headers = logo.service_specific["headers"]
+    assert "X-Gmail-Labels: Inbox" in headers and "Subject: Book club in March" in headers
+    assert "content_ids" not in records["joao-attic-1@example.org"].service_specific

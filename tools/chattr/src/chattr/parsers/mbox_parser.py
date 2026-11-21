@@ -286,6 +286,12 @@ class MboxParser(BaseParser):
         html = _body(message.get_body(preferencelist=("html",)))
         text = (plain if plain is not None else html_to_text(html or "")).strip()
         extras: dict[str, Any] = {"body_html": html} if html else {}
+        # What a page of the mail needs that the record has no field for: which file each
+        # `cid:` in the HTML means, and the header block (shown folded under each mail).
+        content_ids = self._content_ids(message)
+        if content_ids:
+            extras["content_ids"] = content_ids
+        extras["headers"] = "".join(f"{k}: {v}\n" for k, v in message.raw_items())[:HEADERS]
         if self.account:
             extras["account"] = self.account
         attachments = tuple(self._attachments(message))
@@ -304,6 +310,17 @@ class MboxParser(BaseParser):
             service_specific=extras,
             attachments=attachments,
         )
+
+    @staticmethod
+    def _content_ids(message: EmailMessage) -> dict[str, str]:
+        """Content-ID → the SHA-256 of the file it names (the files a mail's HTML shows inline)."""
+        found: dict[str, str] = {}
+        for part in _attachment_parts(message):
+            content_id = str(part.get("Content-ID", "") or "").strip().strip("<>").strip()
+            payload = part.get_payload(decode=True)
+            if content_id and isinstance(payload, bytes) and payload:
+                found[content_id] = hashlib.sha256(payload).hexdigest()
+        return found
 
     def _attachments(self, message: EmailMessage) -> list[AttachmentRecord]:
         """Every file the mail carries (attachments, inline files, forwarded mails), by hash."""
@@ -378,6 +395,9 @@ class MboxParser(BaseParser):
 
         return replace(first, mail_headers=headers)
 
+
+#: The most of a mail's header block kept with it (for the page's All headers fold).
+HEADERS = 20_000
 
 #: Bytes of mail sent to a worker at once.
 BATCH = 16 * 1024 * 1024

@@ -91,3 +91,12 @@ def test_the_originals_frame_is_sized_to_its_mail() -> None:
         return float(found.group(1))
 
     assert 4 <= rem(short) < 10 < rem(long) <= 60
+
+
+def test_the_safe_html_lives_in_chattr_and_caixa_uses_it() -> None:
+    import chattr.mail_html as chattr_html
+
+    from caixa.mail import render
+
+    assert render.original is chattr_html.original
+    assert render.tidied is chattr_html.tidied and render.plain is chattr_html.plain
