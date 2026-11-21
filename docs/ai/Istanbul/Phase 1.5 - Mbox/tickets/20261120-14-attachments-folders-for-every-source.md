@@ -3,11 +3,12 @@ id: 20261120-14-attachments-folders-for-every-source
 title: Attachments folders for every source
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: <Source>/Attachments/ for every source; older boxes moved once on opening,
+  restartable.'
 parent:
 depends_on:
 - 20261120-10-conversation-pages-and-attachments
@@ -21,11 +22,11 @@ Every source files attachments in an `Attachments/` folder: `People/<Person>/<So
 
 ## Acceptance criteria
 
-- [ ] iMessage, WhatsApp, Messenger, Instagram, Google Voice and voicemail file new attachments in `<Source>/Attachments/`
-- [ ] Opening a box built before this moves its files once; the move can be stopped and restarted without loss
-- [ ] Paths in `chattr.sqlite` and `caixa.sqlite` updated; pages redrawn; a test checks every link on every page resolves
-- [ ] Undo snapshots and re-imports keep working after the move
-- [ ] `docs/Documentation/Collector.md` (Attachments in detail) updated
+- [x] iMessage, WhatsApp, Messenger, Instagram, Google Voice and voicemail file new attachments in `<Source>/Attachments/`
+- [x] Opening a box built before this moves its files once; the move can be stopped and restarted without loss
+- [x] Paths in `chattr.sqlite` and `caixa.sqlite` updated; pages redrawn; a test checks every link on every page resolves
+- [x] Undo snapshots and re-imports keep working after the move
+- [x] `docs/Documentation/Collector.md` (Attachments in detail) updated
 
 ## Context
 
@@ -84,10 +85,18 @@ again.
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Every chat source files its attachments in `<Source>/Attachments/` under the person or group (mail as ticket 10 left it). Filing saves its records as it goes and finds a file whose move was not recorded, so moving can be stopped and repeated without loss. Boxes now carry a `layout` mark; opening an unmarked box starts one Pages redrawn job that moves the files and marks the box, starting again on the next opening if it was stopped. Undo and re-imports keep working after the move, and every link on every page resolves.
+- **Files:** `tools/chattr/src/chattr/filing.py`, `caixa/box.py`, `caixa/service.py`, `docs/Documentation/Collector.md`; tests `tools/chattr/tests/test_filing.py`, `tools/chattr/tests/test_imessage_attachments.py`, `tests/test_chattr_collectors.py`, `tests/test_attachments_move.py` (new).
+- **Errors:** `re` was not imported in filing (the branch that needs it was not reached by the first tests); caught in review of the diff and fixed before commit.
+- **Verify:** `python -m pytest -q` 1436 passed, 1 skipped; black and mypy clean; web `tsc` clean, vitest 253 passed.
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: when two converted files (JPEG or `.m4a`) of the same name in one folder were both moved without being recorded, finding them again matches by name and extension only (their content is no longer the original's), so they could be paired the other way round. It needs a stop at exactly that moment; both files are kept either way.
+- Minor: the stopped-move test may cancel the job before it starts; a move stopped part-way is covered by Chattr's test (`test_a_drawing_stopped_part_way_is_finished_by_the_next`).
+- Spec: files touched match the plan; all acceptance criteria met.
 
 ## Notes
 
