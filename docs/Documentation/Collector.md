@@ -344,16 +344,43 @@ Cleaned or Reduced mbox is checked mail by mail against its source before it is 
 What you decide (senders kept, chosen and ignored, your addresses for each account) is kept in
 `.caixa/owner.json` and outlives a reset.
 
-**What you get, for now.** Imported mail is drawn as before, one page per conversation under
-`Mail/<year>/` with its attachments in `Mail/<year>/Attachments/`; the master database records each
-mail's date, sender, recipients, subject, account and text. Conversation pages filed with each person
-(`People/<Person>/Mail/<Account>/`), an entry per conversation on the person's page opening the
-conversation over it, and short summaries written by a model on your computer come next (Phase 1.5,
-tickets 10 to 12), once the look of mail bodies is chosen.
+**What you get.**
+
+- **A page per conversation**, filed with its person: `People/<Person>/Mail/<Account>/(YYYY-MM-DD)
+  <subject>.html` (` (2)` when two share a day and subject). The person is the one who wrote most of
+  it, or, for your own unanswered mail, the one you wrote to. Each mail is a card in date order: its
+  subject on the card's top edge, who sent it and to whom (names and addresses), the date and time
+  with its offset, the mail as it was sent (its own HTML, made safe: it runs nothing and loads nothing
+  from the internet; pictures sent inside it are shown), its files beneath it, and a closed **All
+  headers** fold.
+- **Its files** in `People/<Person>/Mail/<Account>/Attachments/`, named `(YYYY-MM-DD) <its own
+  name>`: the same file once, a different file of the same name that day numbered. One-pixel
+  tracking pictures are left out, and a small picture a sender repeats in every mail (a logo in a
+  signature) is kept once.
+- **An entry on the person's page** for each conversation, at its first mail, for everyone in the box
+  who is in it: the `@<Account>` pill, who began it, the subject, a short summary (or its first words),
+  how many mails and files, and **Read the conversation**, which shows the conversation over the
+  page (Escape, the cross or a click beside it closes it; **Open in its own window** opens it in a
+  tab). It works from Caixa and from the folder on disk. Someone you know only by mail gets a page too.
+- **The index's Mail view** lists conversations under each account, newest first, and the dashboard
+  counts them by account.
+- **The master database** records each mail's date, sender, recipients, subject, account and text,
+  and each conversation's page, person and summary.
+
+**Summaries.** In Settings → **Summaries**, turn on **Summarize mail conversations** and name an
+OpenAI-compatible endpoint and model (left empty, translation's are used): a model on this computer
+(Ollama, LM Studio) keeps the mail on it; a service on the internet needs **Allow a service on the
+internet for summaries** (translation's yes is enough when summaries use its endpoint). **Test
+summaries** sends a short made-up conversation, never your mail. Each mail import then asks for a
+summary of 30 to 50 words of every conversation it brought in, in the conversation's own language,
+without quoted earlier mail or signatures; the entry says **Summary written by** and the model's name.
+If the endpoint is off or fails, the import still finishes and the entries show each conversation's
+first words; **Summarize mail now** (or turning summaries on later) adds them, picking up where a
+stopped run left off and redoing only conversations that gained mails.
 
 **How mail bodies could look.** `caixa mail sample <mbox> --out <folder>` draws a few conversations
 three ways (plain text, tidied HTML, and the mail's own HTML made safe) as pages you can open side by
-side; none of them runs a script or loads anything from the internet.
+side; none of them runs a script or loads anything from the internet. The box uses the third.
 
 #### Your first own mbox: a checklist
 
@@ -365,9 +392,11 @@ side; none of them runs a script or loads anything from the internet.
 4. Write the cleaned mbox; check that it is beside the source and that the source is unchanged.
 5. **Sort** the cleaned mbox: are the people you know under Known? Is anyone known only by name
    right? Confirm your addresses. Choose a few strangers you want, ignore a few you do not.
-6. **Import**; open the people's pages and the `Mail/` pages; then **Write the reduced mbox** and read
-   it again: imported senders under Imported, ignored ones under Ignored.
-7. Run `caixa mail sample` on the same mbox and look at the three versions: which should the box use?
+6. **Import**; open the people's pages, their mail entries and a few conversations (does every mail
+   read as it was sent? are the files there, and the logos kept once?); then **Write the reduced
+   mbox** and read it again: imported senders under Imported, ignored ones under Ignored.
+7. With **Summaries** on (a model on this computer), read a few summaries against their
+   conversations: right language, 30 to 50 words, nothing made up?
 8. Report: what was in a wrong group, what was missing, how long each step took, the size of the mbox
    and of the Cleaned copy, and anything that read badly. `caixa doctor` makes a report with no names
    or mail in it.
