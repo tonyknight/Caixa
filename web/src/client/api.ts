@@ -96,6 +96,10 @@ export interface OptionSpec {
   readonly description?: string
   /** The option is a file on this computer: the form offers to browse for it. */
   readonly 'x-picker'?: 'file'
+  /** Words for each choice of an `enum` (the value is shown when a choice has none). */
+  readonly 'x-labels'?: Readonly<Record<string, string>>
+  /** Choices that cannot be picked now, and why. */
+  readonly 'x-unavailable'?: Readonly<Record<string, string>>
 }
 
 export interface OptionsSchema {

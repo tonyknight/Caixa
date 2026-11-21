@@ -184,7 +184,7 @@ export const HANDLES: Handle[] = [
 ]
 
 export const SETTINGS: SettingsReply = {
-  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'summaries.enabled': false, 'summaries.endpoint': '', 'summaries.model': '', 'speech.model': '', 'speech.language': '' },
+  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'summaries.enabled': false, 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': '', 'speech.model': '', 'speech.language': '' },
   schema: { type: 'object', properties: {
     'privacy.default': { type: 'string', default: 'private', enum: ['private', 'family', 'public'], title: 'Who can see new items', description: 'Privacy given to items when first imported.' },
     'contacts.mac': { type: 'boolean', default: true, title: 'Use this Mac\u2019s Contacts' },
@@ -193,6 +193,7 @@ export const SETTINGS: SettingsReply = {
     'translation.endpoint': { type: 'string', default: '', title: 'Translation endpoint', description: 'An address on this computer.' },
     'translation.model': { type: 'string', default: '', title: 'Translation model' },
     'summaries.enabled': { type: 'boolean', default: false, title: 'Summarize mail conversations' },
+    'summaries.provider': { type: 'string', default: 'endpoint', enum: ['endpoint', 'apple'], title: 'Summaries are written by', 'x-labels': { endpoint: 'An endpoint', apple: 'Apple Intelligence (on this Mac)' } },
     'summaries.endpoint': { type: 'string', default: '', title: 'Summaries endpoint' },
     'summaries.model': { type: 'string', default: '', title: 'Summaries model' },
     'speech.model': { type: 'string', default: '', title: 'Speech-to-text model', 'x-picker': 'file' },

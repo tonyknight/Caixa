@@ -117,8 +117,9 @@ export function SortMail() {
       const v = saved.result.values
       const text = (key: string) => String(v[key] ?? '').trim()
       const can = {
-        translate: Boolean(text('translation.endpoint') && text('translation.model')),
-        summarize: Boolean((text('summaries.endpoint') || text('translation.endpoint')) && (text('summaries.model') || text('translation.model'))),
+        translate: v['translation.provider'] === 'apple' || Boolean(text('translation.endpoint') && text('translation.model')),
+        summarize: v['summaries.provider'] === 'apple'
+          || Boolean((text('summaries.endpoint') || text('translation.endpoint')) && (text('summaries.model') || text('translation.model'))),
       }
       setReady(can)
       setSwitches({ translate: can.translate && Boolean(v['translation.enabled']), summarize: can.summarize && Boolean(v['summaries.enabled']) })

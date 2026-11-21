@@ -3,18 +3,18 @@ id: 20261121-05-apple-intelligence-in-settings
 title: Apple Intelligence in Settings
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-21
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: Apple Intelligence or an endpoint for summaries and translation, chosen
+  in Settings.'
 parent:
 depends_on:
 - 20261121-03-switches-for-each-import
 - 20261121-04-the-apple-intelligence-helper-and-provider
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -22,9 +22,9 @@ Choose Apple Intelligence or an endpoint for summaries and for translation, in S
 
 ## Acceptance criteria
 
-- [ ] Settings → Summaries and → Translation each choose Apple Intelligence (on this Mac) or An endpoint; the Apple choice is offered only when the helper says ready, with the reason otherwise
-- [ ] Test works for both choices; summaries and translations during imports use the chosen one, several helpers at once
-- [ ] A conversation sent to Apple Intelligence is held to 6,000 characters (first and last mails); a declined one keeps its opening words and is counted in the result
+- [x] Settings → Summaries and → Translation each choose Apple Intelligence (on this Mac) or An endpoint; the Apple choice is offered only when the helper says ready, with the reason otherwise
+- [x] Test works for both choices; summaries and translations during imports use the chosen one, several helpers at once
+- [x] A conversation sent to Apple Intelligence is held to 6,000 characters (first and last mails); a declined one keeps its opening words and is counted in the result
 
 ## Context
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `summaries.provider` and `translation.provider` (`endpoint` | `apple`, default
 `endpoint`) choose who writes. With `apple`, no endpoint or model is needed or checked, the model's
@@ -71,14 +71,21 @@ built yet (choosing it and pressing Test builds it). The form learns two generic
 - Tests (`web/tests/settings-page.test.tsx`): the choice shows its words; Apple is disabled with
   its reason when not available; Test sends the provider.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Settings → Summaries and → Translation each choose who writes: an endpoint, or Apple Intelligence (on this Mac), which needs no address or model and runs as many helpers as Workers. The Apple choice is disabled with its reason when the Mac cannot run it (not when the helper is only unbuilt: Test builds it). Test works for both. Summaries through Apple are held to 6,000 characters; a conversation its safety filter declines keeps its opening words, is counted, and the rest carry on. Sort mail's switches count Apple Intelligence as set up.
+- **Files:** `caixa/{settings,summaries,translation,apple_intelligence,service}.py`, `caixa/collectors/chattr.py`, `web/src/client/{api.ts,options-form.ts}`, `web/src/client/components/OptionsForm.tsx`, `web/src/client/pages/SettingsPage.tsx`, `web/src/client/mail/SortMail.tsx`, `caixa/data/web/*`; tests `tests/{test_summaries,test_translation,test_worker_protocol}.py`, `tests/stand_in_apple.py`, `web/tests/{settings-page,sort-mail}.test.tsx`, `web/tests/fake-api.ts`.
+- **Errors:** none beyond expected test updates (Test now sends the provider).
+- **Verify:** `python -m pytest -q` 1457 passed, 1 skipped; black and mypy clean; web `tsc` clean, vitest 264 passed.
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: Apple Intelligence is exercised here only through the stand-in; the real model's speed, quality and refusals are for the maintainer's Mac (testing guide).
+- Minor: `settings.get` runs the helper's `--check` each time Settings opens on a Mac (quick once built).
 
 ## Notes
 
@@ -86,3 +93,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: settings summaries.provider and translation.provider (endpoint | apple, with x-labels). With apple: no endpoint checks, model name 'Apple Intelligence', client/translator = AppleIntelligence(Workers) after check() (builds the helper), closed after each run/test; summaries held to APPLE_BUDGET (6,000); Declined conversations counted ('declined') and skipped, with a warning; the run goes on. apple_intelligence.check(build=False) reports not_built without building; apple.check method; settings.get marks the Apple choice x-unavailable with the reason unless only not built. RED: 6 tests, then GREEN (84 in the four files).
+
+### 2026-11-21
+T02: the options form reads x-labels (words for a choice) and x-unavailable (disabled choices, the reason shown under the field); Settings' Test for summaries and translation sends the provider (and Workers when typed); Sort mail counts Apple Intelligence as set up for its switches. RED: 2 Settings tests and 1 Sort mail test, then GREEN; older Test expectations updated for the provider. Full verify: pytest 1457 passed, vitest 264 passed.

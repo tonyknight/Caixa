@@ -170,7 +170,7 @@ describe('translation: the key and the test', () => {
     expect(result.textContent).toContain('It works')
     expect(result.textContent).toContain('Bom dia!')
     expect(result.textContent).toContain('Good morning!')
-    expect(view.api.tests).toEqual([[{ 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
+    expect(view.api.tests).toEqual([[{ 'translation.provider': 'endpoint', 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
     expect(view.api.savedSettings).toEqual([])  // testing saves nothing
   })
 
@@ -197,7 +197,31 @@ describe('summaries', () => {
     expect(result.textContent).toContain('It works')
     expect(result.textContent).toContain(summary)
     expect(result.textContent).toContain('36 words')
-    expect(view.api.calls).toContainEqual(['call', 'summaries.test', { values: { 'summaries.endpoint': '', 'summaries.model': 'qwen2.5', 'translation.endpoint': '', 'translation.model': '' }, key: '' }])
+    expect(view.api.calls).toContainEqual(['call', 'summaries.test', { values: { 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': 'qwen2.5', 'translation.endpoint': '', 'translation.model': '' }, key: '' }])
+  })
+
+  it('offers Apple Intelligence in words, and Test sends the choice', async () => {
+    const view = await page(vi.fn(), (api) => {
+      api.generic['summaries.test'] = () => ok({ ok: true, summary: 'A short one.', words: 3, seconds: 1, local: true, used_key: false })
+    })
+    const choice = screen.getByLabelText('Summaries are written by') as HTMLSelectElement
+    expect(Array.from(choice.options).map(o => o.textContent)).toEqual(['An endpoint', 'Apple Intelligence (on this Mac)'])
+    fireEvent.change(choice, { target: { value: 'apple' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Test summaries' }))
+    await screen.findByTestId('summaries-test-result')
+    const sent = view.api.calls.find(c => c[1] === 'summaries.test')![2] as { values: Record<string, unknown> }
+    expect(sent.values['summaries.provider']).toBe('apple')
+  })
+
+  it('cannot choose Apple Intelligence on a Mac that cannot run it, and says why', async () => {
+    await page(vi.fn(), (api) => {
+      const schema = structuredClone(SETTINGS.schema) as typeof SETTINGS.schema
+      ;(schema.properties['summaries.provider'] as Record<string, unknown>)['x-unavailable'] = { apple: 'Apple Intelligence is turned off.' }
+      api.settingsReply = ok({ ...SETTINGS, schema })
+    })
+    const apple = Array.from((screen.getByLabelText('Summaries are written by') as HTMLSelectElement).options).find(o => o.value === 'apple')!
+    expect(apple.disabled).toBe(true)
+    expect(screen.getByText('Apple Intelligence is turned off.')).toBeTruthy()
   })
 
   it('says why a test of summaries failed', async () => {

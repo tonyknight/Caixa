@@ -3,7 +3,8 @@
  * collector appears in the wizard with its form already made.
  *
  * Supported (what the worker validates): string, integer, number, boolean, `enum`, `minimum`,
- * `maximum`, `default`, `title`, `description`.
+ * `maximum`, `default`, `title`, `description`; and `x-labels` (words for a choice) and
+ * `x-unavailable` (choices that cannot be picked now, and why).
  */
 
 import type { OptionSpec, OptionsSchema } from './api.ts'
@@ -22,6 +23,10 @@ export interface Field {
   readonly min?: number
   readonly max?: number
   readonly choices: readonly string[]
+  /** Words for each choice. */
+  readonly labels: Readonly<Record<string, string>>
+  /** Choices that cannot be picked now, and why. */
+  readonly unavailable: Readonly<Record<string, string>>
   readonly default: string | number | boolean | undefined
 }
 
@@ -37,7 +42,8 @@ function field(name: string, spec: OptionSpec): Field {
   return {
     name, kind, label: spec.title ?? name, help: spec.description ?? '',
     integer: spec.type === 'integer', picker: kind === 'text' && spec['x-picker'] === 'file', min: spec.minimum, max: spec.maximum,
-    choices: (spec.enum ?? []).map(String), default: spec.default,
+    choices: (spec.enum ?? []).map(String), labels: spec['x-labels'] ?? {}, unavailable: spec['x-unavailable'] ?? {},
+    default: spec.default,
   }
 }
 

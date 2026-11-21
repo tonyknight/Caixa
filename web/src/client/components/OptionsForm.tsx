@@ -46,13 +46,16 @@ export function OptionsForm({
             {f.kind === 'select' ? (
               <select id={id} className={css.select} value={String(values[f.name] ?? '')} aria-describedby={described}
                       onChange={event => onChange(f.name, event.target.value)}>
-                {f.choices.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+                {f.choices.map(choice => (
+                  <option key={choice} value={choice} disabled={choice in f.unavailable} title={f.unavailable[choice]}>{f.labels[choice] ?? choice}</option>
+                ))}
               </select>
             ) : (
               <input id={id} className={css.input} type={f.kind === 'number' ? 'number' : 'text'} value={String(values[f.name] ?? '')}
                      min={f.min} max={f.max} step={f.integer ? 1 : 'any'} aria-invalid={problem ? true : undefined} aria-describedby={described}
                      onChange={event => onChange(f.name, event.target.value)} />
             )}
+            {f.kind === 'select' && Object.values(f.unavailable).map(why => <p key={why} className={css.help}>{why}</p>)}
             {f.picker && (
               <>
                 <button type="button" className={css.button} aria-expanded={browsing === f.name} onClick={() => setBrowsing(browsing === f.name ? undefined : f.name)}>{t('import.input.browse')}</button>

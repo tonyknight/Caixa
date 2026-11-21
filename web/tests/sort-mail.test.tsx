@@ -243,6 +243,23 @@ describe('the Sort mail window', () => {
     expect(view.api.calls).toContainEqual(['call', 'mail.import', { source: 4, translate: false, summarize: true }])
   })
 
+  it('counts Apple Intelligence as set up for the switches', async () => {
+    const view = await renderWith(<SortMail />, api => {
+      scripted(api)
+      api.settingsReply = ok({ ...SETTINGS, values: { ...SETTINGS.values, 'summaries.enabled': true, 'summaries.provider': 'apple', 'translation.provider': 'apple' } })
+      api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Sort \(2026-11-20\) All mail \[Cleaned\]\.mbox/ }))
+    await view.flush()
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    const ask = screen.getByRole('dialog', { name: /Import 5 mails/ })
+    const summarize = within(ask).getByRole('checkbox', { name: 'Summarize' }) as HTMLInputElement
+    expect(summarize.disabled).toBe(false)
+    expect(summarize.checked).toBe(true)
+    expect((within(ask).getByRole('checkbox', { name: 'Translate' }) as HTMLInputElement).disabled).toBe(false)
+  })
+
   it('cannot switch on work that is not set up, and says why no summaries were written', async () => {
     const view = await opened()
     view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
