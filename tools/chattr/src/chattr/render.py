@@ -113,6 +113,10 @@ class PageSpec:
     message_ids: list[str] = field(default_factory=list)
     #: A mail conversation's account (Caixa's mail workflow); None for mail drawn the Phase 1 way.
     account: Optional[str] = None
+    #: An account's mail conversation: the person it is filed with.
+    home: Optional[str] = None
+    #: A person's page: the account mail conversations they are in (an entry for each).
+    mail: list["PageSpec"] = field(default_factory=list)
 
     @property
     def path(self) -> str:
@@ -226,9 +230,50 @@ class Renderer:
             page.message_ids.extend(message["id"] for message in messages)
         for spec in pages.values():
             spec.message_ids.sort(key=lambda m: (self.messages[m]["timestamp_utc"], m))
+        for spec in sorted(pages.values(), key=lambda p: self._first(p.message_ids)):
+            if spec.kind != "mail" or not spec.account:
+                continue
+            for label in self._mail_people(spec):  # an entry on each of their pages
+                folder_name = safe_name(label, "Unknown")
+                folder = f"{PEOPLE}/{folder_name}"
+                person = pages.get(("person", folder))
+                if person is None:  # someone met only in mail
+                    person = pages[("person", folder)] = PageSpec(
+                        "person", label, 0, folder, f"{folder_name}.html"
+                    )
+                person.mail.append(spec)
+        for spec in pages.values():
             if spec.kind != "mail":
-                spec.year = min(self.messages[m]["local"].year for m in spec.message_ids)
+                firsts = [m.message_ids[0] for m in spec.mail]
+                spec.year = min(
+                    self.messages[m]["local"].year for m in [*spec.message_ids, *firsts]
+                )
         return sorted(pages.values(), key=lambda p: (p.folder, p.filename))
+
+    def _first(self, message_ids: list[str]) -> tuple[str, str]:
+        return (
+            (self.messages[message_ids[0]]["timestamp_utc"], message_ids[0])
+            if message_ids
+            else ("", "")
+        )
+
+    def _mail_people(self, spec: PageSpec) -> list[str]:
+        """Who gets an entry for an account's mail conversation: the person it is filed with, and
+        every other person of the box in it (a handle that names a person; not the owner)."""
+        handles: set[int] = set()
+        for conversation_id in spec.conversation_ids:
+            handles |= set(self.participants.get(conversation_id, []))
+        handles |= {
+            self.messages[m]["sender_handle_id"]
+            for m in spec.message_ids
+            if self.messages[m]["sender_handle_id"]
+        }
+        people = [spec.home] if spec.home else []
+        for handle in sorted(handles):
+            row = self.handles[handle]
+            if handle not in self.owner_handles and row["person"] and row["person"] not in people:
+                people.append(row["person"])
+        return people
 
     def _mail_home(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> str:
         """The person a mail conversation is filed with: the non-owner who wrote most of it (the
@@ -260,7 +305,8 @@ class Renderer:
         if account:  # Caixa's mail workflow: with its person, in its account's folder
             subject = conversation["name"] or "(no subject)"
             date = first["local"]
-            home = safe_name(self._mail_home(conversation, messages), "Unknown")
+            person = self._mail_home(conversation, messages)
+            home = safe_name(person, "Unknown")
             return PageSpec(
                 "mail",
                 subject,
@@ -270,6 +316,7 @@ class Renderer:
                 [conversation["id"]],
                 [m["id"] for m in messages],
                 account=str(account),
+                home=person,
             )
         sender_id = first["sender_handle_id"]
         sender = _handle_label(self.handles[sender_id]) if sender_id else "unknown sender"

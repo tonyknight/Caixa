@@ -18,7 +18,13 @@
 <div class="calendar" id="cal-{{ y.year }}"><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="#date-{{ cell.date }}" class="d l{{ cell.level }}" title="{{ cell.count }} message{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></div>
 {% for day in y.days %}<div class="day">
 <h3 class="date-separator" id="date-{{ day.date }}"><a href="#top" title="Back to the top">{{ day.label }}</a></h3>
-{% for e in day.entries %}<article class="entry {{ e.direction }} k-{{ e.kind }}" id="m-{{ e.id }}">
+{% for e in day.entries %}{% if e.kind == 'conversation' %}<article class="entry {{ e.direction }} k-conversation" id="c-{{ e.id }}">
+<div class="meta"><span class="badge s-mail">@{{ e.account }}</span><span class="author">{{ e.author }}</span><time datetime="{{ e.iso }}">{{ e.time }}</time> <span class="offset">{{ e.offset }}</span></div>
+<div class="body conversation-subject">{{ e.subject }}</div>
+{% if e.summary %}<div class="conversation-summary">{{ e.summary }}</div>{% endif %}
+<div class="conversation-foot"><span class="note">{{ e.counts }}</span><a class="read-conversation" href="{{ e.href }}">Read the conversation</a></div>
+</article>
+{% else %}<article class="entry {{ e.direction }} k-{{ e.kind }}" id="m-{{ e.id }}">
 <div class="meta"><span class="badge s-{{ e.service_slug }}">{{ e.service }}</span><span class="author">{{ e.author }}</span><time datetime="{{ e.iso }}">{{ e.time }}</time> <span class="offset">{{ e.offset }}</span>{% for mark in e.marks %} <span class="mark">{{ mark }}</span>{% endfor %}</div>
 {% if e.reply %}<div class="reply">In reply to <a href="{{ e.reply.href }}">{{ e.reply.author }}{% if e.reply.author %}: {% endif %}{{ e.reply.text }}</a></div>
 {% endif %}{% if e.kind == 'call' %}<div class="body call">{{ e.call_label }}{% if e.duration %} · {{ e.duration }}{% endif %}</div>
@@ -35,7 +41,7 @@
 {% endfor %}{% if e.link %}<a class="link-preview" href="{{ e.link.href }}" rel="noopener noreferrer">{{ e.link.text }}</a>{% if e.link.site or e.link.summary %}<div class="note">{% if e.link.site %}{{ e.link.site }}{% endif %}{% if e.link.site and e.link.summary %} · {% endif %}{{ e.link.summary }}</div>{% endif %}{% elif e.link_text %}<span class="link-preview">{{ e.link_text }}</span>{% endif %}
 {% if e.reactions %}<div class="reactions">{% for r in e.reactions %}<span>{{ r.label }} · {{ r.who }}</span>{% endfor %}</div>{% endif %}
 </article>
-{% endfor %}</div>
+{% endif %}{% endfor %}</div>
 {% endfor %}</section>
 {% endfor %}<p class="end note" id="end">The latest: {{ last }}. <a href="#top">Back to the top</a></p>
 </main>

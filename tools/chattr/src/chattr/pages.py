@@ -304,24 +304,80 @@ def _day_label(date: datetime) -> str:
     return f"{date:%A}, {date:%B} {date.day}, {date.year}"
 
 
+#: How many words of a conversation's first mail its entry shows when it has no summary.
+OPENING_WORDS = 40
+
+
+def _opening(text: str) -> str:
+    """The first words of a mail, before any quoted earlier mail."""
+    own = []
+    for line in (text or "").replace("\r\n", "\n").split("\n"):
+        if line.lstrip().startswith(">") or re.match(r"^On .+ wrote:$", line.strip()):
+            break
+        own.append(line)
+    words = " ".join(own).split()
+    return " ".join(words[:OPENING_WORDS]) + ("…" if len(words) > OPENING_WORDS else "")
+
+
+def _conversation_entry(site: _Site, mail: PageSpec, page_dir: Path) -> dict[str, Any]:
+    """A mail conversation on a person's page: who began it and when, its subject, its first
+    words, its counts, and a link to its page."""
+    renderer = site.renderer
+    first = renderer.messages[mail.message_ids[0]]
+    files = 0
+    for message_id in mail.message_ids:
+        for row in renderer.attachments.get(message_id, []):
+            info = json.loads(row["processing_info"] or "{}")
+            files += not (info.get("dropped") or info.get("signature"))
+    sender = first["sender_handle_id"]
+    counts = _plural(len(mail.message_ids), "mail") + (
+        f" · {_plural(files, 'file')}" if files else ""
+    )
+    href = os.path.relpath(site.out_root / mail.path, page_dir).replace(os.sep, "/")
+    return {
+        "kind": "conversation",
+        "id": first["id"],
+        "direction": "sent" if first["is_from_owner"] else "received",
+        "account": mail.account,
+        "author": "Me" if first["is_from_owner"] or not sender else site.label(sender),
+        "iso": first["timestamp_utc"],
+        "time": _time_text(first),
+        "offset": _offset_text(first),
+        "subject": mail.title,
+        "summary": _opening(first["body"] or ""),
+        "counts": counts,
+        "href": quote(href, safe="/()"),
+    }
+
+
 def _message_page(site: _Site, spec: PageSpec, relations: "_Relations") -> str:
     renderer = site.renderer
     page_dir = site.out_root / spec.folder
     up = "../" * (spec.folder.count("/") + 1)
     years: dict[int, dict[str, Any]] = {}
     services: dict[str, int] = {}
-    for message_id in spec.message_ids:
-        message = renderer.messages[message_id]
+    # what the timeline shows: each message, and each mail conversation (as one entry, at its
+    # first mail, standing for all its mails)
+    shown: list[tuple[dict[str, Any], int, str, Optional[PageSpec]]] = [
+        (renderer.messages[m], 1, renderer.messages[m]["service"], None) for m in spec.message_ids
+    ]
+    shown += [
+        (renderer.messages[m.message_ids[0]], len(m.message_ids), "Mail", m) for m in spec.mail
+    ]
+    shown.sort(key=lambda s: (s[0]["timestamp_utc"], s[0]["id"]))
+    for message, items, service, mail in shown:
         local: datetime = message["local"]
         year = years.setdefault(
             local.year, {"year": local.year, "count": 0, "counts": {}, "days": {}}
         )
         key = f"{local:%Y-%m-%d}"
-        year["count"] += 1
+        year["count"] += items
         year["counts"][key] = year["counts"].get(key, 0) + 1
         day = year["days"].setdefault(key, {"date": key, "label": _day_label(local), "entries": []})
-        day["entries"].append(_entry(site, message, page_dir))
-        services[message["service"]] = services.get(message["service"], 0) + 1
+        day["entries"].append(
+            _conversation_entry(site, mail, page_dir) if mail else _entry(site, message, page_dir)
+        )
+        services[service] = services.get(service, 0) + items
     ordered = []
     for number in sorted(years):
         year = years[number]
@@ -333,12 +389,11 @@ def _message_page(site: _Site, spec: PageSpec, relations: "_Relations") -> str:
                 "days": list(year["days"].values()),
             }
         )
-    first = renderer.messages[spec.message_ids[0]]["local"]
-    last = renderer.messages[spec.message_ids[-1]]["local"]
+    first, last = shown[0][0]["local"], shown[-1][0]["local"]
     return site.env.get_template("page.html").render(
         title=spec.title,
         kind=spec.kind,
-        total=_plural(len(spec.message_ids), "item"),
+        total=_plural(sum(s[1] for s in shown), "item"),
         first=f"{first:%Y-%m-%d}",
         last=f"{last:%Y-%m-%d}",
         sources=[
@@ -522,9 +577,9 @@ def _size(bytes_: int) -> str:
     return f"{size:,.1f} TB"
 
 
-def _named(renderer: Renderer, spec: PageSpec) -> bool:
-    """Whether a person's page is someone named (not a number, an address or an account that
-    no longer has a name, which are 'unrecognized' until someone names them)."""
+def _page_handles(renderer: Renderer, spec: PageSpec) -> set[int]:
+    """The handles a person's or group's page is about (not the owner's): its conversations'
+    people and senders, and, for the mail entries on a person's page, the handles that are them."""
     handles: set[int] = set()
     for conversation_id in spec.conversation_ids:
         handles |= set(renderer.participants.get(conversation_id, []))
@@ -533,25 +588,31 @@ def _named(renderer: Renderer, spec: PageSpec) -> bool:
         for m in spec.message_ids
         if renderer.messages[m]["sender_handle_id"]
     }
-    return any(renderer.handles[h]["person"] for h in handles if h not in renderer.owner_handles)
+    for mail in spec.mail:
+        for conversation_id in mail.conversation_ids:
+            for handle in renderer.participants.get(conversation_id, []):
+                if renderer.label(handle) == spec.title:
+                    handles.add(handle)
+        for m in mail.message_ids:
+            handle = renderer.messages[m]["sender_handle_id"]
+            if handle and renderer.label(handle) == spec.title:
+                handles.add(handle)
+    return {h for h in handles if h not in renderer.owner_handles and h in renderer.handles}
+
+
+def _named(renderer: Renderer, spec: PageSpec) -> bool:
+    """Whether a person's page is someone named (not a number, an address or an account that
+    no longer has a name, which are 'unrecognized' until someone names them)."""
+    return any(renderer.handles[h]["person"] for h in _page_handles(renderer, spec))
 
 
 def _handles(renderer: Renderer, spec: PageSpec) -> str:
     """The numbers, addresses and accounts on a person's page (not the owner's), as JSON for the
     index's tile: naming or removing someone nobody named works on these."""
-    handles: set[int] = set()
-    for conversation_id in spec.conversation_ids:
-        handles |= set(renderer.participants.get(conversation_id, []))
-    handles |= {
-        renderer.messages[m]["sender_handle_id"]
-        for m in spec.message_ids
-        if renderer.messages[m]["sender_handle_id"]
-    }
     found = sorted(
         {
             (renderer.handles[h]["service"], renderer.handles[h]["identifier"])
-            for h in handles
-            if h not in renderer.owner_handles and h in renderer.handles
+            for h in _page_handles(renderer, spec)
         }
     )
     return json.dumps([{"service": s, "identifier": i} for s, i in found], ensure_ascii=False)
@@ -560,16 +621,19 @@ def _handles(renderer: Renderer, spec: PageSpec) -> str:
 def _card(renderer: Renderer, page: PageSpec, href: str) -> dict[str, Any]:
     """What a tile shows about a person or group: counts, years, and each source's share."""
     by_source: dict[str, int] = {}
-    for message_id in page.message_ids:
+    ids = [*page.message_ids, *(m for mail in page.mail for m in mail.message_ids)]
+    for message_id in ids:
         service = renderer.messages[message_id]["service"]
         by_source[service] = by_source.get(service, 0) + 1
-    first = renderer.messages[page.message_ids[0]]["local"]
-    last = renderer.messages[page.message_ids[-1]]["local"]
+    moments = sorted(
+        (renderer.messages[m]["timestamp_utc"], renderer.messages[m]["local"]) for m in ids
+    )
+    first, last = moments[0][1], moments[-1][1]
     return {
         "title": page.title,
         "href": href,
-        "count": _plural(len(page.message_ids), "item"),
-        "item_count": len(page.message_ids),
+        "count": _plural(len(ids), "item"),
+        "item_count": len(ids),
         "span": str(first.year) if first.year == last.year else f"{first.year}–{last.year}",
         "first": f"{first:%Y-%m-%d}",
         "last": f"{last:%Y-%m-%d}",
@@ -717,7 +781,7 @@ class _Relations:
                 self.members_of.setdefault(spec.path, set()).update(names)
                 for name in names:
                     self.groups_of.setdefault(name, {})[spec.path] = spec.title
-            elif spec.kind == "mail":
+            elif spec.kind == "mail" and not spec.account:  # (account mail: entries instead)
                 for name in self._members(spec):
                     self.mail_of.setdefault(name, []).append(spec)
 
