@@ -3,18 +3,16 @@ id: 20261120-08-how-mail-bodies-look
 title: How mail bodies look
 type: spike
 priority: high
-status: blocked
+status: done
 created: 2026-11-20
-updated: 2026-11-20
-closed:
-notes: 'Waiting for the maintainer: run ''caixa mail sample'' on a small real mbox
-  and choose plain, tidied or original.'
+updated: 2026-11-21
+closed: 2026-11-21
+notes: 'Done: the mail''s own HTML, made safe, chosen for mail bodies.'
 parent:
 depends_on:
 - 20261120-02-mail-index-and-parallel-reading
 subtasks: []
-plan_status: blocked
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -41,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: blocked
-Current task: T03
+Status: done
+Current task: 
 
 **Design (spike):** `caixa/mail/render.py` draws a mail's body three ways, with the standard
 library's HTML parser, and `caixa mail sample` lays a few conversations of a real mbox out as pages
@@ -87,14 +85,37 @@ The sample folder holds `plain/`, `tidied/` and `original/`, one page per conver
 
 - The maintainer runs `caixa mail sample` on a small real mbox and chooses; the choice goes into the
   Requirements (*What the box holds*) and ticket 10. **Waits for the maintainer.**
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa/mail/render.py` draws a mail's body three ways (plain, tidied, the mail's own
+  HTML made safe), none of which runs anything or loads from the internet; `caixa mail sample`
+  lays conversations out each way. The maintainer compared five real HTML mails (drawn with the
+  same code, outside the repository) and chose **the mail's own HTML, made safe**; recorded in the
+  Requirements (*What the box holds*).
+- **Files:** new `caixa/mail/{render,sample}.py`, `tests/test_mail_render.py`,
+  `tests/test_mail_sample.py`; changed `caixa/cli.py`, the Requirements.
+- **Errors:** seen in a browser from disk: a frame that runs nothing cannot load pictures from disk
+  (they are embedded as `data:` addresses) nor size itself (its height is estimated). The sampler
+  picked the conversations with the most mails, which in the maintainer's mbox were plain text, so
+  its three versions looked alike; five chosen HTML mails were drawn instead.
+- **Verify:** `python -m pytest -q` → passing; no script, handler or remote reference in any page,
+  including the five real mails.
+
+## Review
+
+### 2026-11-21: 66084a9..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `caixa mail sample` should prefer conversations with rich HTML; not needed now that
+  the choice is made.
+- **Minor:** pictures loaded from the internet are left out by design (privacy and durability);
+  marketing mail looks emptier than in a mail program.
+- **Spec:** N3 holds; the choice is recorded.
+- **TDD:** RED then GREEN for T01 and T02; T03 is the maintainer's decision.
+- **Commits:** `{ticket-id} {task-id}: {title}`, authored by Tony Knight.
 
 ## Notes
 
@@ -105,3 +126,6 @@ T02: 'caixa mail sample SOURCE --out FOLDER [--account] [--conversations N]' wri
 
 ### 2026-11-20
 Blocked on T03: the maintainer's choice of body style (run caixa mail sample on a small real mbox). Tickets 10, 11, 12 and 14 wait on it; 09, 13 and 15 go on.
+
+### 2026-11-21
+T03: the maintainer chose the mail's own HTML, made safe (2026-11-21), after five real HTML mails drawn three ways.
