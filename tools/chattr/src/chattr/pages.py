@@ -20,6 +20,7 @@ column of the page's messages so the database can be rebuilt from the pages.
 
 from __future__ import annotations
 
+import base64
 import calendar
 import json
 import os
@@ -32,6 +33,7 @@ from urllib.parse import quote, urlparse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
+from chattr import mail_html
 from chattr.filing import playable_copy
 from chattr.render import GROUPS, PEOPLE, PageSpec, Renderer, compact
 
@@ -357,7 +359,89 @@ def _people_line(people: Iterable[dict[str, str]]) -> str:
     )
 
 
+#: The largest picture embedded in a mail's frame; a larger one is listed with the mail's files.
+EMBED_BYTES = 4 * 1024 * 1024
+
+
+def _people(people: Iterable[dict[str, str]]) -> list[dict[str, str]]:
+    return [{"name": p.get("name") or "", "address": p.get("address") or ""} for p in people]
+
+
+def _embedded(site: _Site, specific: dict[str, Any], files: list[dict[str, Any]]) -> dict[str, str]:
+    """The pictures a mail's HTML shows by Content-ID, as `data:` addresses (a frame that runs
+    nothing cannot load a file from disk)."""
+    by_sha = {f["sha256"]: f for f in files}
+    images: dict[str, str] = {}
+    for cid, sha in (specific.get("content_ids") or {}).items():
+        row = by_sha.get(sha)
+        file = site._file(row["storage_path"]) if row else None
+        if row is None or file is None or file.stat().st_size > EMBED_BYTES:
+            continue
+        mime = row["mime_type"] or "application/octet-stream"
+        images[cid] = f"data:{mime};base64," + base64.b64encode(file.read_bytes()).decode()
+    return images
+
+
+def _conversation_page(site: _Site, spec: PageSpec) -> str:
+    """An account's conversation: each mail a card, its own HTML made safe in a frame that runs
+    nothing, its files beneath it, and every header it came with folded away."""
+    renderer = site.renderer
+    page_dir = site.out_root / spec.folder
+    cards = []
+    for message_id in spec.message_ids:
+        message = renderer.messages[message_id]
+        headers = json.loads(message["mail_headers"]) if message["mail_headers"] else {}
+        specific = json.loads(message["service_specific"]) if message["service_specific"] else {}
+        handle = renderer.handles.get(message["sender_handle_id"] or 0)
+        rows = renderer.attachments.get(message["id"], [])
+        kept = [r for r in rows if "dropped" not in json.loads(r["processing_info"] or "{}")]
+        images = _embedded(site, specific, kept)
+        shown = {(specific.get("content_ids") or {})[cid] for cid in images}
+        html_body = specific.get("body_html")
+        body = (
+            mail_html.original(html_body, images) if html_body
+            else mail_html.plain(message["body"] or "")
+        )  # fmt: skip
+        files = []
+        for row in kept:
+            if row["sha256"] in shown:
+                continue
+            name = row["original_filename"] or "attachment"
+            href = site.href(row["storage_path"], page_dir)
+            kind = _attachment_kind(row["mime_type"], name)
+            files.append({"name": name, "href": href, "picture": kind == "image" and href})
+        local: datetime = message["local"]
+        cards.append(
+            {
+                "id": message["id"],
+                "direction": "sent" if message["is_from_owner"] else "received",
+                "subject": headers.get("subject") or "(no subject)",
+                "iso": message["timestamp_utc"],
+                "date": f"{local:%Y-%m-%d}",
+                "time": _time_text(message),
+                "offset": _offset_text(message),
+                "name": site.label(message["sender_handle_id"]) if handle else "unknown sender",
+                "address": handle["identifier"] if handle else "",
+                "to": _people(headers.get("to", [])),
+                "cc": _people(headers.get("cc", [])),
+                "body": Markup(body),
+                "files": files,
+                "headers": specific.get("headers") or "",
+            }
+        )
+    depth = spec.folder.count("/") + 1
+    return site.env.get_template("conversation.html").render(
+        title=spec.title,
+        account=spec.account,
+        cards=cards,
+        back="../" * depth + "index.html",
+        island=Markup(island_json(compact(renderer.document(spec)))),
+    )
+
+
 def _mail_page(site: _Site, spec: PageSpec) -> str:
+    if spec.account:
+        return _conversation_page(site, spec)
     renderer = site.renderer
     page_dir = site.out_root / spec.folder
     mails = []

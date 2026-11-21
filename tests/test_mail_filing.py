@@ -50,3 +50,41 @@ def test_attachments_are_dated_and_kept_once(box: Box) -> None:
 def test_tracking_pixels_are_not_filed(box: Box) -> None:
     gifs = [p for p in (box.root / "People").rglob("*.gif")]
     assert gifs == []
+
+
+# --- The conversation page (T03) ------------------------------------------------------------------
+
+import html as html_text  # noqa: E402
+import re  # noqa: E402
+
+
+def _page(box: Box, person: str, name: str) -> str:
+    return (box.root / "People" / person / "Mail" / "Gmail" / name).read_text(encoding="utf-8")
+
+
+def test_a_conversation_page_is_a_stack_of_cards(box: Box) -> None:
+    page = _page(box, "Beatriz Lima", "(2023-02-01) Book club in March.html")
+    assert page.count('class="card') == 3
+    assert page.count('class="subject"') == 3 and "Re: Book club in March" in page
+    assert "beatriz.lima@example.net" in page and "maria.costa@example.com" in page
+    assert "2023-02-01" in page and "\u221205:00" in page  # (the minus sign the pages use)
+    assert page.count('sandbox=""') == 2  # Beatriz's two HTML mails, in frames that run nothing
+    assert "data:image/png;base64," in html_text.unescape(page)  # her logo, embedded
+    assert page.count("All headers") == 3 and "X-Gmail-Labels" in page
+    assert "../../../../index.html" in page  # back to the box's index
+
+
+def test_plain_mail_is_text_and_files_are_listed(box: Box) -> None:
+    attic = _page(box, "João Costa", "(2019-12-20) The attic boxes.html")
+    assert "<iframe" not in attic and "From the attic I brought down three boxes" in attic
+    photos = _page(box, "João Costa", "(2019-11-02) Fotos de São Martinho.html")
+    assert 'src="Attachments/(2019-11-02)%20image001.png"' in photos
+
+
+def test_no_page_runs_a_script_or_loads_from_the_internet(box: Box) -> None:
+    for page in (box.root / "People").rglob("Mail/Gmail/*.html"):
+        text = html_text.unescape(html_text.unescape(page.read_text(encoding="utf-8"))).lower()
+        body = text.split('<script type="application/json"', 1)[0]  # (the page's data island)
+        assert "<script>" not in body.replace("<script>/* pictures", ""), page.name
+        assert not re.search(r"src\s*=\s*[\"']?\s*https?://", body), page.name
+        assert not re.search(r"\son(load|click|error)\s*=", body), page.name

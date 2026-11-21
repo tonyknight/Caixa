@@ -102,3 +102,20 @@ def test_importing_again_adds_nothing(box: Box, noisy_mail: NoisyMail) -> None:
         after = master.connection.execute("SELECT COUNT(*) FROM items").fetchone()[0]
         mails = master.connection.execute("SELECT COUNT(*) FROM mail").fetchone()[0]
     assert before == after and mails == 56 and again["new"] == 0
+
+
+def test_a_conversation_knows_its_page_and_its_person(box: Box, noisy_mail: NoisyMail) -> None:
+    with box.master() as master:
+        master.add_alias(master.add_person(family.JOAO.name), family.JOAO.emails[0], "email")
+        master.commit()
+    _import(box, noisy_mail.gmail, "Gmail")
+    with box.master() as master:
+        db = master.connection
+        page, home = db.execute(
+            "SELECT t.page, p.name FROM mail_threads t LEFT JOIN people p ON p.id = t.home_person_id "
+            "WHERE t.subject = 'Fotos de São Martinho'"
+        ).fetchone()
+        (missing,) = db.execute("SELECT COUNT(*) FROM mail_threads WHERE page IS NULL").fetchone()
+    assert page == "People/João Costa/Mail/Gmail/(2019-11-02) Fotos de São Martinho.html"
+    assert (box.root / page).is_file() and home == "João Costa"
+    assert missing == 0

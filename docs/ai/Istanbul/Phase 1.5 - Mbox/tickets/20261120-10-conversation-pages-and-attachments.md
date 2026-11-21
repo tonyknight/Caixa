@@ -13,8 +13,7 @@ depends_on:
 - 20261120-08-how-mail-bodies-look
 - 20261120-09-import-the-chosen-conversations
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** mail that came through the mail workflow carries its account (ticket 09); Chattr draws
 and files it the new way, and mail without an account (Chattr on its own) keeps Phase 1's
@@ -93,7 +92,7 @@ and files it the new way, and mail without an account (Chattr on its own) keeps 
   framed HTML with its logo embedded, files, headers fold), no script, no remote reference; the
   master's thread rows point at their pages and people; through `mail.import` in Caixa.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -111,3 +110,6 @@ T01: caixa/mail/render.py moved to chattr/mail_html.py (Chattr draws the pages; 
 
 ### 2026-11-21
 T02: mail with an account is planned at People/<home>/Mail/<Account>/(date) subject.html (home: the non-owner who wrote most, else the person written to; ' (2)' on a clash), its files at .../Attachments/(date) <own name> (filing's free-name rule numbers clashes; one copy per content). Filing pre-pass for Caixa's mail: one-pixel pictures are not filed (processing_info dropped: tracking pixel); a picture of at most 40 KB that a sender repeats with the same name and pixel size is filed once and later copies linked (signature). New boxes have no top-level Mail/ folder (box.FOLDERS, undo's always-there folders); the contract test updated. Tests moved to tests/test_mail_filing.py (they need Caixa's collector). Mail without an account is still drawn the Phase 1 way.
+
+### 2026-11-21
+T03: account mail is drawn by chattr/templates/conversation.html: cards in date order, subject on the top border, sender and To/Cc by name and address, date/time with offset, the mail's own HTML via mail_html.original (Content-ID pictures embedded as data: addresses, up to 4 MB each; larger ones listed), plain text otherwise, files beneath (pictures shown, others linked; dropped pixels and inline pictures not repeated), a closed All headers fold; no script but the data island. record_mail fills mail_threads.page (from items.file_path) and home_person_id (the person whose People/ folder holds the page).

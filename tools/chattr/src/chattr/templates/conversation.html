@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block head %}<style>
+.conversation { max-width: 52rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:.6rem; margin:1.4rem 0; padding:1.1rem 1rem .8rem; position:relative; box-shadow:0 1px 3px var(--shadow); content-visibility:auto; contain-intrinsic-size:auto 18rem; }
+.card.sent { background:var(--sent); }
+.card > .subject { position:absolute; top:-.75rem; left:.8rem; max-width:calc(100% - 1.6rem); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 .5rem; border:1px solid var(--line); border-radius:.4rem; background:var(--panel); font-size:.85rem; font-weight:600; }
+.who { display:flex; flex-wrap:wrap; gap:.25rem .6rem; align-items:baseline; }
+.who .name { font-weight:600; } .who .address, .who time, .who .offset { color:var(--muted); font-size:.85rem; }
+.who time { margin-left:auto; color:var(--date); }
+.to { font-size:.85rem; color:var(--muted); margin:.15rem 0 .6rem; } .to b { color:var(--fg); font-weight:600; }
+.mail-body iframe { width:100%; border:0; background:#fff; border-radius:.3rem; display:block; }
+.mail-body .text { white-space:pre-wrap; overflow-wrap:anywhere; }
+.quoted, .headers { margin-top:.5rem; font-size:.85rem; color:var(--muted); } .quoted summary, .headers summary { cursor:pointer; }
+.headers pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:.78rem; margin:.3rem 0 0; }
+.files { display:flex; flex-wrap:wrap; gap:.5rem; margin-top:.6rem; }
+.files img { max-height:12rem; max-width:100%; border-radius:.3rem; display:block; }
+.account { color:var(--muted); font-size:.9rem; margin:0 0 .5rem; }
+</style>{% endblock %}
+{% block content %}
+<header>
+<a class="home-button" href="{{ back }}">&larr; All people</a>
+<h1>{{ title }}</h1>
+{% if account %}<p class="account">@{{ account }}</p>{% endif %}
+</header>
+<main class="conversation">
+{% for c in cards %}<article class="card {{ c.direction }}" id="m-{{ c.id }}">
+<div class="subject">{{ c.subject }}</div>
+<div class="who"><span class="name">{{ c.name }}</span>{% if c.address and c.address != c.name %}<span class="address">&lt;{{ c.address }}&gt;</span>{% endif %}<time datetime="{{ c.iso }}">{{ c.date }} {{ c.time }}</time><span class="offset">{{ c.offset }}</span></div>
+{% if c.to or c.cc %}<div class="to">{% if c.to %}<b>To:</b> {% for p in c.to %}{{ p.name or p.address }}{% if p.name %} &lt;{{ p.address }}&gt;{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}{% if c.cc %} &nbsp;<b>Cc:</b> {% for p in c.cc %}{{ p.name or p.address }}{% if p.name %} &lt;{{ p.address }}&gt;{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}</div>{% endif %}
+<div class="mail-body">{{ c.body }}</div>
+{% if c.files %}<div class="files">{% for f in c.files %}{% if f.picture %}<a href="{{ f.href }}"><img src="{{ f.href }}" alt="{{ f.name }}" loading="lazy"></a>{% elif f.href %}<a href="{{ f.href }}">{{ f.name }}</a>{% else %}<span class="missing">{{ f.name }} (file not in this archive)</span>{% endif %}{% endfor %}</div>{% endif %}
+{% if c.headers %}<details class="headers"><summary>All headers</summary><pre>{{ c.headers }}</pre></details>{% endif %}
+</article>
+{% endfor %}
+</main>
+{% endblock %}
+{% block island %}<script type="application/json" id="chattr-data">{{ island | safe }}</script>{% endblock %}

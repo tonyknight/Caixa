@@ -4,8 +4,9 @@ After the Mail collector has brought a working mbox into Chattr's store and the 
 `record_mail` reads Chattr's mail (read-only) and records, for every mail that came with an
 account: its facts (Message-ID, thread, date and offset, sender, recipients, subject; its plain text
 is its item's `text`), the account, and its conversation with its counts. A mail met again in a
-second account keeps its first account; the second is added to `mail_accounts`. What later steps
-add to a conversation (its page, its home person, its summary) is never overwritten here.
+second account keeps its first account; the second is added to `mail_accounts`. A conversation's
+page is where its items' page is (`items.file_path`, kept current by the import), and its home
+person is the person whose folder that page is in. Its summary, added later, is never touched here.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from typing import Any, Optional
 
 import chattr.commands as commands
 from chattr.config import Settings
+from chattr.attachment_manager import safe_name
 
 from caixa.box import Box
 from caixa.master import Master
@@ -50,7 +52,8 @@ def record_mail(
         rows = db.execute(
             "SELECT m.id, m.source_id, m.timestamp_utc, m.tz_offset_minutes, m.mail_headers, "
             "m.service_specific, h.normalized, h.display_name, c.source_id, c.name, "
-            "(SELECT COUNT(*) FROM chattr.attachments a WHERE a.message_id = m.id) "
+            "(SELECT COUNT(*) FROM chattr.attachments a WHERE a.message_id = m.id), "
+            "(SELECT file_path FROM main.items i WHERE i.id = m.id) "
             "FROM chattr.messages m JOIN chattr.conversations c ON c.id = m.conversation_id "
             "LEFT JOIN chattr.handles h ON h.id = m.sender_handle_id "
             "WHERE m.content_type = 'email' AND c.service = 'Mail' "
@@ -59,7 +62,7 @@ def record_mail(
         recorded = new = 0
         threads: dict[str, dict[str, Any]] = {}
         for (item, message_id, when, offset, headers_json, specific_json, address, name,
-             thread, conversation_name, files) in rows:  # fmt: skip
+             thread, conversation_name, files, page) in rows:  # fmt: skip
             specific = json.loads(specific_json or "{}")
             first = specific.get("account")
             if not first:
@@ -94,10 +97,16 @@ def record_mail(
                 "INSERT OR IGNORE INTO mail_accounts (item_id, account_id) VALUES (?, ?)",
                 [(item, a) for a in held],
             )
-            entry = threads.setdefault(thread, {"name": conversation_name or "", "files": 0})
+            entry = threads.setdefault(
+                thread, {"name": conversation_name or "", "files": 0, "page": None}
+            )
             entry["files"] += int(files)
+            entry["page"] = entry["page"] or page
             recorded += 1
+        homes = {safe_name(p.name, "Unknown"): p.id for p in master.people() if not p.is_owner}
         for thread, entry in threads.items():
+            parts = (entry["page"] or "").split("/")
+            home = homes.get(parts[1]) if len(parts) > 2 and parts[0] == "People" else None
             first, last, mails, account_id = db.execute(
                 "SELECT MIN(date_utc), MAX(date_utc), COUNT(*), "
                 "(SELECT account_id FROM mail WHERE thread_key = ? ORDER BY date_utc LIMIT 1) "
@@ -106,11 +115,14 @@ def record_mail(
             ).fetchone()
             db.execute(
                 "INSERT INTO mail_threads (thread_key, account_id, subject, first_utc, last_utc, "
-                "mails, files) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (thread_key) DO UPDATE SET "
+                "mails, files, page, home_person_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT (thread_key) DO UPDATE SET "
                 "account_id = excluded.account_id, subject = excluded.subject, "
                 "first_utc = excluded.first_utc, last_utc = excluded.last_utc, "
-                "mails = excluded.mails, files = excluded.files",
-                (thread, account_id, entry["name"], first, last, mails, entry["files"]),
+                "mails = excluded.mails, files = excluded.files, page = excluded.page, "
+                "home_person_id = excluded.home_person_id",
+                (thread, account_id, entry["name"], first, last, mails, entry["files"],
+                 entry["page"], home),  # fmt: skip
             )
         master.commit()
     finally:
