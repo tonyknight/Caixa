@@ -3,11 +3,12 @@ id: 20261120-11-the-person-page-s-entry-and-the-overlay
 title: The person page's entry and the overlay
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-20
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: entries on person pages, overlay from /box/ and disk, index Mail by
+  account.'
 parent:
 depends_on:
 - 20261120-10-conversation-pages-and-attachments
@@ -21,12 +22,12 @@ conversation page over it.
 
 ## Acceptance criteria
 
-- [ ] The entry at the first mail's date: `@<Account>` pill, who began it, subject, summary (or the opening words), counts, Read the conversation
-- [ ] Every box person in a conversation gets the entry, linking to the one page; unanswered owner mail appears as sent by the owner
-- [ ] `conversation.js`: a dialog with the page in a frame, closing with Escape, the cross or a click beside it, and an open-in-its-own-window button
-- [ ] Its hash joins the box pages' Content-Security-Policy; pages drawn with an older script get the current one (`caixa/web.py` PAGE_SCRIPTS)
-- [ ] Works from `/box/` and from `file://` with no policy error (end-to-end test)
-- [ ] The index page's Mail view and dashboard list mail by account
+- [x] The entry at the first mail's date: `@<Account>` pill, who began it, subject, summary (or the opening words), counts, Read the conversation
+- [x] Every box person in a conversation gets the entry, linking to the one page; unanswered owner mail appears as sent by the owner
+- [x] `conversation.js`: a dialog with the page in a frame, closing with Escape, the cross or a click beside it, and an open-in-its-own-window button
+- [x] Its hash joins the box pages' Content-Security-Policy; pages drawn with an older script get the current one (`caixa/web.py` PAGE_SCRIPTS)
+- [x] Works from `/box/` and from `file://` with no policy error (end-to-end test)
+- [x] The index page's Mail view and dashboard list mail by account
 
 ## Context
 
@@ -97,10 +98,19 @@ Mail list on the person page.
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Each account mail conversation has one entry, at its first mail, on the page of its home person and of every box person in it: the `@<Account>` pill, who began it (Me for the owner), the subject, its opening words (until ticket 12's summaries), its counts and Read the conversation. Someone met only in mail has a page. `conversation.js` shows the conversation over the person page (Escape, the cross, a click beside it; Open in its own window), allowed by its hash and `frame-src 'self'` in the box policy, and works from `/box/` and from disk. The index's Mail view and dashboard list mail by account.
+- **Files:** `tools/chattr/src/chattr/{render.py,pages.py}`, `tools/chattr/src/chattr/templates/{page.html,base.html,conversation.html,conversation.js,index.html}`, `caixa/web.py`; tests `tests/test_mail_pages.py` (new), `tests/test_web_server.py`, `web/tests/e2e-browse.test.ts`.
+- **Errors:** Jinja read `group.items` as the dict's method (renamed `mails`); the cards' subject labels were clipped by `content-visibility` (removed on cards), seen in a screenshot.
+- **Verify:** `python -m pytest -q` 1411 passed, 1 skipped; black and mypy clean; web `tsc` clean, vitest 249 passed (e2e-browse: the overlay from `/box/` and `file://`, no policy errors).
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: from disk (`file://`) the browser keeps the page from reaching into the frame, so Escape works only while focus is outside it; the cross and a click beside it always close it.
+- Minor: when a whole mbox is imported without choosing (as the tests do), every sender that is a conversation's home gets a page and shows as Unrecognized on the index; through Sort mail only chosen senders are homes.
+- Minor: T02's script was written before its Python checks (which passed at once); the end-to-end test was written before it was run and is the real check.
+- Spec: plan files match the files touched; all acceptance criteria met.
 
 ## Notes
 
