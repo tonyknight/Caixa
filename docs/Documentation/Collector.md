@@ -367,8 +367,19 @@ What you decide (senders kept, chosen and ignored, your addresses for each accou
 - **The master database** records each mail's date, sender, recipients, subject, account and text,
   and each conversation's page, person and summary.
 
-**Summaries.** In Settings → **Summaries**, turn on **Summarize mail conversations** and name an
-OpenAI-compatible endpoint and model (left empty, translation's are used): a model on this computer
+**In both windows** each list has a **Select all** box in its header (or Ctrl/Cmd-A): every sender in
+the list is selected, then click the few that should stay out. From the moment you click **Import**
+(or **Write the cleaned mbox**) a meter beside the button shows what is happening, first "Counting
+what this brings…", then each step with how far it has got, and the button stays off until the job
+ends. Sort mail's Import dialog has **Translate** and **Summarize** switches for this import, starting
+as Settings say (greyed out when that work is not set up yet); when an import writes no summaries it
+says why (off in Settings, off for this import, not set up, or the model could not be reached).
+
+**Summaries.** In Settings → **Summaries**, turn on **Summarize mail conversations** and choose who
+writes them: **Apple Intelligence (on this Mac)** (as for translation: nothing leaves the Mac, several
+at once as Workers says; long conversations are summarized from their first and last mails, as its
+model reads less at a time; a conversation its safety filter declines keeps its first words, and the
+import says how many), or an OpenAI-compatible endpoint and model (left empty, translation's are used): a model on this computer
 (Ollama, LM Studio) keeps the mail on it; a service on the internet needs **Allow a service on the
 internet for summaries** (translation's yes is enough when summaries use its endpoint). **Test
 summaries** sends a short made-up conversation, never your mail. Each mail import then asks for a
@@ -702,6 +713,16 @@ Drag the selection onto a category on the left, or use the **Move to** buttons i
 people leave Unassigned at once; Caixa saves their category in the box and redraws the pages. Escape
 clears the selection.
 
+**Subcategories.** Family, Friends, Business and Acquaintances each have a chevron: click it to
+unfold the category's subcategories (alphabetical, each with how many people it holds) and, at the
+bottom of the list, a **+** that adds one (type its name, Enter). A subcategory can have
+subcategories of its own (School → Class of 98), which cannot. Double-click one to rename it; the ×
+that shows when you point at it deletes it after asking, and its people (and its own
+subcategories' people) move up to where it was. Drag people onto a subcategory from Unassigned or
+from a category's own view. A category's count and view include everyone in its subcategories.
+The folding is remembered. Opened from the folder, subcategories show and filter but cannot be
+changed. They are kept when you reset the box, like categories.
+
 Sorting works when the index is opened in Caixa: Browse, **Open the box's index page**. It opens in
 a window of its own beside Caixa's (allow pop-ups for Caixa if your browser asks), and every page
 of the box you open from Browse goes to that same window. Opened straight from the folder, in any browser, the page shows the
@@ -784,8 +805,18 @@ is never changed; the translation is stored beside it and shown under it on the 
   nothing is sent;
 - never twice: a message that has a translation is not sent again.
 
-**What does the translating.** Any service that speaks the OpenAI chat format. In **Settings →
-Translation** give:
+**What does the translating.** **Translations are written by** chooses between **Apple
+Intelligence (on this Mac)** and **An endpoint**.
+
+*Apple Intelligence* is the Mac's own model: macOS 26 or later, Apple silicon, Apple Intelligence
+turned on (System Settings, Apple Intelligence & Siri). It needs no address, model or key, nothing
+leaves the Mac, and it works on as many messages at once as the **Workers** setting. Caixa reaches it
+through a small helper program it builds the first time you choose it and press **Test** (that needs
+Xcode or its command-line tools: `xcode-select --install`; if the build fails Caixa shows the command
+to run, `swift build -c release --package-path tools/apple-intelligence`). When the Mac cannot run it,
+the choice is greyed out with the reason. Its model is small, so check a few translations.
+
+*An endpoint* is any service that speaks the OpenAI chat format. In **Settings → Translation** give:
 
 | Setting | A model on this computer | A paid service |
 | --- | --- | --- |
@@ -803,7 +834,9 @@ and shows what came back, or says why it failed: the address does not answer, th
 model name is unknown, the account has no credit. Use it before the first import.
 
 **When it runs.** With translation on, every import has a *Translating messages* step after people are
-matched and before the pages are written. It considers every message in the box, so turning translation
+matched and before the pages are written. Each import also has its own **Translate** switch (in the
+import wizard's options, and in Sort mail's Import dialog), starting as Settings say: turn it off for
+an export you know needs no translation, to save time; a later import with it on catches up. It considers every message in the box, so turning translation
 on and importing anything (the same export again will do) also translates what was imported before. A
 paid service is sent four messages at a time, a local model one. If the service fails, the import still
 finishes, keeps what was translated, and says what went wrong; import again to translate the rest.
