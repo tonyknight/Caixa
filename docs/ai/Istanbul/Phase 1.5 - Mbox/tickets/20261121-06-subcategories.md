@@ -12,7 +12,7 @@ parent:
 depends_on: []
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:**
 
@@ -77,7 +77,7 @@ Current task: T02
 - Tests: the index has each category's subcategories nested with counts, the + only for the four
   categories, and `data-sub` on tiles.
 - Verify: `python -m pytest -q tests/test_subcategories.py tools/chattr/tests/test_render_pages.py`
-- [ ] done
+- [x] done
 
 ### T03: Folding, adding, renaming, deleting and sorting on the page
 
@@ -102,3 +102,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: migration 5 (subcategories table with a case-insensitive unique index on category, parent and name; people.subcategory_id). Master: add_subcategory (four categories only; under a category or a top-level subcategory), rename, delete (people and children's people up to the parent; children deleted), subcategory(person), subcategories() (by category order, parent then children by name, counts include children), subcategory_path/ensure_subcategory; set_category takes a subcategory of the same category (none = the category itself); merge carries it. owner.json gains subcategories (category + path) and placed (person → path), applied after a reset. Service: people.subcategories, people.subcategory.add/rename/delete (write, redraw), people.categorize(subcategory). RED: 5 tests, then GREEN.
+
+### 2026-11-21
+T02: Chattr publish/render_pages/_index take subcategories {tree, placed}; Caixa's collector passes them from the master on every redraw. The index's sidebar draws each of the four categories in a row with a folding chevron, its subcategories (alphabetical, counts incl. children) and their own, nested once, and a + (hidden until the script shows it in Caixa) at the bottom of each list that may grow; tiles carry data-sub. Hidden on the narrow layout. RED then GREEN (my first expectation of two + was wrong: Friends and each top-level subcategory have one).

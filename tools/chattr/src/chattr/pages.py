@@ -729,12 +729,42 @@ def _stats(site: _Site) -> dict[str, Any]:
     }
 
 
+#: The categories that have subcategories (all but Unrecognized).
+WITH_SUBCATEGORIES = ("family", "friends", "business", "acquaintance")
+
+
+def _subcategory_tree(given: Optional[Mapping[str, Any]]) -> dict[str, list[dict[str, Any]]]:
+    """{category: [subcategory, with its own under `children`]}, in the order given (by name)."""
+    tree: dict[str, list[dict[str, Any]]] = {key: [] for key in WITH_SUBCATEGORIES}
+    rows = list((given or {}).get("tree") or [])
+    tops = {int(r["id"]): {**r, "children": []} for r in rows if r.get("parent_id") is None}
+    for row in rows:
+        if row.get("parent_id") is not None and int(row["parent_id"]) in tops:
+            tops[int(row["parent_id"])]["children"].append(dict(row))
+    for top in tops.values():
+        if top["category"] in tree:
+            tree[top["category"]].append(top)
+    for subs in tree.values():
+        subs.sort(key=lambda s: str(s["name"]).casefold())
+        for top in subs:
+            top["children"].sort(key=lambda s: str(s["name"]).casefold())
+    return tree
+
+
 def _index(
-    site: _Site, categories: Optional[Mapping[str, str]] = None, title: str = "Chattr archive"
+    site: _Site,
+    categories: Optional[Mapping[str, str]] = None,
+    title: str = "Chattr archive",
+    subcategories: Optional[Mapping[str, Any]] = None,
 ) -> str:
-    """The index: people as tiles sorted into categories, groups, mail, and the box's numbers."""
+    """The index: people as tiles sorted into categories (and their subcategories), groups, mail,
+    and the box's numbers."""
     renderer = site.renderer
     chosen = {name.casefold(): category for name, category in (categories or {}).items()}
+    placed = {
+        str(name).casefold(): str(sub)
+        for name, sub in ((subcategories or {}).get("placed") or {}).items()
+    }
     keys = {key for key, _ in CATEGORIES}
     people: list[dict[str, Any]] = []
     groups: list[dict[str, Any]] = []
@@ -771,6 +801,7 @@ def _index(
         card["category"] = (
             (category if category in keys else "") if card["named"] else "unrecognized"
         )
+        card["sub"] = placed.get(page.title.casefold(), "") if card["category"] else ""
         people.append(card)
     people.sort(key=lambda p: str(p["title"]).casefold())
     groups.sort(key=lambda g: str(g["title"]).casefold())
@@ -780,6 +811,7 @@ def _index(
     return site.env.get_template("index.html").render(
         title=title,
         categories=[{"key": key, "label": label} for key, label in CATEGORIES],
+        subcategories=_subcategory_tree(subcategories),
         counts={key: f"{value:,}" for key, value in counts.items()},
         people=people,
         groups=groups,
@@ -905,10 +937,12 @@ def render_pages(
     categories: Optional[Mapping[str, str]] = None,
     title: str = "Chattr archive",
     summaries: Optional[Mapping[str, tuple[str, str]]] = None,
+    subcategories: Optional[Mapping[str, Any]] = None,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
-    `categories` ({person's name: category}) sorts people on the index; `title` names it.
+    `categories` ({person's name: category}) sorts people on the index, and `subcategories`
+    (`{"tree": [...], "placed": {name: id}}`) into the categories' subcategories; `title` names it.
 
     Pages written by an earlier call and no longer wanted are deleted. The list of what was
     written is kept in `pages_list` (default: `.chattr-pages` in `out_root`).
@@ -928,7 +962,7 @@ def render_pages(
         written.append(path)
     index = site.out_root / "index.html"
     index.parent.mkdir(parents=True, exist_ok=True)
-    index.write_text(_index(site, categories, title), encoding="utf-8")
+    index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
     written.append(index)
     _forget_old_pages(
         site.out_root, Path(pages_list) if pages_list else site.out_root / PAGES_LIST, written

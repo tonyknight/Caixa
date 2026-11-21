@@ -675,6 +675,14 @@ class _Chattr:
         progress(Progress("filing", message="Filing photos, audio and other files"))
         with box.master() as master:
             categories = master.categories()
+            subcategories = {
+                "tree": master.subcategories(),
+                "placed": {
+                    p.name: sub
+                    for p in master.people()
+                    if (sub := master.subcategory(p.id)) is not None
+                },
+            }
             summaries = {
                 str(thread): (str(text), str(model or ""))
                 for thread, text, model in master.connection.execute(
@@ -692,6 +700,7 @@ class _Chattr:
             categories=categories,
             title=box.name,
             summaries=summaries,
+            subcategories=subcategories,
         )
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         with DatabaseManager(commands.central_database(settings)) as db:

@@ -20,6 +20,19 @@
 .sep { margin:1.1rem .6rem .3rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 .dragging .sidebar a[data-category] { border-color:var(--accent); }
 .sidebar a.drop { background:var(--accent); color:var(--on-accent); }
+.cat-row, .sub-row { display:flex; align-items:center; gap:.1rem; } .cat-row a, .sub-row a { flex:1; min-width:0; }
+.sidebar .fold { flex:none; width:1.3rem; height:1.3rem; padding:0; border:0; border-radius:.3rem; background:transparent; color:var(--muted); cursor:pointer; font:inherit; font-size:.7rem; line-height:1; }
+.sidebar .fold::before { content:"\25BE"; display:inline-block; transition:transform .12s; } .sidebar .fold[aria-expanded="false"]::before { transform:rotate(-90deg); }
+.sidebar .fold:hover { background:var(--card); color:var(--fg); }
+.sidebar .subs { list-style:none; margin:0 0 .2rem 1.3rem; padding:0; } .sidebar .subs .subs { margin-left:1.3rem; }
+.sidebar .subs a { font-size:.86rem; padding:.3rem .55rem; }
+.sidebar .sub-row > a:only-child { margin-left:1.4rem; }
+.sidebar .add { display:flex; justify-content:center; padding:.1rem 0 .25rem; }
+.sidebar .add-sub { width:1.6rem; height:1.6rem; border-radius:50%; border:1px dashed var(--line); background:transparent; color:var(--muted); cursor:pointer; font:inherit; font-size:1rem; line-height:1; }
+.sidebar .add-sub:hover { border-style:solid; border-color:var(--accent); color:var(--accent); }
+.sidebar .sub-edit { flex:1; min-width:0; font:inherit; font-size:.86rem; padding:.25rem .5rem; border:1px solid var(--accent); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.sidebar .sub-row .remove-sub { flex:none; width:1.2rem; height:1.2rem; padding:0; border:0; border-radius:50%; background:transparent; color:var(--muted); cursor:pointer; opacity:0; font:inherit; font-size:.8rem; line-height:1; }
+.sidebar .sub-row:hover .remove-sub, .sidebar .sub-row:focus-within .remove-sub { opacity:1; } .sidebar .remove-sub:hover { color:#bf616a; }
 .content { padding:1.4rem 1.8rem 2rem; }
 .content h1 { font-size:1.45rem; margin:0 0 .2rem; }
 .hint { color:var(--muted); font-size:.88rem; margin:0 0 1.2rem; }
@@ -82,6 +95,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
   .sidebar { position:sticky; top:0; z-index:4; height:auto; display:flex; gap:.3rem; overflow-x:auto; padding:.5rem .6rem; border-right:0; border-bottom:1px solid var(--line); }
   .brand, .sep { display:none; }
   .sidebar a { white-space:nowrap; margin:0; padding:.35rem .6rem; font-size:.85rem; }
+  .sidebar .subs, .sidebar .fold { display:none; } .cat-row { display:contents; }
   .content { padding:1rem 1rem 1.5rem; }
   .status { padding:.5rem 1rem; }
 }
@@ -91,8 +105,14 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 <nav class="sidebar" aria-label="Categories">
 <div class="brand">{{ title }}<small>{{ stats.span }}</small></div>
 <a href="#all" data-view="all"><span class="dot c-all"></span>All <span class="n">{{ counts.all }}</span></a>
-{% for c in categories %}<a href="#{{ c.key }}" data-view="{{ c.key }}" data-category="{{ c.key }}"><span class="dot c-{{ c.key }}"></span>{{ c.label }} <span class="n">{{ counts[c.key] }}</span></a>
-{% endfor %}<a href="#unassigned" data-view="unassigned"><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
+{% for c in categories %}{% if c.key in subcategories %}<div class="cat-row"><button type="button" class="fold" data-fold="{{ c.key }}" aria-expanded="true" aria-label="Subcategories of {{ c.label }}"></button><a href="#{{ c.key }}" data-view="{{ c.key }}" data-category="{{ c.key }}"><span class="dot c-{{ c.key }}"></span>{{ c.label }} <span class="n">{{ counts[c.key] }}</span></a></div>
+<ul class="subs" data-for="{{ c.key }}">{% for s in subcategories[c.key] %}
+<li><div class="sub-row"><button type="button" class="fold" data-fold="sub-{{ s.id }}" aria-expanded="true" aria-label="Subcategories of {{ s.name }}"></button><a href="#sub-{{ s.id }}" data-view="sub-{{ s.id }}" data-category="{{ c.key }}" data-sub="{{ s.id }}">{{ s.name }} <span class="n">{{ s.people }}</span></a></div>
+<ul class="subs" data-for="sub-{{ s.id }}">{% for k in s.children %}<li><div class="sub-row"><a href="#sub-{{ k.id }}" data-view="sub-{{ k.id }}" data-category="{{ c.key }}" data-sub="{{ k.id }}" data-parent="{{ s.id }}">{{ k.name }} <span class="n">{{ k.people }}</span></a></div></li>
+{% endfor %}<li class="add" hidden><button type="button" class="add-sub" data-category="{{ c.key }}" data-parent="{{ s.id }}" aria-label="Add a subcategory to {{ s.name }}">+</button></li></ul></li>{% endfor %}
+<li class="add" hidden><button type="button" class="add-sub" data-category="{{ c.key }}" data-parent="" aria-label="Add a subcategory to {{ c.label }}">+</button></li></ul>
+{% else %}<a href="#{{ c.key }}" data-view="{{ c.key }}" data-category="{{ c.key }}"><span class="dot c-{{ c.key }}"></span>{{ c.label }} <span class="n">{{ counts[c.key] }}</span></a>
+{% endif %}{% endfor %}<a href="#unassigned" data-view="unassigned"><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
 <div class="sep">Conversations</div>
 <a href="#groups" data-view="groups"><span class="dot c-groups"></span>Groups <span class="n">{{ groups | length }}</span></a>
 <a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>
@@ -120,7 +140,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 </section>
 <section id="people-section" aria-label="People">
 <div class="gallery" id="people">
-{% for p in people %}<a class="tile" href="{{ p.href }}" data-category="{{ p.category }}" data-items="{{ p.item_count }}"{% if p.named %} data-name="{{ p.title }}"{% else %} data-handles="{{ p.handles }}"{% endif %}>
+{% for p in people %}<a class="tile" href="{{ p.href }}" data-category="{{ p.category }}"{% if p.sub %} data-sub="{{ p.sub }}"{% endif %} data-items="{{ p.item_count }}"{% if p.named %} data-name="{{ p.title }}"{% else %} data-handles="{{ p.handles }}"{% endif %}>
 <span class="face {{ p.hue }}" aria-hidden="true">{{ p.initials }}</span><span class="name">{{ p.title }}</span><span class="meta">{{ p.count }} · {{ p.span }}</span>
 <span class="tip" role="tooltip"><strong>{{ p.title }}</strong><span class="when">{{ p.first }} to {{ p.last }}</span><ul>{% for s in p.sources %}<li><i class="s-{{ s.slug }}"></i>{{ s.name }}<b>{{ s.count }}</b></li>{% endfor %}</ul></span>
 </a>

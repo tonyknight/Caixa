@@ -128,3 +128,47 @@ def test_the_service_adds_renames_sorts_and_deletes(service: Service) -> None:
     assert gone["deleted"] == 2 and service.call("people.subcategories")["subcategories"] == []
     (ana,) = [p for p in service.call("people.list")["people"] if p["name"] == family.ANA.name]
     assert ana["category"] == "friends" and ana["subcategory"] is None
+
+
+# --- The index page draws them (T02) --------------------------------------------------------------
+
+import re  # noqa: E402
+
+from caixa.collectors.chattr import collectors  # noqa: E402
+
+
+def test_the_index_draws_each_categorys_subcategories(tmp_path: Path, fixture_family) -> None:  # type: ignore[no-untyped-def]
+    box = Box.create(tmp_path / "Box", name="Box")
+    with box.master() as master:
+        master.add_person(family.OWNER.name, is_owner=True)
+        master.commit()
+    whatsapp = next(c for c in collectors() if c.info.id == "whatsapp")
+    whatsapp.run(
+        box,
+        fixture_family.paths["whatsapp"] / "WhatsApp Chat - Ana Costa" / "_chat.txt",
+        {},
+        lambda step: None,
+    )
+    with box.master() as master:
+        school = master.add_subcategory("friends", None, "School")
+        year = master.add_subcategory("friends", school, "Class of 98")
+        master.add_subcategory("friends", None, "Climbing")
+        master.set_category([master.person_id(family.ANA.name)], "friends", year)
+        master.commit()
+    whatsapp.refresh(box, lambda step: None)  # (the pages drawn again)
+    index = (box.root / "index.html").read_text(encoding="utf-8")
+    sidebar = index.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+    friends = sidebar.split('data-for="friends"', 1)[1].split('data-view="business"', 1)[0]
+    names = re.findall(r'data-sub="(\d+)"[^>]*>([^<]+)<span class="n">(\d+)', friends)
+    assert [(n.strip(), c) for _, n, c in names] == [
+        ("Climbing", "0"),
+        ("School", "1"),
+        ("Class of 98", "1"),
+    ]
+    assert f'data-sub="{year}" data-parent="{school}"' in friends
+    assert (
+        friends.count('class="add"') == 3
+    )  # under Friends, Climbing and School; none under Class of 98 (two levels at most)
+    assert 'data-fold="friends"' in sidebar and 'data-for="unrecognized"' not in sidebar
+    (tile,) = re.findall(r'<a class="tile"[^>]*data-name="Ana Costa"[^>]*>', index)
+    assert f'data-sub="{year}"' in tile
