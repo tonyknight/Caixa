@@ -26,6 +26,7 @@ import itertools
 import json
 import os
 import queue
+import re
 import shlex
 import shutil
 import subprocess
@@ -68,8 +69,59 @@ def _is_mac() -> bool:
     return sys.platform == "darwin"
 
 
+#: The oldest Swift that has Apple's Foundation Models (the one Xcode 26 brings).
+SWIFT_NEEDED = (6, 2)
+
+
+def _swift() -> list[str]:
+    """Xcode's own Swift (`xcrun swift`), not whatever `swift` comes first on the PATH (an old
+    toolchain from swift.org there cannot build the helper); plain `swift` without `xcrun`."""
+    return ["xcrun", "swift"] if shutil.which("xcrun") else ["swift"]
+
+
+def _build_environment() -> dict[str, str]:
+    """The environment without `TOOLCHAINS`, which would choose another toolchain over Xcode's."""
+    return {k: v for k, v in os.environ.items() if k != "TOOLCHAINS"}
+
+
 def _build_command() -> list[str]:
-    return ["swift", "build", "-c", "release", "--package-path", str(PACKAGE)]
+    return [*_swift(), "build", "-c", "release", "--package-path", str(PACKAGE)]
+
+
+def _apple_silicon() -> bool:
+    """Whether this Mac has Apple silicon (also true for a program run through Rosetta). When the
+    Mac does not say, it is taken to have it, and the model's own check decides."""
+    try:
+        said = subprocess.run(
+            ["sysctl", "-n", "hw.optional.arm64"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return True
+    answer = (said.stdout or "").strip()
+    return answer != "0" if said.returncode == 0 and answer else True
+
+
+def _swift_version() -> Optional[tuple[tuple[int, int], str]]:
+    """The Swift that would build the helper: (major, minor) and the version as it says it."""
+    try:
+        said = subprocess.run(
+            [*_swift(), "--version"],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+            env=_build_environment(),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    found = re.search(r"Swift version ((\d+)\.(\d+)[\d.]*)", f"{said.stdout}\n{said.stderr}")
+    if not found:
+        return None
+    return (int(found.group(2)), int(found.group(3))), found.group(1)
 
 
 def _built() -> Path:
@@ -95,17 +147,34 @@ def helper() -> list[str]:
         return shlex.split(given)
     if not _is_mac():
         raise AppleUnavailable(REASONS["not_a_mac"])
+    if not _apple_silicon():
+        raise AppleUnavailable(REASONS["not_eligible"])
     command = " ".join(shlex.quote(part) for part in _build_command())
     with _build_lock:
         program = _built()
         if _stale(program):
-            if shutil.which("swift") is None:
+            if shutil.which("xcrun") is None and shutil.which("swift") is None:
                 raise AppleUnavailable(
                     f"{REASONS['not_built']} It needs Xcode or its command-line tools "
                     f"(xcode-select --install); then run: {command}"
                 )
+            version = _swift_version()
+            if version is not None and version[0] < SWIFT_NEEDED:
+                raise AppleUnavailable(
+                    f"{REASONS['not_built']} The Swift it found is {version[1]}; "
+                    f"Apple Intelligence needs Swift {SWIFT_NEEDED[0]}.{SWIFT_NEEDED[1]}, which "
+                    "comes with Xcode 26. Install Xcode 26 and select it (sudo xcode-select -s "
+                    "/Applications/Xcode.app); an older toolchain in ~/Library/Developer/Toolchains "
+                    f"or a TOOLCHAINS setting can hide it. Then run: {command}"
+                )
             try:
-                subprocess.run(_build_command(), check=True, capture_output=True, timeout=1800)
+                subprocess.run(
+                    _build_command(),
+                    check=True,
+                    capture_output=True,
+                    timeout=1800,
+                    env=_build_environment(),
+                )
             except (OSError, subprocess.SubprocessError) as error:
                 said = getattr(error, "stderr", b"") or b""
                 tail = said.decode("utf-8", "replace").strip().splitlines()[-3:]
@@ -122,6 +191,8 @@ def helper() -> list[str]:
 def check(build: bool = True) -> dict[str, Any]:
     """`{ready, reason, message}`: whether the Mac's model can be used now, or why not. Without
     `build`, a helper that is not built yet is reported (`not_built`) rather than built."""
+    if not os.environ.get(OVERRIDE, "").strip() and _is_mac() and not _apple_silicon():
+        return {"ready": False, "reason": "not_eligible", "message": REASONS["not_eligible"]}
     if not build and not os.environ.get(OVERRIDE, "").strip() and _is_mac() and _stale(_built()):
         return {"ready": False, "reason": "not_built", "message": REASONS["not_built"] + " It is built "
                 "when Apple Intelligence is chosen and tested (this needs Xcode or its command-line "

@@ -8,11 +8,27 @@ Apple Intelligence & Siri), and Xcode or its command-line tools to build (`xcode
 
 ## Building
 
-Caixa builds it by itself the first time Apple Intelligence is chosen in Settings. To build it
-yourself, from the repository's root:
+Caixa builds it by itself the first time Apple Intelligence is chosen in Settings, with Xcode's own
+Swift. It needs **Swift 6.2 or later, from Xcode 26** (or its command-line tools). See which Swift
+that is:
 
 ```bash
-swift build -c release --package-path tools/apple-intelligence
+xcrun swift --version
+```
+
+If it is older, or `xcode-select -p` does not point at Xcode 26, select it:
+
+```bash
+sudo xcode-select -s /Applications/Xcode.app
+```
+
+A toolchain installed from swift.org in `~/Library/Developer/Toolchains`, or a `TOOLCHAINS`
+setting in your shell, can stand in front of Xcode's: `swift` alone may then be an old version
+(messages such as `objc[…]: Class … is implemented in both …` come from that). Caixa ignores both.
+To build it yourself, from the repository's root:
+
+```bash
+xcrun swift build -c release --package-path tools/apple-intelligence
 ```
 
 Then check that the model can be used:

@@ -117,3 +117,63 @@ def test_the_swift_helper_is_in_the_repository_with_its_protocol() -> None:
                    "not_eligible", "not_enabled", "not_ready", "refused"):  # fmt: skip
         assert needed in main, needed
     assert (apple.PACKAGE / "README.md").is_file()
+
+
+# --- Building with Xcode's Swift, on Apple silicon (bug 20261121-07) ------------------------------
+
+import subprocess  # noqa: E402
+
+
+class _Calls:
+    """Stands in for subprocess.run: answers `--version` and `sysctl` as told, records the rest."""
+
+    def __init__(
+        self, version: str = "Apple Swift version 6.2 (swiftlang-6.2.0.19.9)", arm64: str = "1"
+    ) -> None:
+        self.version, self.arm64, self.seen = version, arm64, []
+
+    def __call__(self, command, **kwargs):  # type: ignore[no-untyped-def]
+        self.seen.append((list(command), kwargs.get("env")))
+        if command[-1] == "--version":
+            return subprocess.CompletedProcess(command, 0, stdout=self.version, stderr="")
+        if command[:2] == ["sysctl", "-n"]:
+            return subprocess.CompletedProcess(command, 0, stdout=self.arm64 + "\n", stderr="")
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+
+@pytest.fixture
+def mac(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> _Calls:
+    monkeypatch.delenv(apple.OVERRIDE, raising=False)
+    monkeypatch.setattr(apple, "_is_mac", lambda: True)
+    monkeypatch.setattr(apple, "PACKAGE", tmp_path / "apple-intelligence")
+    monkeypatch.setattr(apple.shutil, "which", lambda name: f"/usr/bin/{name}")
+    calls = _Calls()
+    monkeypatch.setattr(apple.subprocess, "run", calls)
+    return calls
+
+
+def test_an_old_swift_is_refused_naming_its_version(mac: _Calls) -> None:
+    mac.version = "Apple Swift version 5.0.3 (swift-5.0.3-RELEASE)"
+    with pytest.raises(apple.AppleUnavailable) as error:
+        apple.helper()
+    said = str(error.value)
+    assert "5.0.3" in said and "6.2" in said and "xcode-select" in said
+    assert not any("build" in c for c, _ in mac.seen)  # nothing was built
+
+
+def test_the_build_uses_xcodes_swift_without_a_toolchains_choice(
+    mac: _Calls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TOOLCHAINS", "swift-5.0.3-RELEASE")
+    with pytest.raises(apple.AppleUnavailable):  # (the fake build makes no program)
+        apple.helper()
+    builds = [(c, env) for c, env in mac.seen if "build" in c]
+    assert builds and builds[0][0][:3] == ["xcrun", "swift", "build"]
+    assert builds[0][1] is not None and "TOOLCHAINS" not in builds[0][1]
+
+
+def test_a_mac_without_apple_silicon_is_told_at_once(mac: _Calls) -> None:
+    mac.arm64 = "0"
+    found = apple.check()
+    assert found["ready"] is False and found["reason"] == "not_eligible"
+    assert not any("build" in c or c[-1] == "--version" for c, _ in mac.seen)

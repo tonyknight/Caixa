@@ -813,7 +813,7 @@ turned on (System Settings, Apple Intelligence & Siri). It needs no address, mod
 leaves the Mac, and it works on as many messages at once as the **Workers** setting. Caixa reaches it
 through a small helper program it builds the first time you choose it and press **Test** (that needs
 Xcode or its command-line tools: `xcode-select --install`; if the build fails Caixa shows the command
-to run, `swift build -c release --package-path tools/apple-intelligence`). When the Mac cannot run it,
+to run, `xcrun swift build -c release --package-path tools/apple-intelligence`; it needs Swift 6.2 from Xcode 26, and Caixa says so when it finds an older one). When the Mac cannot run it,
 the choice is greyed out with the reason. Its model is small, so check a few translations.
 
 *An endpoint* is any service that speaks the OpenAI chat format. In **Settings → Translation** give:
