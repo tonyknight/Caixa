@@ -55,6 +55,9 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 #mail ul { list-style:none; padding:0; margin:0; background:var(--card); border:1px solid var(--line); border-radius:.7rem; }
 #mail li { display:flex; gap:1rem; padding:.55rem .9rem; border-bottom:1px solid var(--line); font-size:.9rem; } #mail li:last-child { border-bottom:0; }
 #mail li .count { margin-left:auto; color:var(--muted); white-space:nowrap; }
+#mail h3.account { font-size:.95rem; margin:1.1rem 0 .4rem; color:var(--muted); } #mail ul + h3.account { margin-top:1.4rem; }
+#mail li .when { color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap; } #mail li .person { color:var(--muted); white-space:nowrap; }
+.card-stat .by-account { display:block; font-size:.78rem; color:var(--muted); }
 .status { grid-column:2; position:sticky; bottom:0; z-index:3; display:flex; align-items:center; gap:1rem; padding:.55rem 1.8rem; border-top:1px solid var(--line); background:var(--panel); font-size:.86rem; min-height:2.8rem; flex-wrap:wrap; }
 .status #count { font-weight:600; } .status #picked { color:var(--accent); font-weight:600; }
 .status #actions { display:flex; gap:.35rem; align-items:center; flex-wrap:wrap; }
@@ -92,7 +95,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 {% endfor %}<a href="#unassigned" data-view="unassigned"><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
 <div class="sep">Conversations</div>
 <a href="#groups" data-view="groups"><span class="dot c-groups"></span>Groups <span class="n">{{ groups | length }}</span></a>
-<a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail | length }}</span></a>
+<a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>
 </nav>
 <main class="content">
 <h1 id="view-title">All people</h1>
@@ -104,7 +107,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 <div class="card-stat"><b>{{ stats['items'] }}</b><span>items</span></div>
 <div class="card-stat"><b>{{ stats.people }}</b><span>people</span></div>
 <div class="card-stat"><b>{{ stats.groups }}</b><span>group conversations</span></div>
-<div class="card-stat"><b>{{ stats.mail }}</b><span>mail conversations</span></div>
+<div class="card-stat"><b>{{ stats.mail }}</b><span>mail conversations</span>{% for a in stats.by_account %}<span class="by-account">@{{ a.account }} {{ a.count }}</span>{% endfor %}</div>
 <div class="card-stat"><b>{{ stats.files }}</b><span>files, {{ stats.size }}</span></div>
 <div class="card-stat"><b>{{ stats.years }}</b><span>{{ stats.span }}</span></div>
 </div>
@@ -132,8 +135,10 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 </section>
 <section class="list" id="mail" aria-label="Mail">
 <h2>Mail</h2>
-<ul>{% for m in mail %}<li><a href="{{ m.href }}">{{ m.title }}</a><span class="count">{{ m.count }}</span></li>
+{% for group in mail %}{% if group.account %}<h3 class="account">@{{ group.account }}</h3>
+{% endif %}<ul>{% for m in group.mails %}<li>{% if m.date %}<span class="when">{{ m.date }}</span>{% endif %}<a href="{{ m.href }}">{{ m.title }}</a>{% if m.person %}<span class="person">{{ m.person }}</span>{% endif %}<span class="count">{{ m.count }}</span></li>
 {% endfor %}</ul>
+{% endfor %}
 </section>
 </main>
 <footer class="status" aria-live="polite">

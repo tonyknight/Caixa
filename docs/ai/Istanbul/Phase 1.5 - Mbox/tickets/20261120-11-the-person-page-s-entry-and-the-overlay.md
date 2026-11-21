@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261120-10-conversation-pages-and-attachments
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** Chattr draws the entry, since it draws the person pages; mail that came with an
 account (ticket 09) gets the new entry, and mail without one (Chattr on its own) keeps Phase 1's
@@ -94,7 +93,7 @@ Mail list on the person page.
 - Tests: the Mail view has a Gmail heading with its conversations (date, subject, person, mails);
   the dashboard says the count per account; Phase 1 mail without an account still listed.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
@@ -112,3 +111,6 @@ T01: Renderer gives every account mail conversation an entry on the page of its 
 
 ### 2026-11-21
 T02: chattr/templates/conversation.js (inline, only on pages with conversation entries): Read the conversation opens a dialog with the page in a frame; Escape (also inside the frame when same-origin, i.e. from /box/), the cross or a click beside it closes; Open in its own window is a target=_blank link. Conversation pages' back button targets _top. caixa/web.py: conversation.js joins PAGE_SCRIPTS (hash in the box policy; older copies swapped by the existing mechanism), and the box policy gains frame-src 'self'. The script was written before its tests (the Python checks passed at once); the e2e test (web/tests/e2e-browse.test.ts, from /box/ and file://, no policy errors) is the real check, and passed.
+
+### 2026-11-21
+T03: the index's Mail view lists account mail under a heading per account (@Gmail), newest first: date, subject (link), home person, mails; mail without an account stays in one list after. The dashboard's mail card adds a line per account (@Gmail 43). Visual check (file://): entry, overlay and index screenshots; fixed the card subject labels being clipped (content-visibility paints within the card) and dates inside the index links.

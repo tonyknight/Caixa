@@ -84,3 +84,17 @@ def test_a_page_with_conversations_carries_the_overlay_script_unchanged(box: Box
     assert 'target="_top"' in conversation.read_text(
         encoding="utf-8"
     )  # back to the index, whole window
+
+
+def test_the_index_lists_mail_by_account(box: Box) -> None:
+    index = (box.root / "index.html").read_text(encoding="utf-8")
+    mail = index.split('<section class="list" id="mail"', 1)[1].split("</section>", 1)[0]
+    assert '<h3 class="account">@Gmail</h3>' in mail
+    (photos,) = [
+        li for li in re.findall(r"<li>.*?</li>", mail, re.S) if "Fotos de São Martinho" in li
+    ]
+    assert "2019-11-02" in photos and "João Costa" in photos and "4 mails" in photos
+    assert 'href="People/Jo%C3%A3o%20Costa/Mail/Gmail/(2019-11-02)%20Fotos' in photos
+    pages = len(list((box.root / "People").glob("*/Mail/Gmail/*.html")))
+    dashboard = index.split('<section class="dashboard"', 1)[1].split("</section>", 1)[0]
+    assert f'<span class="by-account">@Gmail {pages}</span>' in dashboard

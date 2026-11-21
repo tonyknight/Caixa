@@ -25,6 +25,7 @@ import calendar
 import json
 import os
 import re
+from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Optional, Sequence, Union
@@ -702,6 +703,13 @@ def _stats(site: _Site) -> dict[str, Any]:
         "people": f"{sum(1 for p in pages if p.kind == 'person' and _named(renderer, p)):,}",
         "groups": f"{sum(1 for p in pages if p.kind == 'group'):,}",
         "mail": f"{sum(1 for p in pages if p.kind == 'mail'):,}",
+        "by_account": [
+            {"account": account, "count": f"{count:,}"}
+            for account, count in sorted(
+                Counter(p.account for p in pages if p.kind == "mail" and p.account).items(),
+                key=lambda item: str(item[0]).casefold(),
+            )
+        ],
         "files": f"{sum(e['files'] for e in sources.values()):,}",
         "size": _size(sum(e["bytes"] for e in sources.values())),
         "first": f"{first:%Y-%m-%d}" if first else "",
@@ -729,9 +737,24 @@ def _index(
     for page in renderer.pages:
         href = quote(page.path, safe="/()")
         if page.kind == "mail":
-            title_text = page.filename.removesuffix(".html")
-            count = _plural(len(page.message_ids), "message")
-            mail.append({"title": title_text, "href": href, "count": count})
+            first = renderer.messages[page.message_ids[0]]
+            if page.account:  # by account: when it began, its subject, its person, its mails
+                entry = {
+                    "title": page.title,
+                    "date": f"{first['local']:%Y-%m-%d}",
+                    "person": page.home or "",
+                    "count": _plural(len(page.message_ids), "mail"),
+                }
+            else:  # Phase 1: one list
+                entry = {
+                    "title": page.filename.removesuffix(".html"),
+                    "date": "",
+                    "person": "",
+                    "count": _plural(len(page.message_ids), "message"),
+                }
+            mail.append(
+                {**entry, "href": href, "account": page.account or "", "at": first["timestamp_utc"]}
+            )
             continue
         card = _card(renderer, page, href)
         if page.kind == "group":
@@ -755,9 +778,26 @@ def _index(
         counts={key: f"{value:,}" for key, value in counts.items()},
         people=people,
         groups=groups,
-        mail=mail,
+        mail=_mail_lists(mail),
+        mail_count=len(mail),
         stats=_stats(site),
     )
+
+
+def _mail_lists(mail: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The index's Mail view: a list per account (newest first), then mail without one."""
+    accounts = sorted({m["account"] for m in mail if m["account"]}, key=str.casefold)
+    lists = [
+        {
+            "account": account,
+            "mails": sorted(
+                (m for m in mail if m["account"] == account), key=lambda m: m["at"], reverse=True
+            ),
+        }
+        for account in accounts
+    ]
+    rest = [m for m in mail if not m["account"]]
+    return lists + ([{"account": "", "mails": rest}] if rest else [])
 
 
 def _plural(count: int, word: str) -> str:
