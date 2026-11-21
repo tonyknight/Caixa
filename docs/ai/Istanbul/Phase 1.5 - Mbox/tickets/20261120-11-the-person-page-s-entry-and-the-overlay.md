@@ -13,7 +13,7 @@ depends_on:
 - 20261120-10-conversation-pages-and-attachments
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -41,7 +41,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** Chattr draws the entry, since it draws the person pages; mail that came with an
 account (ticket 09) gets the new entry, and mail without one (Chattr on its own) keeps Phase 1's
@@ -86,7 +86,7 @@ Mail list on the person page.
   is swapped; end to end (`web/tests/e2e-browse.test.ts`): from `/box/` and from `file://`, Read the
   conversation opens the dialog with the page in it, no policy error, Escape closes it.
 - Verify: `python -m pytest -q tests/test_web_server.py tests/test_mail_pages.py && (cd web && pnpm exec vitest run tests/e2e-browse.test.ts)`
-- [ ] done
+- [x] done
 
 ### T03: The index's Mail view by account
 
@@ -109,3 +109,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: Renderer gives every account mail conversation an entry on the page of its home person and of every box person in it (a handle naming a person), making a person page for someone met only in mail (PageSpec.home, PageSpec.mail). The entry (page.html, k-conversation) sits at the first mail: @Account pill, who began it (Me for the owner), subject, opening words (40, before any quote) until summaries come, counts (mails, files without pixels and repeated signatures), Read the conversation. Calendar, totals and index tiles count the mails. Phase 1's Mail list stays for mail without an account. RED: 4 failing tests in tests/test_mail_pages.py, then GREEN.
+
+### 2026-11-21
+T02: chattr/templates/conversation.js (inline, only on pages with conversation entries): Read the conversation opens a dialog with the page in a frame; Escape (also inside the frame when same-origin, i.e. from /box/), the cross or a click beside it closes; Open in its own window is a target=_blank link. Conversation pages' back button targets _top. caixa/web.py: conversation.js joins PAGE_SCRIPTS (hash in the box policy; older copies swapped by the existing mechanism), and the box policy gains frame-src 'self'. The script was written before its tests (the Python checks passed at once); the e2e test (web/tests/e2e-browse.test.ts, from /box/ and file://, no policy errors) is the real check, and passed.

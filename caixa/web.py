@@ -77,7 +77,11 @@ APP_CSP = "; ".join(
 
 #: The scripts the box's pages carry inline (Chattr's templates), and how each begins: its first
 #: words have not changed between versions, so a page drawn with an older one is recognised.
-PAGE_SCRIPTS = (("lightbox.js", b"/* Pictures, full size"), ("index.js", b"/* The box's index:"))
+PAGE_SCRIPTS = (
+    ("lightbox.js", b"/* Pictures, full size"),
+    ("index.js", b"/* The box's index:"),
+    ("conversation.js", b"/* Conversations, over the page"),
+)
 #: The scripts sit at the end of a page; only this much of its end is looked at.
 SCRIPT_TAIL = 512 * 1024
 
@@ -96,8 +100,8 @@ def page_scripts() -> list[tuple[bytes, bytes]]:
 
 
 def page_script_hashes() -> list[str]:
-    """The SHA-256 of each script the box's pages carry (Chattr's lightbox and index scripts),
-    in the form a Content-Security-Policy takes."""
+    """The SHA-256 of each script the box's pages carry (Chattr's lightbox, index and conversation
+    scripts), in the form a Content-Security-Policy takes."""
     return [
         "sha256-" + base64.b64encode(hashlib.sha256(text).digest()).decode()
         for _, text in page_scripts()
@@ -128,7 +132,8 @@ def box_csp() -> str:
     return "; ".join(
         [
             "default-src 'none'", f"script-src {scripts}", "connect-src 'self'",
-            "img-src 'self' data:", "media-src 'self'", "style-src 'unsafe-inline'",
+            "img-src 'self' data:", "media-src 'self'", "frame-src 'self'",
+            "style-src 'unsafe-inline'",
             "font-src 'self'", "frame-ancestors 'self'", "base-uri 'none'", "form-action 'none'",
         ]
     )  # fmt: skip

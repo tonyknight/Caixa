@@ -179,6 +179,7 @@ def test_box_files_are_served_at_their_own_address(running, tmp_path: Path) -> N
     for script in web.page_script_hashes():
         assert f"'{script}'" in policy
     assert "default-src 'none'" in policy and headers["x-content-type-options"] == "nosniff"
+    assert "frame-src 'self'" in policy  # a conversation shown over its person's page
     # seeking in a recording
     status, headers, part = browser.ask("GET", "/box/People/Ana%20Costa/voice.m4a", headers={"Range": "bytes=10-19"})  # fmt: skip
     assert status == 206 and part == bytes(range(10, 20))
@@ -213,7 +214,9 @@ def test_page_script_hashes_are_those_of_the_templates_the_pages_carry() -> None
     import chattr
 
     templates = Path(chattr.__file__).resolve().parent / "templates"
-    for name, listed in zip(("lightbox.js", "index.js"), web.page_script_hashes()):
+    for name, listed in zip(
+        ("lightbox.js", "index.js", "conversation.js"), web.page_script_hashes(), strict=True
+    ):
         text = (templates / name).read_text(encoding="utf-8").removesuffix("\n")
         digest = base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
         assert listed == f"sha256-{digest}"

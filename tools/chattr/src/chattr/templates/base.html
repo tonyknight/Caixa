@@ -67,6 +67,14 @@ a { color: var(--link); }
 .conversation-summary { margin-top:.15rem; color:var(--fg); }
 .conversation-foot { display:flex; flex-wrap:wrap; gap:.6rem; align-items:baseline; justify-content:space-between; margin-top:.35rem; }
 .read-conversation { font-size:.85rem; font-weight:600; }
+.conversation-overlay { display:none; position:fixed; inset:0; z-index:10; background:rgba(10,12,18,.6); align-items:center; justify-content:center; padding:2vh 2vw; }
+.conversation-overlay.open { display:flex; } .co-open body { overflow:hidden; }
+.co-panel { display:flex; flex-direction:column; width:min(60rem,100%); height:100%; background:var(--bg); border-radius:.6rem; overflow:hidden; box-shadow:0 0 2rem rgba(0,0,0,.45); }
+.co-bar { display:flex; align-items:center; justify-content:flex-end; gap:.8rem; padding:.35rem .6rem; background:var(--panel); border-bottom:1px solid var(--line); }
+.co-bar a { font-size:.85rem; font-weight:600; }
+.co-close { font:1.6rem/1 system-ui,sans-serif; color:var(--fg); background:transparent; border:0; border-radius:.4rem; padding:0 .45rem; cursor:pointer; }
+.co-close:hover { background:var(--line); }
+.co-panel iframe { flex:1; width:100%; border:0; background:var(--bg); }
 
 .mail-headers { margin:.3rem 0; font-size:.85rem; color:var(--muted); }
 .mail-headers div { margin:0; } .mail-headers b { color:var(--fg); font-weight:600; }

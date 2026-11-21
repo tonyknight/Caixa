@@ -4,6 +4,7 @@
 import { join } from 'node:path'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { buildFixtures, canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
 
@@ -107,6 +108,42 @@ run('Browse and Settings, in a browser', () => {
       }
       const noCookie = await fetch(`${running.base}/box/index.html`)
       expect(noCookie.status).toBe(401) // owner-only, like every Caixa route
+    } finally {
+      await browser.close()
+    }
+  }, 180_000)
+
+  it('shows a mail conversation over the person page, from the box and from disk', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      const errors: string[] = []
+      page.on('console', (message: any) => { if (message.type() === 'error') errors.push(message.text()) })
+      const check = async (address: string) => {
+        await page.goto(address, { waitUntil: 'load' })
+        const read = page.locator('a.read-conversation').first()
+        await read.waitFor({ timeout: 30_000 })
+        const target = await read.getAttribute('href')
+        await read.click()
+        const dialog = page.getByRole('dialog', { name: 'Conversation' })
+        await dialog.waitFor({ timeout: 15_000 })
+        const shown = dialog.locator('iframe')
+        await expect.poll(async () => decodeURIComponent((await shown.getAttribute('src')) ?? '')).toContain(decodeURIComponent(target!).replace(/^(\.\.\/)+/, ''))
+        // the conversation itself, drawn in the frame
+        const inside = page.frameLocator('.conversation-overlay iframe')
+        await inside.locator('article.card').first().waitFor({ timeout: 30_000 })
+        expect(await dialog.getByRole('link', { name: 'Open in its own window' }).getAttribute('target')).toBe('_blank')
+        await page.keyboard.press('Escape')
+        await dialog.waitFor({ state: 'hidden', timeout: 15_000 })
+        // and the cross closes it too
+        await read.click()
+        await dialog.waitFor()
+        await dialog.getByRole('button', { name: 'Close' }).click()
+        await dialog.waitFor({ state: 'hidden', timeout: 15_000 })
+      }
+      await check(`${running.base}/box/People/Ana%20Costa/Ana%20Costa.html`)
+      await check(pathToFileURL(join(box, 'People', 'Ana Costa', 'Ana Costa.html')).href)
+      expect(errors.filter(text => /Content Security Policy|Refused to (execute|frame|load)/i.test(text))).toEqual([])
     } finally {
       await browser.close()
     }

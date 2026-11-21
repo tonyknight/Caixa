@@ -402,6 +402,7 @@ def _message_page(site: _Site, spec: PageSpec, relations: "_Relations") -> str:
         ],
         related=relations.related(spec, up),
         mail=relations.mail(spec, up),
+        conversations=bool(spec.mail),
         years=ordered,
         back=f"{up}index.html",
         island=Markup(island_json(compact(renderer.document(spec)))),

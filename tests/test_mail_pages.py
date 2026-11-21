@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import re
+from pathlib import Path
 
 import pytest
 from fixtures import family
@@ -65,3 +66,21 @@ def test_someone_met_only_in_mail_has_a_page(box: Box) -> None:
     page = _person(box, "Beatriz Lima")
     assert len(_entries(page)) == 2  # March and April
     assert "Book club in March" in page and "Book club in April" in page
+
+
+def _template(name: str) -> str:
+    import chattr
+
+    text = (Path(chattr.__file__).resolve().parent / "templates" / name).read_text(encoding="utf-8")
+    return text.removesuffix("\n")
+
+
+def test_a_page_with_conversations_carries_the_overlay_script_unchanged(box: Box) -> None:
+    scripts = re.findall(r"<script>(.*?)</script>", _person(box, "João Costa"), re.S)
+    assert scripts == [_template("lightbox.js"), _template("conversation.js")]
+    conversation = (
+        box.root / "People" / "João Costa" / "Mail" / "Gmail" / "(2019-12-20) The attic boxes.html"
+    )
+    assert 'target="_top"' in conversation.read_text(
+        encoding="utf-8"
+    )  # back to the index, whole window
