@@ -38,6 +38,10 @@ function Details({ job }: { job: Job }) {
       {job.result && (job.kind === 'mail-clean' || job.kind === 'mail-reduce') && <><h3>{t('jobs.result')}</h3><p>{t('jobs.mailClean', { mails: (job.result as unknown as CleanWritten).mails, left: (job.result as unknown as CleanWritten).left_out })}</p></>}
       {job.result && job.kind === 'mail-summarize' && <><h3>{t('jobs.result')}</h3><p>{t('jobs.summaries', { written: (job.result as unknown as { written: number }).written, left: (job.result as unknown as { left: number }).left })}</p></>}
       {job.result && job.kind !== 'mail-read' && job.kind !== 'mail-clean' && job.kind !== 'mail-reduce' && job.kind !== 'mail-summarize' && <><h3>{t('jobs.result')}</h3><p>{t('import.report.counts', { inserted: job.result.inserted, updated: job.result.updated, unchanged: job.result.unchanged })}</p></>}
+      {job.kind === 'mail-import' && (() => {
+        const said = (job.result as unknown as { summaries?: { written: number; reason?: string | null } } | null)?.summaries
+        return said && !said.written && said.reason && said.reason !== 'nothing_new' ? <p>{t(`mail.summaries.${said.reason}` as never)}</p> : null
+      })()}
       {job.error && <div className={css.error} role="alert"><strong>{t('jobs.error')}</strong><br />{job.error}</div>}
       <h3>{t('jobs.log')}</h3>
       <Log job={job} />

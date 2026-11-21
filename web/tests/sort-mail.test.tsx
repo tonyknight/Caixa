@@ -3,7 +3,7 @@ import { cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SortMail } from '../src/client/mail/SortMail.tsx'
 import type { SortReply, SortRow } from '../src/client/mail/types.ts'
-import { job, ok, type FakeApi } from './fake-api.ts'
+import { SETTINGS, job, ok, type FakeApi } from './fake-api.ts'
 import { renderWith } from './render.tsx'
 
 afterEach(cleanup)
@@ -184,7 +184,7 @@ describe('the Sort mail window', () => {
     expect(ask.textContent).toContain('1 file')
     fireEvent.click(within(ask).getByRole('button', { name: 'Import them' }))
     await view.flush()
-    expect(view.api.calls).toContainEqual(['call', 'mail.import', { source: 4 }])
+    expect(view.api.calls).toContainEqual(['call', 'mail.import', { source: 4, translate: false, summarize: false }])
     const asked = view.api.calls.filter(c => c[1] === 'mail.senders').length
     await view.emit('job.finished', { ...job9, status: 'done', job: 9 })
     await view.flush()
@@ -219,6 +219,44 @@ describe('the Sort mail window', () => {
     await view.emit('job.finished', { ...job9, status: 'done', job: 9 })
     await view.flush()
     expect(within(bar()).queryByRole('status', { name: 'Import progress' })).toBeNull()
+  })
+
+  it('translates and summarizes this import as Settings say, or not, as chosen', async () => {
+    const view = await renderWith(<SortMail />, api => {
+      scripted(api)
+      api.settingsReply = ok({ ...SETTINGS, values: { ...SETTINGS.values, 'translation.enabled': true, 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama', 'summaries.enabled': true } })
+      api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+      api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    })
+    fireEvent.click(screen.getByRole('button', { name: /Sort \(2026-11-20\) All mail \[Cleaned\]\.mbox/ }))
+    await view.flush()
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    const ask = screen.getByRole('dialog', { name: /Import 5 mails/ })
+    const translate = within(ask).getByRole('checkbox', { name: 'Translate' }) as HTMLInputElement
+    const summarize = within(ask).getByRole('checkbox', { name: 'Summarize' }) as HTMLInputElement
+    expect(translate.checked && summarize.checked).toBe(true)  // as Settings say
+    expect(translate.disabled || summarize.disabled).toBe(false)  // both set up (summaries use translation's)
+    fireEvent.click(translate)
+    fireEvent.click(within(ask).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.import', { source: 4, translate: false, summarize: true }])
+  })
+
+  it('cannot switch on work that is not set up, and says why no summaries were written', async () => {
+    const view = await opened()
+    view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+    view.api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    const ask = screen.getByRole('dialog', { name: /Import 5 mails/ })
+    expect((within(ask).getByRole('checkbox', { name: 'Summarize' }) as HTMLInputElement).disabled).toBe(true)
+    expect(ask.textContent).toContain('Set up in Settings')
+    fireEvent.click(within(ask).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    await view.emit('job.finished', { ...job9, status: 'done', job: 9, result: { ...job9.result, summaries: { written: 0, left: 2, model: '', error: null, reason: 'off' } } })
+    await view.flush()
+    expect(within(screen.getByRole('main')).getByRole('status', { name: 'Imported' }).textContent).toContain('No summaries: they are off in Settings, Summaries.')
   })
 
   it('writes the reduced mbox after an import, after asking', async () => {

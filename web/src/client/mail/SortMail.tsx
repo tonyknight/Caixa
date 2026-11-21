@@ -38,6 +38,9 @@ export function SortMail() {
   const [asking, setAsking] = useState<ImportPreview | undefined>()
   const [importing, setImporting] = useState<number | undefined>()
   const [counting, setCounting] = useState(false)
+  // this import's switches, preset from Settings; work that is not set up cannot be switched on
+  const [switches, setSwitches] = useState({ translate: false, summarize: false })
+  const [ready, setReady] = useState({ translate: false, summarize: false })
   const [started, setStarted] = useState(0)
   const [reducing, setReducing] = useState<number | undefined>()
   const [askReduce, setAskReduce] = useState(false)
@@ -109,6 +112,17 @@ export function SortMail() {
     await refresh(source)
   }
   const askImport = async () => {
+    const saved = await store.api.settings()
+    if (saved.ok) {
+      const v = saved.result.values
+      const text = (key: string) => String(v[key] ?? '').trim()
+      const can = {
+        translate: Boolean(text('translation.endpoint') && text('translation.model')),
+        summarize: Boolean((text('summaries.endpoint') || text('translation.endpoint')) && (text('summaries.model') || text('translation.model'))),
+      }
+      setReady(can)
+      setSwitches({ translate: can.translate && Boolean(v['translation.enabled']), summarize: can.summarize && Boolean(v['summaries.enabled']) })
+    }
     setCounting(true)
     setStarted(Date.now())
     const preview = await store.api.call<ImportPreview>('mail.import.preview', { source })
@@ -118,7 +132,7 @@ export function SortMail() {
   }
   const startImport = async () => {
     setAsking(undefined)
-    const started = await store.api.call<Job>('mail.import', { source })
+    const started = await store.api.call<Job>('mail.import', { source, ...switches })
     if (started.ok) { setImporting(started.result.id); setStarted(Date.now()); void store.refreshJobs() } else setFailure(started.error.message)
   }
   const reduce = async () => {
@@ -172,7 +186,9 @@ export function SortMail() {
   const picked = reply.selection
   const conversations = picked.threads === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: picked.threads.toLocaleString('en') })
   const unconfirmed = owner && owner.confirmed.length === 0 && owner.proposed.length > 0
-  const done = job?.status === 'done' ? (job.result as unknown as { mails: number; conversations: number }) : undefined
+  const done = job?.status === 'done' ? (job.result as unknown as { mails: number; conversations: number; summaries?: { written: number; reason?: string | null } }) : undefined
+  const noSummaries = done?.summaries && !done.summaries.written && done.summaries.reason && done.summaries.reason !== 'nothing_new'
+    ? t(`mail.summaries.${done.summaries.reason}` as never) : undefined
   // busy from the click until the job is known to have ended (the window may not have heard of it yet)
   const running = importing !== undefined && !ended(job)
   const busy = counting || running
@@ -187,6 +203,7 @@ export function SortMail() {
             <div className={css.written} role="status" aria-label={t('mail.imported')}>
               <strong>{t('mail.imported')}</strong>
               <span>{t('mail.imported.line', { mails: counts.mails(done.mails), threads: threads(done.conversations) })}</span>
+              {noSummaries && <span className={css.muted}>{noSummaries}</span>}
               {!reducing && <button type="button" className={`${css.pill} ${css.pillPrimary}`} onClick={() => setAskReduce(true)}>{t('mail.reduce')}</button>}
             </div>
           )}
@@ -264,6 +281,18 @@ export function SortMail() {
           <div className={css.confirm} role="dialog" aria-modal="true" aria-labelledby="import-ask" onClick={(event) => event.stopPropagation()}>
             <h2 id="import-ask">{t('mail.import.ask', { mails: counts.mails(asking.mails), threads: threads(asking.conversations) })}</h2>
             <p>{t('mail.import.explain', { senders: counts.senders(asking.senders), files: asking.files === 1 ? t('mail.count.file') : t('mail.count.files', { count: asking.files.toLocaleString('en') }), size: size(asking.size) })}</p>
+            <div className={css.switches}>
+              {(['translate', 'summarize'] as const).map(name => (
+                <span key={name} className={css.switch}>
+                  <label>
+                    <input type="checkbox" checked={switches[name]} disabled={!ready[name]}
+                           onChange={(event) => setSwitches({ ...switches, [name]: event.target.checked })} />
+                    <span>{t(`mail.import.${name}`)}</span>
+                  </label>
+                  {!ready[name] && <small className={css.muted}>{t('mail.import.notSetUp')}</small>}
+                </span>
+              ))}
+            </div>
             <div className={css.buttons}>
               <button type="button" className={css.button} onClick={() => setAsking(undefined)}>{t('mail.write.cancel')}</button>
               <button type="button" className={`${css.button} ${css.primaryButton}`} autoFocus onClick={() => void startImport()}>{t('mail.import.go')}</button>

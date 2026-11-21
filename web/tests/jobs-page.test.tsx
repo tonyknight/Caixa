@@ -79,6 +79,13 @@ describe('the jobs page', () => {
     expect(within(details).queryByText(/new,/)).toBeNull()
   })
 
+  it('says why a mail import wrote no summaries', async () => {
+    const imported = job({ id: 8, kind: 'mail-import', collector: 'mail', source: '/exports/x.mbox', options: { source: 4, translate: false, summarize: false }, result: { inserted: 5, updated: 0, unchanged: 0, mails: 5, conversations: 2, summaries: { written: 0, left: 2, model: '', error: null, reason: 'off_for_job' } } as never })
+    await renderWith(<JobsPage selected={8} onSelect={() => undefined} />, (api) => { api.jobList = [imported] })
+    const details = screen.getByRole('region', { name: 'Details of job 8' })
+    expect(within(details).getByText('No summaries: Summarize was off for this import.')).toBeTruthy()
+  })
+
   it('shows the result of a finished job and the options it ran with', async () => {
     await renderWith(<JobsPage selected={1} onSelect={() => undefined} />, (api) => { api.jobList = [job({ id: 1, options: { owner: 'Maria Costa' } })] })
     const details = screen.getByRole('region', { name: 'Details of job 1' })
