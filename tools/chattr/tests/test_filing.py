@@ -1,7 +1,7 @@
 """Filing attachments where a person would look for them: under the person, by source and date.
 
-    People/<Person>/<Service>/(YYYY-MM-DD) HH-MM-SS <sender>.<ext>
-    Groups/<Group>/<Service>/…
+    People/<Person>/<Service>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender>.<ext>
+    Groups/<Group>/<Service>/Attachments/…
     Mail/<YYYY>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> — <name>.<ext>
 
 Importers leave files wherever is convenient (by content hash, in a working folder); filing moves
@@ -98,7 +98,7 @@ def _voicemail(archive: Archive, caller: str, when: datetime, data: bytes | None
 def test_a_voicemail_goes_under_the_caller_by_source_and_date(archive: Archive) -> None:
     _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31))
     filed = archive.file(make_playable=False)
-    wanted = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.amr"
+    wanted = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr"
     assert archive.paths() == [wanted] and (archive.out / wanted).is_file()
     assert filed.created == [wanted] and filed.moved == []
     assert not any(p.is_file() for p in archive.staging.rglob("*"))  # moved, not copied
@@ -119,8 +119,8 @@ def test_several_files_on_one_message_are_numbered(archive: Archive) -> None:
     )
     archive.file()
     assert archive.files() == [
-        f"People/{ANA}/WhatsApp/(2024-03-01) 14-05-09 {ANA} 1.png",
-        f"People/{ANA}/WhatsApp/(2024-03-01) 14-05-09 {ANA} 2.jpg",
+        f"People/{ANA}/WhatsApp/Attachments/(2024-03-01) 14-05-09 {ANA} 1.png",
+        f"People/{ANA}/WhatsApp/Attachments/(2024-03-01) 14-05-09 {ANA} 2.jpg",
     ]
 
 
@@ -137,7 +137,9 @@ def test_a_groups_files_go_under_the_group(archive: Archive) -> None:
         ),
     )
     archive.file()
-    assert archive.files() == [f"Groups/Costa Family/WhatsApp/(2024-03-02) 09-00-00 {JOAO}.jpg"]
+    assert archive.files() == [
+        f"Groups/Costa Family/WhatsApp/Attachments/(2024-03-02) 09-00-00 {JOAO}.jpg"
+    ]
 
 
 def test_a_mail_attachment_keeps_its_own_name_after_the_date_and_sender(archive: Archive) -> None:
@@ -171,7 +173,9 @@ def test_the_local_time_names_the_file_not_utc(archive: Archive) -> None:
     lisbon_summer = timezone(timedelta(hours=1))
     _voicemail(archive, ANA, datetime(2022, 6, 14, 23, 30, 0, tzinfo=lisbon_summer))
     archive.file(make_playable=False)
-    assert archive.files() == [f"People/{ANA}/Voicemail/(2022-06-14) 23-30-00 {ANA}.amr"]
+    assert archive.files() == [
+        f"People/{ANA}/Voicemail/Attachments/(2022-06-14) 23-30-00 {ANA}.amr"
+    ]
 
 
 # --- Safe to repeat, and it follows people --------------------------------------------------------
@@ -190,7 +194,9 @@ def test_importing_the_same_export_again_leaves_one_copy(archive: Archive) -> No
     archive.file(make_playable=False)
     _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31))  # the importer stages it again
     again = archive.file(make_playable=False)
-    assert archive.files() == [f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.amr"]
+    assert archive.files() == [
+        f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr"
+    ]
     assert again.created == [] and again.duplicates == 1
     assert not any(p.is_file() for p in archive.staging.rglob("*"))
 
@@ -198,13 +204,17 @@ def test_importing_the_same_export_again_leaves_one_copy(archive: Archive) -> No
 def test_a_person_who_is_named_takes_their_files_with_them(archive: Archive) -> None:
     _voicemail(archive, "+15550101", _at(2018, 12, 21, 15, 2, 31))
     archive.file(make_playable=False)
-    assert archive.files() == ["People/+15550101/Voicemail/(2018-12-21) 15-02-31 +15550101.amr"]
+    assert archive.files() == [
+        "People/+15550101/Voicemail/Attachments/(2018-12-21) 15-02-31 +15550101.amr"
+    ]
     with sqlite3.connect(archive.database) as db:
         db.execute("UPDATE handles SET person = ?", (ANA,))
     moved = archive.file(make_playable=False)
-    new = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.amr"
+    new = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr"
     assert archive.files() == [new]
-    assert moved.moved == [("People/+15550101/Voicemail/(2018-12-21) 15-02-31 +15550101.amr", new)]
+    assert moved.moved == [
+        ("People/+15550101/Voicemail/Attachments/(2018-12-21) 15-02-31 +15550101.amr", new)
+    ]
     assert not (archive.out / "People" / "+15550101").exists()  # the empty folder is tidied away
 
 
@@ -245,7 +255,7 @@ def test_a_file_that_is_missing_is_reported_as_missing_on_the_page(archive: Arch
 def test_an_amr_recording_is_filed_as_m4a(archive: Archive) -> None:
     _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31), amr(3))
     filed = archive.file()
-    wanted = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.m4a"
+    wanted = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.m4a"
     assert archive.files() == [wanted] and archive.paths() == [wanted]  # only the .m4a is kept
     assert filed.playable_made == 1 and filed.unplayable == []
     playable = (archive.out / wanted).read_bytes()
@@ -276,7 +286,9 @@ def test_a_recording_is_converted_once_and_follows_its_person(archive: Archive) 
     with sqlite3.connect(archive.database) as db:
         db.execute("UPDATE handles SET person = ?", (ANA,))
     archive.file()
-    assert archive.files() == [f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.m4a"]
+    assert archive.files() == [
+        f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.m4a"
+    ]
 
 
 def test_without_ffmpeg_the_original_is_filed_and_the_gap_is_reported(
@@ -287,7 +299,7 @@ def test_without_ffmpeg_the_original_is_filed_and_the_gap_is_reported(
     monkeypatch.setattr(filing.shutil, "which", lambda name: None)
     _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31))
     filed = archive.file()
-    original = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.amr"
+    original = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr"
     assert archive.files() == [original] and len(filed.unplayable) == 1 and filed.ffmpeg_missing
     page = next(p for p in archive.written if p.stem == p.parent.name).read_text("utf-8")
     assert "cannot play" in page  # and the page says why it may not play
@@ -304,7 +316,7 @@ def test_importing_again_once_ffmpeg_is_there_converts_what_was_left(
         patch.setattr(filing.shutil, "which", lambda name: None)
         _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31), data)
         archive.file()
-    stem = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}"
+    stem = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}"
     assert archive.files() == [f"{stem}.amr"]
     assert archive.file().playable_made == 1  # ffmpeg is installed now
     assert archive.files() == [f"{stem}.m4a"] and archive.paths() == [f"{stem}.m4a"]
@@ -314,7 +326,7 @@ def test_importing_again_once_ffmpeg_is_there_converts_what_was_left(
 def test_a_box_that_kept_both_files_is_left_with_the_m4a(archive: Archive) -> None:
     _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31), amr(2))
     archive.file(make_playable=False)
-    stem = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}"
+    stem = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}"
     (archive.out / f"{stem}.m4a").write_bytes(b"the copy an earlier version made")
     filed = archive.file()
     assert archive.files() == [f"{stem}.m4a"] and filed.playable_made == 1
@@ -340,7 +352,7 @@ def test_a_whatsapp_voice_note_is_filed_as_m4a(archive: Archive, tmp_path: Path)
         ),
     )  # fmt: skip
     archive.file()
-    assert archive.files() == [f"People/{ANA}/WhatsApp/(2024-03-01) 14-05-09 {ANA}.m4a"]
+    assert archive.files() == [f"People/{ANA}/WhatsApp/Attachments/(2024-03-01) 14-05-09 {ANA}.m4a"]
     page = next(p for p in archive.written if p.stem == p.parent.name).read_text("utf-8")
     assert "<audio" in page
 
@@ -390,7 +402,7 @@ def test_an_mp3_is_filed_as_m4a_at_about_its_own_size(archive: Archive, tmp_path
         pytest.skip("this ffmpeg cannot write MP3")
     _recording(archive, mp3, ".mp3")
     filed = archive.file()
-    wanted = f"People/{ANA}/Google Voice/(2018-09-08) 10-22-45 {ANA}.m4a"
+    wanted = f"People/{ANA}/Google Voice/Attachments/(2018-09-08) 10-22-45 {ANA}.m4a"
     assert archive.files() == [wanted] and filed.playable_made == 1
     size = (archive.out / wanted).stat().st_size
     assert 0.4 * len(mp3) < size < 1.6 * len(mp3)  # its own bit rate, not a fixed one
@@ -401,7 +413,9 @@ def test_an_mp3_that_cannot_be_converted_is_filed_as_it_is_without_a_warning(
 ) -> None:
     _recording(archive, b"ID3 not really an mp3", ".mp3")
     filed = archive.file()
-    assert archive.files() == [f"People/{ANA}/Google Voice/(2018-09-08) 10-22-45 {ANA}.mp3"]
+    assert archive.files() == [
+        f"People/{ANA}/Google Voice/Attachments/(2018-09-08) 10-22-45 {ANA}.mp3"
+    ]
     assert filed.playable_made == 0 and filed.unplayable == []  # it still plays as it is
     page = next(p for p in archive.written if p.stem == p.parent.name).read_text("utf-8")
     assert "cannot play" not in page
@@ -464,7 +478,7 @@ def test_pictures_are_filed_as_jpeg_dated_by_their_message(
 ) -> None:
     _photo(archive, _picture(fmt), suffix)
     filed = archive.file()
-    wanted = f"People/{ANA}/iMessage/(2024-03-01) 14-05-09 {ANA}.jpg"
+    wanted = f"People/{ANA}/iMessage/Attachments/(2024-03-01) 14-05-09 {ANA}.jpg"
     assert archive.files() == [wanted] and filed.converted == 1
     data = (archive.out / wanted).read_bytes()
     assert data[:3] == b"\xff\xd8\xff"  # a JPEG
@@ -551,7 +565,9 @@ def test_importing_again_does_not_make_a_second_picture(archive: Archive) -> Non
 def test_a_picture_that_cannot_be_converted_is_kept_as_it_is_and_counted(archive: Archive) -> None:
     _photo(archive, b"not really a picture", ".heic")
     filed = archive.file()
-    assert archive.files() == [f"People/{ANA}/iMessage/(2024-03-01) 14-05-09 {ANA}.heic"]
+    assert archive.files() == [
+        f"People/{ANA}/iMessage/Attachments/(2024-03-01) 14-05-09 {ANA}.heic"
+    ]
     assert filed.converted == 0 and len(filed.unconverted) == 1
 
 
@@ -613,7 +629,7 @@ def test_the_same_file_sent_many_times_is_stored_once_and_shown_every_time(
     for day in (1, 2, 3):
         _sticker(archive, gif, ANA, day)
     filed = archive.file()
-    only = f"People/{ANA}/iMessage/(2024-03-01) 10-00-00 {ANA}.gif"  # the first time it was sent
+    only = f"People/{ANA}/iMessage/Attachments/(2024-03-01) 10-00-00 {ANA}.gif"  # the first time it was sent
     assert archive.files() == [only] and archive.paths() == [only] * 3
     assert filed.created == [only] and filed.shared == 2
     page = _pages(archive)[ANA]
@@ -625,7 +641,7 @@ def test_a_file_sent_to_two_people_is_stored_once_and_both_pages_show_it(archive
     _sticker(archive, gif, JOAO, 5)
     _sticker(archive, gif, ANA, 2)  # earlier: this is where the one copy lives
     archive.file()
-    only = f"People/{ANA}/iMessage/(2024-03-02) 10-00-00 {ANA}.gif"
+    only = f"People/{ANA}/iMessage/Attachments/(2024-03-02) 10-00-00 {ANA}.gif"
     assert archive.files() == [only]
     pages = _pages(archive)
     assert "<img" in pages[ANA] and "<img" in pages[JOAO]
@@ -654,7 +670,7 @@ def test_importing_everything_again_keeps_one_copy(archive: Archive) -> None:
         _sticker(archive, gif, ANA, 2)
         _sticker(archive, gif, JOAO, 5)
         archive.file()
-    assert archive.files() == [f"People/{ANA}/iMessage/(2024-03-02) 10-00-00 {ANA}.gif"]
+    assert archive.files() == [f"People/{ANA}/iMessage/Attachments/(2024-03-02) 10-00-00 {ANA}.gif"]
     assert not any(p.is_file() for p in archive.staging.rglob("*"))
 
 
@@ -669,7 +685,7 @@ def test_a_converted_picture_is_shared_too(archive: Archive) -> None:
             ),
         )  # fmt: skip
     filed = archive.file()
-    only = f"People/{ANA}/iMessage/(2024-03-01) 14-05-09 {ANA}.jpg"
+    only = f"People/{ANA}/iMessage/Attachments/(2024-03-01) 14-05-09 {ANA}.jpg"
     assert archive.files() == [only] and filed.converted == 1
     assert _taken(archive.out / only) == "2024:03:01 14:05:09"
     assert all("<img" in page for page in _pages(archive).values())
@@ -683,7 +699,7 @@ def test_the_one_copy_follows_a_person_who_is_renamed(archive: Archive) -> None:
     with sqlite3.connect(archive.database) as db:
         db.execute("UPDATE handles SET person = ? WHERE identifier = ?", (ANA, "+15550101"))
     archive.file()
-    only = f"People/{ANA}/iMessage/(2024-03-02) 10-00-00 {ANA}.gif"
+    only = f"People/{ANA}/iMessage/Attachments/(2024-03-02) 10-00-00 {ANA}.gif"
     assert archive.files() == [only] and set(archive.paths()) == {only}
     assert "file not in this archive" not in _pages(archive)[JOAO]
 
@@ -701,3 +717,86 @@ def test_the_same_file_in_mail_and_in_a_chat_is_kept_for_each(archive: Archive) 
     )  # fmt: skip
     archive.file()
     assert sorted(Path(f).suffix for f in archive.files()) == [".jpg", ".png"]
+
+
+# --- Every source's own Attachments folder (Phase 1.5) --------------------------------------------
+
+import re  # noqa: E402
+from urllib.parse import unquote  # noqa: E402
+
+from chattr import filing  # noqa: E402
+
+
+def _old_folder(spec, service: str) -> str:  # type: ignore[no-untyped-def]
+    """Where files went before every source had an Attachments folder."""
+    if spec.kind == "mail":
+        return f"{spec.folder}/Attachments"
+    return f"{spec.folder}/{filing.safe_name(service, 'Other')}"
+
+
+def _broken_links(out: Path) -> list[str]:
+    broken = []
+    for page in out.rglob("*.html"):
+        for link in re.findall(r'(?:href|src)="([^"#:]+)"', page.read_text(encoding="utf-8")):
+            if not (page.parent / unquote(link)).exists():
+                broken.append(f"{page.relative_to(out)} → {link}")
+    return broken
+
+
+def test_every_source_files_into_its_own_attachments_folder(archive: Archive) -> None:
+    _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31))
+    archive.add(
+        ConversationRecord("WhatsApp", "chat-family", type="group", name="Costa Family",
+                           participants=(ANA, JOAO)),
+        MessageRecord(timestamp=_at(2024, 3, 2, 9, 0, 0), sender=JOAO, sender_name=JOAO,
+                      attachments=(_blob(archive.staging, b"photo", ".jpg"),)),
+    )  # fmt: skip
+    archive.file(make_playable=False)
+    assert archive.files() == [
+        f"Groups/Costa Family/WhatsApp/Attachments/(2024-03-02) 09-00-00 {JOAO}.jpg",
+        f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr",
+    ]
+    assert _broken_links(archive.out) == []
+
+
+def test_files_filed_before_move_into_attachments_on_the_next_drawing(
+    archive: Archive, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _voicemail(archive, ANA, _at(2018, 12, 21, 15, 2, 31))
+    with monkeypatch.context() as old:
+        old.setattr(filing, "_folder", _old_folder)
+        archive.file(make_playable=False)
+    before = f"People/{ANA}/Voicemail/(2018-12-21) 15-02-31 {ANA}.amr"
+    assert archive.files() == [before]
+    moved = archive.file(make_playable=False)
+    now = f"People/{ANA}/Voicemail/Attachments/(2018-12-21) 15-02-31 {ANA}.amr"
+    assert archive.files() == [now] and archive.paths() == [now]
+    assert moved.moved == [(before, now)]
+    assert _broken_links(archive.out) == []
+
+
+def test_a_drawing_stopped_part_way_is_finished_by_the_next(
+    archive: Archive, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for minute in range(3):
+        _voicemail(archive, ANA, _at(2018, 12, 21, 15, minute, 0), amr(1 + minute))
+    with monkeypatch.context() as old:
+        old.setattr(filing, "_folder", _old_folder)
+        archive.file(make_playable=False)
+    real_move, moves = filing._move, []
+
+    def stops_on_the_third(source: Path, target: Path) -> None:
+        if len(moves) == 2:
+            raise KeyboardInterrupt  # the computer was switched off, say
+        moves.append(target)
+        real_move(source, target)
+
+    with monkeypatch.context() as stopping:
+        stopping.setattr(filing, "_move", stops_on_the_third)
+        with pytest.raises(KeyboardInterrupt):
+            archive.file(make_playable=False)
+    archive.file(make_playable=False)
+    files = archive.files()
+    assert len(files) == 3 and all("/Voicemail/Attachments/" in f for f in files)
+    assert archive.paths() == files
+    assert _broken_links(archive.out) == []

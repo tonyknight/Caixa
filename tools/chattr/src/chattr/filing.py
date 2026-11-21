@@ -1,13 +1,18 @@
 """File attachments where a person would look for them: under the person, by source and date.
 
-    People/<Person>/<Service>/(YYYY-MM-DD) HH-MM-SS <sender>.<ext>
-    Groups/<Group>/<Service>/…
-    Mail/<YYYY>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> — <name>.<ext>
+    People/<Person>/<Service>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender>.<ext>
+    Groups/<Group>/<Service>/Attachments/…
+    People/<Person>/Mail/<Account>/Attachments/(YYYY-MM-DD) <name>.<ext>   (Caixa's mail workflow)
+    Mail/<YYYY>/Attachments/(YYYY-MM-DD) HH-MM-SS <sender> — <name>.<ext>   (mail without an account)
 
 Importers leave each file wherever suits them (by content hash, in a working folder) and record that
 place in `attachments.storage_path`. Filing moves the file beside the pages that show it, names it
 for its date and sender, and records the new place (relative to the output folder). It is part of
-drawing the pages, so it follows a person who is renamed or merged, and it is safe to repeat.
+drawing the pages, so it follows a person who is renamed or merged, and it is safe to repeat: what
+it records is saved as it goes, and a file it moved without recording where (it was stopped between
+the two) is found again in its new folder, so files filed by an older version (before every source
+had an Attachments folder) are moved by drawing the pages again, and that can be stopped and started
+again without losing a file.
 
 Pictures in formats not every device opens (HEIC, PNG, WebP) are filed as JPEG at quality 85, as
 Chattr has always archived them, with the date they were taken written inside
@@ -33,6 +38,7 @@ import hashlib
 from collections import Counter
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
@@ -68,7 +74,9 @@ _LOWEST_RATE, _HIGHEST_RATE, _USUAL_RATE = 24_000, 128_000, 64_000
 TO_JPEG = frozenset({".heic", ".heif", ".png", ".webp"})
 JPEG_QUALITY = 85
 _EXIF_IFD, _DATE_TAKEN = 0x8769, 0x9003
-MAIL_ATTACHMENTS = "Attachments"
+#: The folder every source keeps its files in, beside its pages.
+ATTACHMENTS = "Attachments"
+MAIL_ATTACHMENTS = ATTACHMENTS
 
 
 @dataclass
@@ -122,8 +130,37 @@ def _stem(renderer: Renderer, spec: PageSpec, message: dict[str, Any], row: dict
 
 def _folder(spec: PageSpec, service: str) -> str:
     if spec.kind == "mail":
-        return f"{spec.folder}/{MAIL_ATTACHMENTS}"
-    return f"{spec.folder}/{safe_name(service, 'Other')}"
+        return f"{spec.folder}/{ATTACHMENTS}"
+    return f"{spec.folder}/{safe_name(service, 'Other')}/{ATTACHMENTS}"
+
+
+#: Records are saved every this many files, so a run that is stopped keeps what it did.
+SAVE_EVERY = 200
+
+
+def _recover(
+    out: Path, folder: str, stem: str, row: dict[str, Any], taken: dict[str, str]
+) -> Optional[tuple[Path, Path]]:
+    """A filed file whose move was not recorded (the run stopped between the two): in the folder
+    it was going to, named for it, with the extension it had, and holding its content (unless it
+    was converted when first filed, when its content is no longer the original's)."""
+    place = out / folder
+    suffix = Path(str(row["storage_path"])).suffix.lower()
+    if not place.is_dir():
+        return None
+    converted = bool(row["_info"].get("converted_from"))
+    for file in sorted(place.iterdir()):
+        name = file.name
+        if not file.is_file() or file.suffix.lower() != suffix or not name.startswith(stem):
+            continue
+        rest = file.stem[len(stem) :]
+        if rest and not re.fullmatch(r" \(\d+\)", rest):
+            continue
+        if file.relative_to(out).as_posix() in taken:
+            continue
+        if converted or _holds(file, row["sha256"]):
+            return file, out
+    return None
 
 
 def _move(source: Path, target: Path) -> None:
@@ -338,6 +375,8 @@ def file_attachments(
             done += 1
             if progress and done % 25 == 0:
                 progress(done, total)
+            if done % SAVE_EVERY == 0:
+                db.connection.commit()
             if row.get("_noise") == "pixel":
                 if row["_info"].get("dropped") != "tracking pixel":
                     _record(db, row, None, {"dropped": "tracking pixel"})  # type: ignore[arg-type]
@@ -351,6 +390,9 @@ def file_attachments(
             found = _locate(row["storage_path"], everywhere)
             if found is None and (row["_info"] or key in homes):
                 found = _staged(row["sha256"], staging)  # its filed copy has gone: file it again
+            if found is None and row["storage_path"] and row["_info"]:
+                stem = _stem(renderer, spec, message, row, number if len(rows) > 1 else None)
+                found = _recover(out, folder, stem, row, taken)  # moved, but not recorded
             if found is None:
                 continue
             home_rows[key] = row
@@ -428,9 +470,12 @@ def file_attachments(
                 _tidy(current.parent, root)
                 taken[target_rel] = row["sha256"]
                 _record(db, row, target_rel, info or row["_info"] or {"filed": True})
-            elif row["_info"].get("shared") or not row["_info"]:
+            elif (
+                row["_info"].get("shared") or not row["_info"] or row["storage_path"] != target_rel
+            ):
                 kept = {k: v for k, v in row["_info"].items() if k != "shared"}
                 _record(db, row, target_rel, kept or {"filed": True})
+                taken[target_rel] = row["sha256"]
 
     for row, first in signatures:
         if not _locate(first["storage_path"], [out]):

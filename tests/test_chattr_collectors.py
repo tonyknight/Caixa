@@ -236,8 +236,8 @@ def test_mail_attachments_and_voicemail_audio_live_in_the_box(
     audio = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob(f"*{kind}"))
     ana, joao = family.ANA.phones[0], family.JOAO.phones[0]  # nobody has named the callers yet
     assert audio == [
-        f"People/{ana}/Voicemail/(2022-06-14) 14-05-00 {ana}{kind}",
-        f"People/{joao}/Voicemail/(2021-12-24) 19-30-00 {joao}{kind}",
+        f"People/{ana}/Voicemail/Attachments/(2022-06-14) 14-05-00 {ana}{kind}",
+        f"People/{joao}/Voicemail/Attachments/(2021-12-24) 19-30-00 {joao}{kind}",
     ]
     assert not (box.root / "Audio").exists() and not (box.root / "Messages").exists()
     assert not (box.caixa_dir / "work" / "incoming").exists()  # the working copies are gone
@@ -269,7 +269,9 @@ def test_whatsapp_media_is_filed_under_the_person(
 ) -> None:
     _run(six["whatsapp"], box, _source(fixture_family, "whatsapp"))
     photos = list(
-        (box.root / "People" / family.ANA.name / "WhatsApp").glob("(2024-03-01) 14-05-09 *")
+        (box.root / "People" / family.ANA.name / "WhatsApp" / "Attachments").glob(
+            "(2024-03-01) 14-05-09 *"
+        )
     )
     assert len(photos) == 1
 
@@ -327,7 +329,7 @@ def test_a_whatsapp_zip_is_unpacked_and_imported(
     result, _ = _run(six["whatsapp"], box, archive)
     assert result.inserted == 7
     assert list(
-        (box.root / "People" / family.ANA.name / "WhatsApp").glob("*.jpg")
+        (box.root / "People" / family.ANA.name / "WhatsApp" / "Attachments").glob("*.jpg")
     )  # the media came too
 
 
@@ -352,7 +354,7 @@ def test_a_folder_of_whatsapp_zips_imports_every_chat_in_one_go(
     assert six["whatsapp"].preview(folder, {}, box).items == expected
     result, _ = _run(six["whatsapp"], box, folder)
     assert result.inserted == expected
-    assert list((box.root / "People" / family.ANA.name / "WhatsApp").glob("*.jpg"))
+    assert list((box.root / "People" / family.ANA.name / "WhatsApp" / "Attachments").glob("*.jpg"))
 
 
 def test_zips_and_unzipped_chats_mixed_in_one_folder_are_all_read(
@@ -593,7 +595,7 @@ def test_imported_voicemail_is_filed_as_m4a_and_plays_in_a_browser(
         z.writestr(f"iPhone Voicemail/{name}", _amr(4))
     result, events = _run(six["voicemail"], box, archive)
     assert result.inserted == 1 and result.warnings == []
-    folder = box.root / "People" / family.ANA.name / "Voicemail"
+    folder = box.root / "People" / family.ANA.name / "Voicemail" / "Attachments"
     stem = f"(2018-12-21) 15-02-31 {family.ANA.name}"
     assert sorted(p.name for p in folder.iterdir()) == [f"{stem}.m4a"]  # only the .m4a is kept
     copy = (folder / f"{stem}.m4a").stat().st_size
@@ -637,7 +639,9 @@ def test_imessage_attachments_are_filed_under_the_person(
 ) -> None:
     result, _ = _run(six["imessage"], box, _source(fixture_family, "imessage"))
     photos = sorted(p.relative_to(box.root).as_posix() for p in box.root.rglob("*.jpg"))
-    assert len(photos) == 2 and all("/iMessage/(2023-06-04)" in photo for photo in photos)
+    assert len(photos) == 2 and all(
+        "/iMessage/Attachments/(2023-06-04)" in photo for photo in photos
+    )
     assert not [w for w in result.warnings if "not on this Mac" in w]
     # the Mac's own attachment store still has its files
     assert len(list(fixture_family.paths["imessage"].parent.rglob("IMG_000*.PNG"))) == 2
@@ -701,7 +705,10 @@ def test_a_google_voice_day_with_a_picture_and_a_voicemail_recording(
     assert result.inserted == 4  # two texts one day, one the next, and the voicemail
     folders = [p.name for p in (box.root / "People").iterdir() if p.is_dir()]
     assert len(folders) == 1  # one person: the day only I wrote joined her conversation
-    files = sorted(p.name for p in (box.root / "People" / folders[0] / "Google Voice").iterdir())
+    files = sorted(
+        p.name
+        for p in (box.root / "People" / folders[0] / "Google Voice" / "Attachments").iterdir()
+    )
     assert len(files) == 2 and files[0].startswith("(2019-09-15) ") and files[0].endswith(".jpg")
     assert files[1].startswith(
         "(2021-01-06) "
