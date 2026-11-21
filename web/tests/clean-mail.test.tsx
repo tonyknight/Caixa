@@ -97,6 +97,16 @@ describe('the Clean mail window', () => {
     fireEvent.keyDown(document, { key: 'Escape' })
   })
 
+  it('keeps every sender of a group at once but the ones deselected', async () => {
+    const view = await opened()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))
+    expect(screen.getByRole('contentinfo').textContent).toContain('3 selected')
+    fireEvent.click(rows()[2]!)  // Pedro stays in the group
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Keep' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.keep', { source: 1, addresses: ['news@dailyfold.example.com', 'newsletter@gardening.example.com'], keep: true }])
+  })
+
   it('keeps one sender with the tool on its row, and takes it back in the Kept view', async () => {
     const view = await opened()
     fireEvent.click(screen.getByRole('button', { name: 'Keep The Daily Fold' }))

@@ -86,12 +86,22 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
   useEffect(() => { setPicked(new Set()); anchor.current = undefined }, [view, rows])
   const selected = useMemo(() => rows.filter(r => picked.has(r.address)), [rows, picked])
   const clear = () => { setPicked(new Set()); anchor.current = undefined }
+  const everyone = rows.length > 0 && selected.length === rows.length
+  const some = selected.length > 0 && !everyone
+  const allBox = useRef<HTMLInputElement>(null)
+  useEffect(() => { if (allBox.current) allBox.current.indeterminate = some }, [some])
+  /** Every row of the list, also the ones scrolled out of view; again, none. */
+  const pickAll = () => { if (everyone) clear(); else { setPicked(new Set(rows.map(r => r.address))); anchor.current = undefined } }
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (quiet) return
       const typing = event.target instanceof HTMLElement && event.target.closest('input, textarea, select')
       if (event.key === 'Escape') clear()
+      else if ((event.key === 'a' || event.key === 'A') && (event.ctrlKey || event.metaKey) && !typing && selectable) {
+        event.preventDefault()
+        setPicked(new Set(rows.map(r => r.address)))
+      }
       else if ((event.key === 'Delete' || event.key === 'Backspace') && !typing && onDelete && selected.length) {
         event.preventDefault()
         onDelete(selected)
@@ -100,7 +110,7 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [quiet, onDelete, selected])
+  }, [quiet, onDelete, selected, selectable, rows])
 
   const pick = (row: SenderRow, event: MouseEvent) => {
     if (!selectable) return
@@ -155,7 +165,11 @@ export function MailList({ brand, categories, view, onView, title, hint, rows, t
         <table className={css.table}>
           <thead>
             <tr>
-              <th className={css.mark}><span className={css.hidden}>{t('mail.selected', { count: '' })}</span></th>
+              <th className={css.mark}>
+                {selectable && rows.length > 0
+                  ? <input ref={allBox} type="checkbox" className={css.selectAll} aria-label={t('mail.selectAll')} title={t('mail.selectAll')} checked={everyone} onChange={pickAll} />
+                  : <span className={css.hidden}>{t('mail.selected', { count: '' })}</span>}
+              </th>
               <th>{t('mail.column.name')}</th>
               <th>{t('mail.column.address')}</th>
               <th className={css.number}>{t('mail.column.mails')}</th>

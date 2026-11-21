@@ -129,3 +129,5 @@
   .content { padding: 1rem; }
   .status { padding: .5rem 1rem; }
 }
+
+.selectAll { margin: 0; cursor: pointer; accent-color: var(--accent, #5e81ac); }

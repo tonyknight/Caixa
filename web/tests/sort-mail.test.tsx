@@ -95,6 +95,34 @@ describe('the Sort mail window', () => {
     expect(view.api.calls).toContainEqual(['call', 'mail.ignore', { source: 4, addresses: ['carlos.mendes@example.net'], ignore: false }])
   })
 
+  it('selects every sender at once, then lets a few be deselected', async () => {
+    const view = await opened()
+    go(/To sort/)
+    const all = screen.getByRole('checkbox', { name: 'Select all' }) as HTMLInputElement
+    fireEvent.click(all)
+    expect(rows().every(r => r.getAttribute('aria-selected') === 'true')).toBe(true)
+    expect(screen.getByRole('contentinfo').textContent).toContain('3 selected')
+    expect(all.checked).toBe(true)
+    fireEvent.click(rows()[0]!)  // Beatriz stays out
+    expect(screen.getByRole('contentinfo').textContent).toContain('2 selected')
+    expect(all.checked).toBe(false)
+    expect(all.indeterminate).toBe(true)
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Choose' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.choose', { source: 4, addresses: ['carlos.mendes@example.net', 'ines.rocha@example.net'], choose: true }])
+  })
+
+  it('selects all with Ctrl-A, and not on the Imported list', async () => {
+    await opened()
+    go(/To sort/)
+    fireEvent.keyDown(document, { key: 'a', ctrlKey: true })
+    expect(screen.getByRole('contentinfo').textContent).toContain('3 selected')
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all' }))  // and off again
+    expect(screen.getByRole('contentinfo').textContent).not.toContain('selected')
+    go(/Imported/)
+    expect(screen.queryByRole('checkbox', { name: 'Select all' })).toBeNull()
+  })
+
   it('takes senders dropped on Ignored or To import', async () => {
     const view = await opened()
     go(/To sort/)
