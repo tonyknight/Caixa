@@ -657,6 +657,13 @@ class _Chattr:
         progress(Progress("filing", message="Filing photos, audio and other files"))
         with box.master() as master:
             categories = master.categories()
+            summaries = {
+                str(thread): (str(text), str(model or ""))
+                for thread, text, model in master.connection.execute(
+                    "SELECT thread_key, summary, summary_model FROM mail_threads "
+                    "WHERE summary IS NOT NULL"
+                )
+            }
         published = commands.publish(
             settings,
             out=box.root,
@@ -666,6 +673,7 @@ class _Chattr:
             before_pages=lambda: progress(Progress("rendering", message="Writing the pages")),
             categories=categories,
             title=box.name,
+            summaries=summaries,
         )
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         with DatabaseManager(commands.central_database(settings)) as db:

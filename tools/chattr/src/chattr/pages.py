@@ -122,6 +122,8 @@ class _Site:
         # the output folder first: filed attachments are recorded relative to it
         self.roots = [out_root.resolve(), *(Path(r).resolve() for r in attachment_roots)]
         self.env = _environment()
+        #: Mail conversations' summaries: {thread (its conversation's source id): (text, model)}.
+        self.summaries: dict[str, tuple[str, str]] = {}
 
     def _file(self, storage_path: Optional[str]) -> Optional[Path]:
         if not storage_path:
@@ -321,8 +323,8 @@ def _opening(text: str) -> str:
 
 
 def _conversation_entry(site: _Site, mail: PageSpec, page_dir: Path) -> dict[str, Any]:
-    """A mail conversation on a person's page: who began it and when, its subject, its first
-    words, its counts, and a link to its page."""
+    """A mail conversation on a person's page: who began it and when, its subject, its summary
+    (or its first words until it has one), its counts, and a link to its page."""
     renderer = site.renderer
     first = renderer.messages[mail.message_ids[0]]
     files = 0
@@ -335,6 +337,8 @@ def _conversation_entry(site: _Site, mail: PageSpec, page_dir: Path) -> dict[str
         f" · {_plural(files, 'file')}" if files else ""
     )
     href = os.path.relpath(site.out_root / mail.path, page_dir).replace(os.sep, "/")
+    thread = renderer.conversations[mail.conversation_ids[0]]["source_id"]
+    summary = site.summaries.get(thread)
     return {
         "kind": "conversation",
         "id": first["id"],
@@ -345,7 +349,8 @@ def _conversation_entry(site: _Site, mail: PageSpec, page_dir: Path) -> dict[str
         "time": _time_text(first),
         "offset": _offset_text(first),
         "subject": mail.title,
-        "summary": _opening(first["body"] or ""),
+        "summary": summary[0] if summary else _opening(first["body"] or ""),
+        "model": summary[1] if summary else "",
         "counts": counts,
         "href": quote(href, safe="/()"),
     }
@@ -899,6 +904,7 @@ def render_pages(
     pages_list: Optional[PathLike] = None,
     categories: Optional[Mapping[str, str]] = None,
     title: str = "Chattr archive",
+    summaries: Optional[Mapping[str, tuple[str, str]]] = None,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
@@ -908,6 +914,7 @@ def render_pages(
     written is kept in `pages_list` (default: `.chattr-pages` in `out_root`).
     """
     site = _Site(renderer, Path(out_root), attachment_roots)
+    site.summaries = dict(summaries or {})
     relations = _Relations(renderer)
     written = []
     for spec in renderer.pages:

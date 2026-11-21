@@ -472,12 +472,14 @@ def publish(
     convert_images: bool = True,
     categories: Optional[Mapping[str, str]] = None,
     title: str = "Chattr archive",
+    summaries: Optional[Mapping[str, tuple[str, str]]] = None,
 ) -> Optional[Published]:
     """File every attachment beside the person it came from, then draw every page.
 
     Attachments found in `attachments_dirs` (and Chattr's usual folders) are moved under `out`,
     named for their date and sender (see `chattr.filing`); audio a browser cannot play gets a copy
-    it can. Returns None when the archive is empty, unless it had pages before (everyone in it
+    it can. `summaries` ({mail thread: (summary, the model that wrote it)}) go on the entries of
+    mail conversations. Returns None when the archive is empty, unless it had pages before (everyone in it
     was removed): then the old pages go and an empty index is drawn.
     """
     if not central_database(settings).exists():
@@ -494,7 +496,7 @@ def publish(
         )
         if before_pages:
             before_pages()  # filing is done; the pages come next
-        pages = render_pages(renderer, folder, roots, pages_list, categories, title)
+        pages = render_pages(renderer, folder, roots, pages_list, categories, title, summaries)
     return Published(folder / "index.html", pages, filed)
 
 

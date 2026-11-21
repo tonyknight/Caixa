@@ -12,14 +12,19 @@ mail text leaves the computer.
 - `prepare` turns a conversation into what is sent: its mails in date order without quoted earlier
   mail or signatures, within `BUDGET` characters;
 - `summarize` asks for the summary and holds the answer to 30–50 words;
-- `check` sends a fixed synthetic conversation (never anything from the box).
+- `check` sends a fixed synthetic conversation (never anything from the box);
+- `run` summarizes every conversation in the master that has no summary, or whose mails changed,
+  committing each as it is written (so a run that was stopped carries on where it stopped).
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
 import time
-from typing import Any, Mapping, NamedTuple, Optional, Sequence
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from datetime import datetime, timedelta, timezone
+from typing import Any, Callable, Iterable, Mapping, NamedTuple, Optional, Sequence
 from urllib.parse import urlparse
 
 from chattr.translation import (
@@ -29,6 +34,8 @@ from chattr.translation import (
     is_local_endpoint,
 )
 
+from caixa.box import Box
+from caixa.collectors.base import Progress
 from caixa.translation import LOCAL_WORKERS, REMOTE_WORKERS, Keys
 
 __all__ = ["Keys", "Mail", "BUDGET", "SAMPLE"]
@@ -263,3 +270,102 @@ def check(
         "local": is_local_endpoint(endpoint(values)),
         "used_key": bool(chosen.api_key),
     }
+
+
+# --- Summarizing the box's conversations ----------------------------------------------------------
+
+
+def mails_hash(item_ids: Iterable[str]) -> str:
+    """What a summary was written from: changes when the conversation gains (or loses) a mail."""
+    return hashlib.sha256("\n".join(sorted(item_ids)).encode()).hexdigest()[:16]
+
+
+def _local_date(date_utc: str, offset: Optional[int]) -> str:
+    try:
+        moment = datetime.fromisoformat(date_utc)
+    except (TypeError, ValueError):
+        return ""
+    return f"{moment + timedelta(minutes=offset or 0):%Y-%m-%d}"
+
+
+def pending(box: Box) -> list[tuple[str, str, list[Mail]]]:
+    """The conversations to summarize: (thread, hash of its mails, its mails in date order)."""
+    with box.master(read_only=True) as master:
+        rows = master.connection.execute(
+            "SELECT t.thread_key, t.summary, t.summary_hash, m.item_id, m.date_utc, "
+            "m.tz_offset_minutes, m.sender_name, m.sender_address, i.text FROM mail_threads t "
+            "JOIN mail m ON m.thread_key = t.thread_key LEFT JOIN items i ON i.id = m.item_id "
+            "ORDER BY t.first_utc, t.thread_key, m.date_utc, m.item_id"
+        ).fetchall()
+    threads: dict[str, dict[str, Any]] = {}
+    for thread, summary, stored, item, when, offset, name, address, text in rows:
+        entry = threads.setdefault(
+            thread, {"summary": summary, "stored": stored, "ids": [], "mails": []}
+        )
+        entry["ids"].append(item)
+        entry["mails"].append(
+            Mail(name or address or "someone", _local_date(when, offset), text or "")
+        )
+    found = []
+    for thread, entry in threads.items():
+        current = mails_hash(entry["ids"])
+        if entry["summary"] is None or entry["stored"] != current:
+            found.append((thread, current, entry["mails"]))
+    return found
+
+
+def run(
+    box: Box,
+    values: Mapping[str, Any],
+    progress: Callable[[Progress], None],
+    keys: Optional[Keys] = None,
+) -> dict[str, Any]:
+    """Summarize what `pending` finds, a few at a time (`workers`), and store each summary with
+    its model, the time and its mails' hash as soon as it is written. Returns `{written, left,
+    model, error}`: the first error from the endpoint stops the run (it would likely fail for
+    every conversation) and is given in `error`. `progress` may raise to stop the run; what was
+    written is kept."""
+    todo = pending(box)
+    name = model(values)
+    if not todo:
+        return {"written": 0, "left": 0, "model": name, "error": None}
+    chosen = client(values, keys)
+    chosen.retries = 1
+    message = "Summarizing conversations"
+    progress(Progress("summarizing", 0, len(todo), message))
+    written, error = 0, None
+    pool = ThreadPoolExecutor(max_workers=workers(values))
+    try:
+        queue = iter(todo)
+        running: dict[Future[str], tuple[str, str]] = {}
+
+        def more() -> None:
+            for thread, current, mails in queue:
+                running[pool.submit(summarize, chosen, prepare(mails))] = (thread, current)
+                if len(running) >= workers(values):
+                    return
+
+        more()
+        while running:
+            done, _ = wait(running, return_when=FIRST_COMPLETED)
+            for future in done:
+                thread, current = running.pop(future)
+                try:
+                    summary = future.result()
+                except TranslationError as failed:
+                    error = error or str(failed)
+                    continue
+                with box.master() as master:
+                    master.connection.execute(
+                        "UPDATE mail_threads SET summary = ?, summary_model = ?, summary_at = ?, "
+                        "summary_hash = ? WHERE thread_key = ?",
+                        (summary, name, datetime.now(timezone.utc).isoformat(), current, thread),
+                    )
+                    master.commit()
+                written += 1
+                progress(Progress("summarizing", written, len(todo), message))
+            if error is None:
+                more()
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
+    return {"written": written, "left": len(todo) - written, "model": name, "error": error}

@@ -149,3 +149,159 @@ def test_a_failing_test_says_why(tmp_path: Path, server: StubServer) -> None:
     values = {"summaries.endpoint": server.endpoint, "summaries.model": "nope"}
     result = summaries.check(values, summaries.Keys(tmp_path))
     assert result["ok"] is False and "404" in result["message"]
+
+
+# --- The stage after an import, the job, and the page (T02) ---------------------------------------
+
+import re  # noqa: E402
+import shutil  # noqa: E402
+
+from fixtures import family  # noqa: E402
+from fixtures.builders.noisy_mbox import MAILBOX_NAME, NoisyMail  # noqa: E402
+
+from caixa.service import Service  # noqa: E402
+
+
+def _summary_for(request: dict[str, Any]) -> dict[str, Any]:
+    """A stand-in model: 35 words naming the conversation's first sender."""
+    conversation = request["messages"][1]["content"].split("\n\n", 1)[1]
+    sender = conversation.split(",", 1)[0]
+    return _answer(f"A conversation begun by {sender}. " + _words(35 - 4 - len(sender.split())))
+
+
+@pytest.fixture
+def service(tmp_path: Path, noisy_mail: NoisyMail) -> Iterator[Service]:
+    made = Service(roots=[tmp_path])
+    made.box_create(str(tmp_path / "Box"), name="Our box", owner=family.OWNER.name)
+    with Box.open(tmp_path / "Box").master() as master:
+        for person in (family.JOAO, family.RUI):
+            master.add_alias(master.add_person(person.name), person.emails[0], "email")
+        master.commit()
+    yield made
+    made.close()
+
+
+def _source(service: Service, tmp_path: Path, noisy_mail: NoisyMail) -> int:
+    folder = tmp_path / "exports"
+    folder.mkdir(exist_ok=True)
+    mbox = shutil.copy(noisy_mail.gmail, folder / MAILBOX_NAME)
+    read = service.wait(
+        service.call("mail.read", {"source": str(mbox), "account": "Gmail"})["id"], timeout=60
+    )
+    source = int(read["result"]["sources"][0]["source_id"])
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    return source
+
+
+def _import(service: Service, source: int) -> dict[str, Any]:
+    done = service.wait(service.call("mail.import", {"source": source})["id"], timeout=120)
+    assert done["status"] == "done", done["error"]
+    return done
+
+
+def _threads(service: Service) -> list[tuple[Any, ...]]:
+    box = Box.open(service.call("box.status")["root"])
+    with box.master() as master:
+        return master.connection.execute(
+            "SELECT subject, summary, summary_model, summary_at, summary_hash FROM mail_threads "
+            "ORDER BY subject"
+        ).fetchall()
+
+
+def _beatriz(service: Service) -> str:
+    root = Path(service.call("box.status")["root"])
+    return (root / "People" / "Beatriz Lima" / "Beatriz Lima.html").read_text(encoding="utf-8")
+
+
+def _turn_on(service: Service, server: StubServer) -> None:
+    service.call("settings.set", {"values": {"summaries.enabled": True,
+                                             "summaries.endpoint": server.endpoint,
+                                             "summaries.model": "test-model"}})  # fmt: skip
+
+
+def test_an_import_summarizes_each_conversation_and_the_page_shows_it(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    server.respond = _summary_for
+    _turn_on(service, server)
+    done = _import(service, _source(service, tmp_path, noisy_mail))
+    threads = _threads(service)
+    assert len(threads) == 6 and len(server.requests) == 6
+    assert all(t[1] and t[2] == "test-model" and t[3] and t[4] for t in threads)
+    assert done["result"]["summaries"]["written"] == 6
+    page = _beatriz(service)
+    assert "A conversation begun by Beatriz Lima." in page
+    assert "Summary written by test-model" in page
+
+
+def test_a_stopped_run_resumes_and_only_changed_conversations_are_redone(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    from caixa.collectors.base import Progress
+
+    _import(service, _source(service, tmp_path, noisy_mail))  # summaries off: none yet
+    assert all(t[1] is None for t in _threads(service))
+    server.respond = _summary_for
+    values = {"summaries.enabled": True, "summaries.endpoint": server.endpoint,
+              "summaries.model": "test-model"}  # fmt: skip
+    box = Box.open(service.call("box.status")["root"])
+
+    class Stop(Exception):
+        pass
+
+    def stop_after_two(step: Progress) -> None:
+        if step.stage == "summarizing" and step.current >= 2:
+            raise Stop()
+
+    with pytest.raises(Stop):
+        summaries.run(box, values, stop_after_two, summaries.Keys(tmp_path))
+    written = sum(1 for t in _threads(service) if t[1])
+    assert 2 <= written < 6
+    asked = len(server.requests)
+    result = summaries.run(box, values, lambda step: None, summaries.Keys(tmp_path))
+    assert result["written"] == 6 - written and len(server.requests) - asked == 6 - written
+    # a conversation that gains a mail is summarized again; the others are not
+    with box.master() as master:
+        master.connection.execute(
+            "UPDATE mail_threads SET summary_hash = 'before' WHERE subject = 'Book club in March'"
+        )
+        master.commit()
+    asked = len(server.requests)
+    assert summaries.run(box, values, lambda step: None, summaries.Keys(tmp_path))["written"] == 1
+    assert len(server.requests) - asked == 1
+
+
+def test_a_conversations_hash_changes_when_it_gains_a_mail() -> None:
+    assert summaries.mails_hash(["mail:a", "mail:b"]) == summaries.mails_hash(["mail:b", "mail:a"])
+    assert summaries.mails_hash(["mail:a", "mail:b"]) != summaries.mails_hash(
+        ["mail:a", "mail:b", "mail:c"]
+    )
+
+
+def test_without_a_model_the_import_completes_and_summaries_come_later(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    _import(service, _source(service, tmp_path, noisy_mail))
+    page = _beatriz(service)
+    assert "Summary written by" not in page
+    assert "Hi Maria, we meet on the 9th. Beatriz" in page  # the opening words
+    server.respond = _summary_for
+    _turn_on(service, server)
+    job = service.call("mail.summarize", {})
+    assert job["kind"] == "mail-summarize"
+    done = service.wait(job["id"], timeout=120)
+    assert done["status"] == "done", done["error"]
+    assert done["result"]["written"] == 6
+    assert "Summary written by test-model" in _beatriz(service)
+
+
+def test_an_endpoint_that_fails_does_not_fail_the_import(
+    service: Service, server: StubServer, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    server.status = 500
+    _turn_on(service, server)
+    done = _import(service, _source(service, tmp_path, noisy_mail))
+    assert done["result"]["summaries"]["written"] == 0
+    assert any("ummar" in w for w in done["result"]["warnings"])
+    assert all(t[1] is None for t in _threads(service))
+    assert re.search(r"Hi Maria, we meet on the 9th", _beatriz(service))

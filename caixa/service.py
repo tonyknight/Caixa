@@ -34,7 +34,7 @@ from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
 from chattr.people import Contacts, mac_contacts_folder
-from chattr.translation import is_local_endpoint
+from chattr.translation import TranslationError, is_local_endpoint
 
 from caixa import owner as owner_file
 from caixa import settings, summaries, translation, undo
@@ -920,6 +920,8 @@ class Service:
             return self._mail_clean_write(box, job, progress)
         if job["kind"] == "mail-reduce":
             return self._mail_reduce(box, job, progress)
+        if job["kind"] == "mail-summarize":
+            return self._mail_summarize(box, progress)
         if job["kind"] == "mail-import":
             imported = self._mail_import(box, job, progress)
             undo.note_moves(box, imported.pop("moved", []))
@@ -1266,6 +1268,9 @@ class Service:
                 "INSERT OR IGNORE INTO imported (source_id, position, job) VALUES (?, ?, ?)",
                 [(source, p, int(job["id"])) for p in positions],
             )
+        warnings = list(result.get("warnings") or [])
+        result["summaries"] = self._summarize(box, progress, warnings, after_import=True)
+        result["warnings"] = warnings
         return {
             **result,
             "mails": picked.mails,
@@ -1274,6 +1279,65 @@ class Service:
             "senders": len(chosen),
             "account": account,
         }
+
+    @method("mail.summarize", write=True)
+    def mail_summarize(self) -> dict[str, Any]:
+        """Summarize, as a job, every imported mail conversation that has no summary yet or has
+        gained mails since its summary was written (with the endpoint and model in Settings)."""
+        box = self._require_box()
+        if not summaries.ready(settings.load(box)):
+            raise ServiceError(
+                "invalid_params",
+                "Summaries are off, or have no endpoint or model. Turn them on in Settings, "
+                "Summaries, and try them there first.",
+            )
+        return self._enqueue("mail-summarize", None, None, {})
+
+    def _summarize(
+        self,
+        box: Box,
+        progress: Callable[[Progress], None],
+        warnings: list[str],
+        after_import: bool = False,
+    ) -> dict[str, Any]:
+        """Write the summaries that are missing, then redraw the pages when any was written.
+        After an import nothing here fails it: what went wrong is a warning, the entries show
+        the opening words, and `mail.summarize` can add the summaries later."""
+        values = settings.load(box)
+        if not summaries.ready(values):
+            return {"written": 0, "left": len(summaries.pending(box)), "model": "", "error": None}
+        later = " The entries show each conversation's first words until then; Summarize mail adds the summaries later."
+        try:
+            outcome = summaries.run(box, values, progress, self._keys())
+        except JobCancelled:
+            if not after_import:
+                raise
+            warnings.append("Summaries were stopped." + later)
+            return {
+                "written": 0,
+                "left": len(summaries.pending(box)),
+                "model": "",
+                "error": "stopped",
+            }
+        except TranslationError as error:  # (the settings could not make a client)
+            outcome = {
+                "written": 0,
+                "left": len(summaries.pending(box)),
+                "model": "",
+                "error": str(error),
+            }
+        if outcome["error"]:
+            warnings.append(f"Some summaries could not be written: {outcome['error']}." + later)
+        if outcome["written"]:
+            self._refresh_all(box, progress)  # the pages, with the summaries
+        return outcome
+
+    def _mail_summarize(self, box: Box, progress: Callable[[Progress], None]) -> dict[str, Any]:
+        warnings: list[str] = []
+        outcome = self._summarize(box, progress, warnings)
+        if outcome["error"] and not outcome["written"]:
+            raise ServiceError("input", f"No summary could be written: {outcome['error']}")
+        return {**outcome, "warnings": warnings}
 
     def _senders_reply(self, box: Box, index: mail_index.MailIndex, source: int) -> dict[str, Any]:
         info = self._mail_source(index, source)

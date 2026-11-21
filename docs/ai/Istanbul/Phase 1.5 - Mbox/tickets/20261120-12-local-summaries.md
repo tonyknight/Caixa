@@ -14,7 +14,7 @@ depends_on:
 - 20261120-11-the-person-page-s-entry-and-the-overlay
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -42,7 +42,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `caixa/summaries.py` does for summaries what `caixa/translation.py` does for
 translation, through the same client (Chattr's OpenAI-compatible client gains a plain `chat`
@@ -93,7 +93,7 @@ call, which `translate` now uses) and the same "a service on the internet needs 
   failing one the import completes, entries show the opening words, and `mail.summarize` adds them
   later.
 - Verify: `python -m pytest -q tests/test_summaries.py tests/test_mail_pages.py tests/test_mail_service.py`
-- [ ] done
+- [x] done
 
 ### T03: Settings page and job names
 
@@ -117,3 +117,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-21
 T01: Chattr's client gains chat(messages) (translate uses it) and a server_name for its errors. caixa/summaries.py: settings (summaries.enabled/endpoint/model/allow_remote; empty endpoint and model are translation's, whose yes covers its own endpoint), problems() joined to settings.save, prepare() (a line per mail 'sender, date: text', quotes from '>' / 'On … wrote:' / forwarded headers and signatures from '-- ' removed, 12,000-character budget keeping the first and last mails with '[n mails left out]'), summarize() (30–50 words; one retry saying the count; still long → cut at the last sentence end within 50 words, else 50 words; short kept), check() with a made-up Portuguese conversation; service summaries.test. stub_server gains respond(). RED: tests/test_summaries.py failed on the missing module, then 12 GREEN.
+
+### 2026-11-21
+T02: summaries.pending() finds conversations with no summary or whose mails' hash (sha256 of the sorted item ids) changed; run() asks a few at a time (1 local, 4 remote; one retry per request), commits each summary with model, time and hash as it is written (a stopped run resumes), and stops at the first endpoint error. The mail import runs it after recording when summaries are ready, then redraws the pages; a failure or a cancel there is a warning, never a failed import. mail.summarize (write) enqueues mail-summarize for later. Chattr publish/render_pages take summaries {thread: (text, model)} (Caixa reads them from mail_threads on every publish); the entry shows the summary and 'Summary written by <model>', else the opening words. RED: 5 failing tests, then GREEN (17).

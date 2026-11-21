@@ -21,7 +21,7 @@
 {% for e in day.entries %}{% if e.kind == 'conversation' %}<article class="entry {{ e.direction }} k-conversation" id="c-{{ e.id }}">
 <div class="meta"><span class="badge s-mail">@{{ e.account }}</span><span class="author">{{ e.author }}</span><time datetime="{{ e.iso }}">{{ e.time }}</time> <span class="offset">{{ e.offset }}</span></div>
 <div class="body conversation-subject">{{ e.subject }}</div>
-{% if e.summary %}<div class="conversation-summary">{{ e.summary }}</div>{% endif %}
+{% if e.summary %}<div class="conversation-summary">{{ e.summary }}{% if e.model %} <span class="by-model">Summary written by {{ e.model }}</span>{% endif %}</div>{% endif %}
 <div class="conversation-foot"><span class="note">{{ e.counts }}</span><a class="read-conversation" href="{{ e.href }}">Read the conversation</a></div>
 </article>
 {% else %}<article class="entry {{ e.direction }} k-{{ e.kind }}" id="m-{{ e.id }}">
