@@ -105,3 +105,15 @@ def test_it_translates_like_the_endpoint_client(stand_in: None) -> None:
         result = model.translate("Bom dia")
     assert isinstance(result, Translation) and result.text.endswith("| Bom dia")
     assert model.model == "Apple Intelligence" and model.api_key is None
+
+
+def test_the_swift_helper_is_in_the_repository_with_its_protocol() -> None:
+    """It cannot be built here (it needs macOS 26); this checks it is the program Caixa runs."""
+    package = (apple.PACKAGE / "Package.swift").read_text(encoding="utf-8")
+    assert f'name: "{apple.PROGRAM}"' in package and '.macOS("26.0")' in package
+    main = (apple.PACKAGE / "Sources" / apple.PROGRAM / "main.swift").read_text(encoding="utf-8")
+    for needed in ("import FoundationModels", "SystemLanguageModel.default.availability",
+                   "LanguageModelSession", "--check", "guardrailViolation",
+                   "not_eligible", "not_enabled", "not_ready", "refused"):  # fmt: skip
+        assert needed in main, needed
+    assert (apple.PACKAGE / "README.md").is_file()
