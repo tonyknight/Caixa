@@ -281,6 +281,11 @@ export type TranslationTest =
   | { readonly ok: true; readonly sample: string; readonly translation: string; readonly seconds: number; readonly local: boolean; readonly used_key: boolean }
   | { readonly ok: false; readonly message: string }
 
+/** What trying the summaries endpoint on a made-up conversation came to. */
+export type SummariesTest =
+  | { readonly ok: true; readonly summary: string; readonly words: number; readonly seconds: number; readonly local: boolean; readonly used_key: boolean }
+  | { readonly ok: false; readonly message: string }
+
 /** A box opened lately (from Caixa's own memory, not from the box). */
 export interface RecentBox {
   readonly path: string

@@ -16,7 +16,7 @@ describe('the settings form', () => {
     expect(screen.getByRole('heading', { name: 'Settings' })).toBeTruthy()
     expect(screen.getByText('Location: /boxes/Our box')).toBeTruthy()
     expect(screen.getByText(/Nothing here sends your archive anywhere/)).toBeTruthy()
-    for (const legend of ['Privacy', 'Contacts', 'Translation', 'Speech-to-text (local model)']) {
+    for (const legend of ['Privacy', 'Contacts', 'Translation', 'Summaries', 'Speech-to-text (local model)']) {
       expect(screen.getByRole('group', { name: legend })).toBeTruthy()
     }
   })
@@ -180,6 +180,46 @@ describe('translation: the key and the test', () => {
     const result = await screen.findByTestId('translation-test-result')
     expect(result.getAttribute('role')).toBe('alert')
     expect(result.textContent).toContain('The test failed. The server refused the key (HTTP 401)')
+  })
+})
+
+describe('summaries', () => {
+  const summary = 'Ana Costa writes to Maria about the wedding in Sintra on 14 June and asks her to bring the dessert; Maria offers her grandmother\u2019s orange cake and help with the tables, and Ana agrees to meet at nine.'
+
+  it('tests what is typed on a made-up conversation and shows the summary', async () => {
+    const view = await page(vi.fn(), (api) => {
+      api.generic['summaries.test'] = () => ok({ ok: true, summary, words: 36, seconds: 2.1, local: true, used_key: false })
+    })
+    const group = screen.getByRole('group', { name: 'Summaries' })
+    change('Summaries model', 'qwen2.5')
+    fireEvent.click(within(group).getByRole('button', { name: 'Test summaries' }))
+    const result = await screen.findByTestId('summaries-test-result')
+    expect(result.textContent).toContain('It works')
+    expect(result.textContent).toContain(summary)
+    expect(result.textContent).toContain('36 words')
+    expect(view.api.calls).toContainEqual(['call', 'summaries.test', { values: { 'summaries.endpoint': '', 'summaries.model': 'qwen2.5', 'translation.endpoint': '', 'translation.model': '' }, key: '' }])
+  })
+
+  it('says why a test of summaries failed', async () => {
+    await page(vi.fn(), (api) => { api.generic['summaries.test'] = () => ok({ ok: false, message: 'Could not reach the summary server: refused' }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Test summaries' }))
+    const result = await screen.findByTestId('summaries-test-result')
+    expect(result.getAttribute('role')).toBe('alert')
+    expect(result.textContent).toContain('Could not reach the summary server')
+  })
+
+  it('summarizes the conversations now, once summaries are on and saved', async () => {
+    const off = await page()
+    expect((screen.getByRole('button', { name: 'Summarize mail now' }) as HTMLButtonElement).disabled).toBe(true)
+    off.unmount()
+    const view = await page(vi.fn(), (api) => {
+      api.settingsReply = ok({ ...SETTINGS, values: { ...SETTINGS.values, 'summaries.enabled': true, 'summaries.endpoint': 'http://localhost:11434/v1', 'summaries.model': 'qwen2.5' } })
+      api.generic['mail.summarize'] = () => ok({ id: 12, kind: 'mail-summarize', status: 'queued' })
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Summarize mail now' }))
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['call', 'mail.summarize', {}])
+    expect(screen.getByTestId('summaries-started').textContent).toContain('Jobs')
   })
 })
 

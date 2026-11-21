@@ -70,6 +70,15 @@ describe('the jobs page', () => {
     expect(within(details).getByText('33 mails kept, 23 left out')).toBeTruthy()
   })
 
+  it('names a summarizing of mail and says how many summaries it wrote', async () => {
+    const summarizing = job({ id: 7, kind: 'mail-summarize', collector: null, source: null, options: {}, result: { written: 5, left: 1, model: 'qwen2.5', error: null, warnings: [] } as never })
+    await renderWith(<JobsPage selected={7} onSelect={() => undefined} />, (api) => { api.jobList = [summarizing] })
+    expect(within(screen.getAllByRole('row')[1]!).getByText('Mail summarized')).toBeTruthy()
+    const details = screen.getByRole('region', { name: 'Details of job 7' })
+    expect(within(details).getByText('5 summaries written, 1 left')).toBeTruthy()
+    expect(within(details).queryByText(/new,/)).toBeNull()
+  })
+
   it('shows the result of a finished job and the options it ran with', async () => {
     await renderWith(<JobsPage selected={1} onSelect={() => undefined} />, (api) => { api.jobList = [job({ id: 1, options: { owner: 'Maria Costa' } })] })
     const details = screen.getByRole('region', { name: 'Details of job 1' })
@@ -156,6 +165,8 @@ describe('the toasts', () => {
     expect(screen.getByText('Importing the mail failed: gone')).toBeTruthy()
     await view.emit('job.finished', finished(13, { kind: 'mail-reduce', collector: null, status: 'failed', error: 'no room', result: null }))
     expect(screen.getByText('Writing the reduced mbox failed: no room')).toBeTruthy()
+    await view.emit('job.finished', finished(14, { kind: 'mail-summarize', collector: null, status: 'failed', error: 'refused', result: null }))
+    expect(screen.getByText('Summarizing the mail failed: refused')).toBeTruthy()
   })
 
   it('speak Chinese when asked', async () => {

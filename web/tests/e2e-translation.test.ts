@@ -103,7 +103,7 @@ run('translation settings, in a browser', () => {
       await page.getByRole('button', { name: 'Save settings' }).click()
       await page.getByText('message text would leave this computer', { exact: false }).waitFor()
       expect((await running.rpc('settings.get')).result.values['translation.endpoint']).toBe(endpoint)
-      await page.getByLabel('Allow a service on the internet').check()
+      await page.getByLabel('Allow a service on the internet', { exact: true }).check()
       await page.getByRole('button', { name: 'Save settings' }).click()
       await page.getByText('Settings saved.').waitFor()
       expect((await running.rpc('settings.get')).result.values['translation.endpoint']).toBe('https://openrouter.ai/api/v1')

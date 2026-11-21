@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { ContactsCheck, ResetResult, SettingsReply, TranslationTest, WorkerInfo } from '../api.ts'
+import type { ContactsCheck, ResetResult, SettingsReply, SummariesTest, TranslationTest, WorkerInfo } from '../api.ts'
 import { DiagnosticsReport } from '../components/Diagnostics.tsx'
 import { OptionsForm } from '../components/OptionsForm.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
@@ -12,7 +12,7 @@ const MAC_PROBLEMS: Readonly<Record<string, CaixaKey>> = {
   no_access: 'contacts.mac.no_access', empty: 'contacts.mac.empty', not_a_mac: 'contacts.mac.not_a_mac',
 }
 
-const GROUPS = ['privacy', 'contacts', 'translation', 'speech']
+const GROUPS = ['privacy', 'contacts', 'translation', 'summaries', 'speech']
 
 /** The box's location, and its settings as a form drawn from the schema the worker publishes. */
 export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
@@ -35,6 +35,8 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
   const [resetFailure, setResetFailure] = useState<string | undefined>()
   const [testing, setTesting] = useState(false)
   const [tested, setTested] = useState<TranslationTest | undefined>()
+  const [summarizing, setSummarizing] = useState<'no' | 'testing' | 'starting' | 'started'>('no')
+  const [summaryTested, setSummaryTested] = useState<SummariesTest | undefined>()
 
   useEffect(() => {
     let current = true
@@ -99,6 +101,28 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
     setTesting(false)
     setTested(reply.ok ? reply.result : { ok: false, message: reply.error.message })
   }
+
+  const typed = (name: string) => String(values[name] ?? '').trim()
+  const testSummaries = async () => {
+    setSummarizing('testing'); setSummaryTested(undefined)
+    const reply = await store.api.call<SummariesTest>('summaries.test', {
+      values: {
+        'summaries.endpoint': typed('summaries.endpoint'), 'summaries.model': typed('summaries.model'),
+        'translation.endpoint': endpoint, 'translation.model': typed('translation.model'),
+      },
+      key: key.trim(),
+    })
+    setSummarizing('no')
+    setSummaryTested(reply.ok ? reply.result : { ok: false, message: reply.error.message })
+  }
+  const summarizeNow = async () => {
+    setSummarizing('starting')
+    const reply = await store.api.call('mail.summarize', {})
+    if (!reply.ok) { setSummarizing('no'); setFailure(reply.error.message); return }
+    setSummarizing('started')
+    await store.refreshJobs()
+  }
+  const summariesOn = Boolean(loaded?.values['summaries.enabled'])
 
   return (
     <div className={css.section}>
@@ -169,6 +193,30 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
                         </div>
                       )}
                       {tested?.ok === false && <p className={css.error} role="alert" data-testid="translation-test-result">{t('translation.test.failed', { message: tested.message })}</p>}
+                    </div>
+                  </>
+                )}
+                {group === 'summaries' && (
+                  <>
+                    <div>
+                      <button type="button" className={css.button} disabled={summarizing === 'testing'} aria-describedby="caixa-summaries-test-help" onClick={() => void testSummaries()}>
+                        {t(summarizing === 'testing' ? 'translation.testing' : 'summaries.test')}
+                      </button>
+                      <span id="caixa-summaries-test-help" className={css.help}>{t('summaries.test.help')}</span>
+                      {summaryTested?.ok === true && (
+                        <div role="status" data-testid="summaries-test-result">
+                          <p><strong>{t('summaries.test.ok', { seconds: summaryTested.seconds, words: summaryTested.words })}</strong></p>
+                          <p>{summaryTested.summary}</p>
+                        </div>
+                      )}
+                      {summaryTested?.ok === false && <p className={css.error} role="alert" data-testid="summaries-test-result">{t('summaries.test.failed', { message: summaryTested.message })}</p>}
+                    </div>
+                    <div>
+                      <button type="button" className={css.button} disabled={readOnly || !summariesOn || summarizing === 'starting'} aria-describedby="caixa-summaries-now-help" onClick={() => void summarizeNow()}>
+                        {t('summaries.now')}
+                      </button>
+                      <span id="caixa-summaries-now-help" className={css.help}>{t('summaries.now.help')}</span>
+                      {summarizing === 'started' && <p role="status" data-testid="summaries-started">{t('summaries.started')}</p>}
                     </div>
                   </>
                 )}

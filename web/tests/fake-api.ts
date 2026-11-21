@@ -184,7 +184,7 @@ export const HANDLES: Handle[] = [
 ]
 
 export const SETTINGS: SettingsReply = {
-  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'speech.model': '', 'speech.language': '' },
+  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'summaries.enabled': false, 'summaries.endpoint': '', 'summaries.model': '', 'speech.model': '', 'speech.language': '' },
   schema: { type: 'object', properties: {
     'privacy.default': { type: 'string', default: 'private', enum: ['private', 'family', 'public'], title: 'Who can see new items', description: 'Privacy given to items when first imported.' },
     'contacts.mac': { type: 'boolean', default: true, title: 'Use this Mac\u2019s Contacts' },
@@ -192,6 +192,9 @@ export const SETTINGS: SettingsReply = {
     'translation.enabled': { type: 'boolean', default: false, title: 'Translate with a local model', description: 'Off by default.' },
     'translation.endpoint': { type: 'string', default: '', title: 'Translation endpoint', description: 'An address on this computer.' },
     'translation.model': { type: 'string', default: '', title: 'Translation model' },
+    'summaries.enabled': { type: 'boolean', default: false, title: 'Summarize mail conversations' },
+    'summaries.endpoint': { type: 'string', default: '', title: 'Summaries endpoint' },
+    'summaries.model': { type: 'string', default: '', title: 'Summaries model' },
     'speech.model': { type: 'string', default: '', title: 'Speech-to-text model', 'x-picker': 'file' },
     'speech.language': { type: 'string', default: '', title: 'Speech language' },
   } },
