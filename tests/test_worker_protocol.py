@@ -32,6 +32,7 @@ ALL_METHODS = {
     "translation.key",
     "translation.test",
     "summaries.test",
+    "apple.check",
     "mail.summarize",
     "import.preview",
     "import.preview.cancel",

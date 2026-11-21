@@ -343,3 +343,75 @@ def test_a_failing_endpoint_is_the_reason(
     _turn_on(service, server)
     done = _import_with(service, _source(service, tmp_path, noisy_mail))
     assert done["result"]["summaries"]["reason"] == "failed"
+
+
+# --- Apple Intelligence (hot fix 20) --------------------------------------------------------------
+
+import shlex  # noqa: E402
+import sys  # noqa: E402
+
+from caixa import apple_intelligence  # noqa: E402
+
+STAND_IN = Path(__file__).with_name("stand_in_apple.py")
+
+
+@pytest.fixture
+def apple(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        apple_intelligence.OVERRIDE, f"{shlex.quote(sys.executable)} {shlex.quote(str(STAND_IN))}"
+    )
+
+
+def test_apple_intelligence_needs_no_endpoint(box: Box, apple: None) -> None:
+    settings.save(box, {"summaries.enabled": True, "summaries.provider": "apple"})
+    values = settings.load(box)
+    assert summaries.ready(values) and summaries.model(values) == "Apple Intelligence"
+
+
+def test_an_import_is_summarized_by_apple_intelligence(
+    service: Service,
+    apple: None,
+    tmp_path: Path,
+    noisy_mail: NoisyMail,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(
+        "STAND_IN_APPLE_DECLINE", "Lovely, thank you"
+    )  # Beatriz's second book club mail
+    service.call(
+        "settings.set", {"values": {"summaries.enabled": True, "summaries.provider": "apple"}}
+    )
+    done = _import(service, _source(service, tmp_path, noisy_mail))
+    said = done["result"]["summaries"]
+    assert said["declined"] == 1 and said["written"] == 5 and said["model"] == "Apple Intelligence"
+    threads = {t[0]: t for t in _threads(service)}
+    assert threads["Book club in March"][1] is None  # declined: its entry keeps the opening words
+    assert threads["Book club in April"][2] == "Apple Intelligence"
+    assert any("declined" in w for w in done["result"]["warnings"])
+
+
+def test_apple_intelligence_is_sent_at_most_6000_characters() -> None:
+    mails = [
+        Mail("Ana", f"2025-01-{n + 1:02d}", f"Mail number {n}. " + "x" * 2000) for n in range(30)
+    ]
+    text = summaries.prepare(mails, budget=summaries.APPLE_BUDGET)
+    assert len(text) <= 6000 and "Mail number 0." in text and "Mail number 29." in text
+
+
+def test_the_test_works_with_apple_intelligence(tmp_path: Path, apple: None) -> None:
+    result = summaries.check(
+        {"summaries.provider": "apple", "workers": 2}, summaries.Keys(tmp_path)
+    )
+    assert result["ok"] and result["words"] <= 50
+
+
+def test_settings_say_when_apple_intelligence_cannot_be_chosen(
+    service: Service, apple: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ready = service.call("settings.get")
+    assert "x-unavailable" not in ready["schema"]["properties"]["summaries.provider"]
+    assert service.call("apple.check")["ready"] is True
+    monkeypatch.setenv("STAND_IN_APPLE", "not_enabled")
+    blocked = service.call("settings.get")["schema"]["properties"]
+    for name in ("summaries.provider", "translation.provider"):
+        assert "turned off" in blocked[name]["x-unavailable"]["apple"]

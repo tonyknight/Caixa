@@ -25,7 +25,8 @@ def main() -> None:
     for line in sys.stdin:
         request = json.loads(line)
         time.sleep(delay)
-        if "DECLINE" in request["prompt"]:
+        word = os.environ.get("STAND_IN_APPLE_DECLINE", "DECLINE")
+        if word in request["prompt"]:
             answer = {
                 "id": request["id"],
                 "error": "declined by the safety filter",

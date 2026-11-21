@@ -250,3 +250,21 @@ def test_the_wizard_offers_translate_starting_from_the_setting(
                                              "translation.model": "m"}})  # fmt: skip
     assert offered()["default"] is True
     service.close()
+
+
+def test_an_import_is_translated_by_apple_intelligence(
+    messenger: Collector, fixture_family, box: Box, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import shlex
+    import sys
+
+    from caixa import apple_intelligence
+
+    stand_in = Path(__file__).with_name("stand_in_apple.py")
+    monkeypatch.setenv(
+        apple_intelligence.OVERRIDE, f"{shlex.quote(sys.executable)} {shlex.quote(str(stand_in))}"
+    )
+    settings.save(box, {"translation.enabled": True, "translation.provider": "apple"})
+    result, events = _import(messenger, box, fixture_family.paths["messenger"])
+    assert result.translated >= 1 and "translating" in [e.stage for e in events]
+    assert translation.check(settings.load(box), translation.Keys(box.root))["ok"]

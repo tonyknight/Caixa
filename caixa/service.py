@@ -37,7 +37,7 @@ from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import TranslationError, is_local_endpoint
 
 from caixa import owner as owner_file
-from caixa import settings, summaries, translation, undo
+from caixa import apple_intelligence, settings, summaries, translation, undo
 from caixa.box import LAYOUT, Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
@@ -439,9 +439,14 @@ class Service:
         box = self._require_box()
         values = settings.load(box)
         endpoint = str(values.get("translation.endpoint") or "")
+        schema = copy.deepcopy(settings.SCHEMA)
+        mac = apple_intelligence.check(build=False)
+        if not mac["ready"] and mac["reason"] != "not_built":  # (not built yet: Test builds it)
+            for name in ("summaries.provider", "translation.provider"):
+                schema["properties"][name]["x-unavailable"] = {"apple": mac["message"]}
         return {
             "values": values,
-            "schema": settings.SCHEMA,
+            "schema": schema,
             "box": {"root": str(box.root), "name": box.name},
             # whether a key is saved for this endpoint; the key itself never leaves the worker
             "translation": {"key_saved": self._keys().get(endpoint) is not None},
@@ -492,6 +497,12 @@ class Service:
         """Try the endpoint, model and key (the saved key unless one is given) with one fixed
         sentence. Nothing from the box is sent."""
         return translation.check(values, self._keys(), key or None)
+
+    @method("apple.check")
+    def apple_check(self) -> dict[str, Any]:
+        """Whether Apple Intelligence (the Mac's own model) can be used now, or why not; the
+        helper is not built here (Test builds it)."""
+        return apple_intelligence.check(build=False)
 
     @method("summaries.test")
     def summaries_test(self, values: dict[str, Any], key: str = "") -> dict[str, Any]:
@@ -1374,6 +1385,13 @@ class Service:
             }
         if outcome["error"]:
             warnings.append(f"Some summaries could not be written: {outcome['error']}." + later)
+        if outcome.get("declined"):
+            count = int(outcome["declined"])
+            warnings.append(
+                f"{count} conversation{'s were' if count != 1 else ' was'} declined by "
+                f"{outcome['model']}'s safety filter; {'their entries' if count != 1 else 'its entry'} "
+                "show the first words instead."
+            )
         if outcome["written"]:
             self._refresh_all(box, progress)  # the pages, with the summaries
         outcome["reason"] = (

@@ -119,8 +119,13 @@ def helper() -> list[str]:
     return [str(program)]
 
 
-def check() -> dict[str, Any]:
-    """`{ready, reason, message}`: whether the Mac's model can be used now, or why not."""
+def check(build: bool = True) -> dict[str, Any]:
+    """`{ready, reason, message}`: whether the Mac's model can be used now, or why not. Without
+    `build`, a helper that is not built yet is reported (`not_built`) rather than built."""
+    if not build and not os.environ.get(OVERRIDE, "").strip() and _is_mac() and _stale(_built()):
+        return {"ready": False, "reason": "not_built", "message": REASONS["not_built"] + " It is built "
+                "when Apple Intelligence is chosen and tested (this needs Xcode or its command-line "
+                "tools)."}  # fmt: skip
     try:
         command = helper()
     except AppleUnavailable as error:

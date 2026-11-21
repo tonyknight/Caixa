@@ -69,6 +69,21 @@ SCHEMA: dict[str, Any] = {
                 "translation under the original. Text is sent only to the endpoint below."
             ),
         },
+        "translation.provider": {
+            "type": "string",
+            "default": "endpoint",
+            "enum": ["endpoint", "apple"],
+            "title": "Translations are written by",
+            "description": (
+                "An OpenAI-compatible endpoint (below), or Apple Intelligence: the Mac's own model "
+                "(macOS 26 or later, Apple silicon, Apple Intelligence on). Apple Intelligence keeps "
+                "every message on this Mac and runs as many at once as Workers says."
+            ),
+            "x-labels": {
+                "endpoint": "An endpoint (the address and model below)",
+                "apple": "Apple Intelligence (on this Mac)",
+            },
+        },
         "translation.endpoint": {
             "type": "string",
             "default": "",
@@ -108,6 +123,22 @@ SCHEMA: dict[str, Any] = {
                 "language, shown on the person pages and marked as written by a model. Mail text "
                 "is sent only to the endpoint below."
             ),
+        },
+        "summaries.provider": {
+            "type": "string",
+            "default": "endpoint",
+            "enum": ["endpoint", "apple"],
+            "title": "Summaries are written by",
+            "description": (
+                "An OpenAI-compatible endpoint (below; translation's when left empty), or Apple "
+                "Intelligence: the Mac's own model, which keeps every mail on this Mac. It reads "
+                "less at a time, so long conversations are summarized from their first and last "
+                "mails."
+            ),
+            "x-labels": {
+                "endpoint": "An endpoint (the address and model below)",
+                "apple": "Apple Intelligence (on this Mac)",
+            },
         },
         "summaries.endpoint": {
             "type": "string",

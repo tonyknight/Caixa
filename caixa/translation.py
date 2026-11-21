@@ -32,6 +32,7 @@ from chattr.translation import (
     is_local_endpoint,
 )
 
+from caixa import apple_intelligence
 from caixa.state import caixa_home
 
 #: The sentence `check` sends. Portuguese, the language of the project's first archive.
@@ -79,8 +80,15 @@ class Keys:
         os.replace(part, self.path)
 
 
+def apple(values: Mapping[str, Any]) -> bool:
+    """Whether Apple Intelligence (the Mac's own model) writes the translations."""
+    return values.get("translation.provider") == "apple"
+
+
 def problems(values: Mapping[str, Any]) -> list[str]:
     """What is wrong with the translation settings, in words; empty when they can be saved."""
+    if apple(values):
+        return []
     endpoint = str(values.get("translation.endpoint") or "").strip()
     model = str(values.get("translation.model") or "").strip()
     found: list[str] = []
@@ -114,8 +122,13 @@ def translator(
     """The translator these settings describe (raises `TranslationUnavailable` saying why not).
 
     `key`, when given, is used instead of the saved one (the Settings page trying a key before
-    saving it).
+    saving it). With Apple Intelligence chosen it is the Mac's model, with `workers` helpers.
     """
+    if apple(values):
+        ready = apple_intelligence.check()
+        if not ready["ready"]:
+            raise TranslationUnavailable(ready["message"])
+        return apple_intelligence.AppleIntelligence(workers(values))  # type: ignore[return-value]
     endpoint = str(values.get("translation.endpoint") or "").strip()
     model = str(values.get("translation.model") or "").strip()
     parsed = urlparse(endpoint)
@@ -128,6 +141,8 @@ def translator(
 
 
 def workers(values: Mapping[str, Any]) -> int:
+    if apple(values):
+        return max(1, int(values.get("workers") or 4))
     local = is_local_endpoint(str(values.get("translation.endpoint") or ""))
     return LOCAL_WORKERS if local else REMOTE_WORKERS
 
@@ -141,7 +156,12 @@ def check(
         chosen = translator(values, keys, key, timeout=45)
         chosen.retries = 0  # a person is waiting for the answer
         started = time.monotonic()
-        result = chosen.translate(SAMPLE)
+        try:
+            result = chosen.translate(SAMPLE)
+        finally:
+            close = getattr(chosen, "close", None)
+            if callable(close):
+                close()
     except TranslationError as error:
         return {"ok": False, "message": str(error)}
     endpoint = str(values.get("translation.endpoint") or "")
@@ -150,6 +170,6 @@ def check(
         "sample": SAMPLE,
         "translation": result.text,
         "seconds": round(time.monotonic() - started, 1),
-        "local": is_local_endpoint(endpoint),
+        "local": apple(values) or is_local_endpoint(endpoint),
         "used_key": bool(chosen.api_key),
     }

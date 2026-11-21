@@ -622,10 +622,15 @@ class _Chattr:
             progress(Progress("translating", done, total, "Translating messages"))
 
         progress(Progress("translating", message="Looking for messages to translate"))
-        with DatabaseManager(commands.central_database(settings)) as db:
-            stats = translate_archive(
-                db, translator, workers=translation.workers(values), on_progress=report
-            )
+        try:
+            with DatabaseManager(commands.central_database(settings)) as db:
+                stats = translate_archive(
+                    db, translator, workers=translation.workers(values), on_progress=report
+                )
+        finally:
+            close = getattr(translator, "close", None)  # Apple Intelligence's helpers
+            if callable(close):
+                close()
         said: list[str] = []
         if stats.aborted:
             said.append(

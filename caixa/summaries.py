@@ -34,6 +34,7 @@ from chattr.translation import (
     is_local_endpoint,
 )
 
+from caixa import apple_intelligence
 from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.translation import LOCAL_WORKERS, REMOTE_WORKERS, Keys
@@ -42,6 +43,8 @@ __all__ = ["Keys", "Mail", "BUDGET", "SAMPLE"]
 
 #: The most characters of a conversation sent; a longer one sends its first mails and its last.
 BUDGET = 12_000
+#: The same for Apple Intelligence, whose model reads about 4,000 tokens.
+APPLE_BUDGET = 6_000
 MIN_WORDS, MAX_WORDS = 30, 50
 
 INSTRUCTION = (
@@ -87,11 +90,18 @@ _SENTENCE_END = re.compile(r"[.!?…](?:[\"'”’)\]]*)(?=\s|$)")
 # --- Settings -------------------------------------------------------------------------------------
 
 
+def apple(values: Mapping[str, Any]) -> bool:
+    """Whether Apple Intelligence (the Mac's own model) writes the summaries."""
+    return values.get("summaries.provider") == "apple"
+
+
 def endpoint(values: Mapping[str, Any]) -> str:
     return str(values.get("summaries.endpoint") or values.get("translation.endpoint") or "").strip()
 
 
 def model(values: Mapping[str, Any]) -> str:
+    if apple(values):
+        return apple_intelligence.NAME
     return str(values.get("summaries.model") or values.get("translation.model") or "").strip()
 
 
@@ -113,7 +123,7 @@ def ready(values: Mapping[str, Any]) -> bool:
 
 def problems(values: Mapping[str, Any]) -> list[str]:
     """What is wrong with the summary settings, in words; empty when they can be saved."""
-    if not values.get("summaries.enabled"):
+    if not values.get("summaries.enabled") or apple(values):
         return []
     address = endpoint(values)
     if not address:
@@ -136,6 +146,8 @@ def problems(values: Mapping[str, Any]) -> list[str]:
 
 
 def workers(values: Mapping[str, Any]) -> int:
+    if apple(values):
+        return max(1, int(values.get("workers") or 4))
     return LOCAL_WORKERS if is_local_endpoint(endpoint(values)) else REMOTE_WORKERS
 
 
@@ -146,6 +158,11 @@ def client(
     timeout: float = 120,
 ) -> OpenAICompatibleTranslator:
     """The client these settings describe (raises `TranslationUnavailable` saying why not)."""
+    if apple(values):
+        ready = apple_intelligence.check()
+        if not ready["ready"]:
+            raise TranslationUnavailable(ready["message"])
+        return apple_intelligence.AppleIntelligence(workers(values))  # type: ignore[return-value]
     address, name = endpoint(values), model(values)
     parsed = urlparse(address)
     if parsed.scheme not in ("http", "https") or not parsed.hostname:
@@ -173,13 +190,13 @@ def own_words(text: str) -> str:
     return re.sub(r"\s+", " ", " ".join(kept)).strip()
 
 
-def prepare(mails: Sequence[Mail]) -> str:
-    """The conversation as it is sent: a line per mail, in date order, within `BUDGET`."""
+def prepare(mails: Sequence[Mail], budget: int = BUDGET) -> str:
+    """The conversation as it is sent: a line per mail, in date order, within `budget`."""
     lines = [f"{m.sender}, {m.date}: {own_words(m.text)}" for m in mails]
     lines = [line for line in lines if not line.endswith(": ")] or lines[:1]
-    if sum(len(line) + 1 for line in lines) <= BUDGET:
+    if sum(len(line) + 1 for line in lines) <= budget:
         return "\n".join(lines)
-    half = BUDGET // 2 - 60
+    half = budget // 2 - 60
     first: list[str] = []
     used = 0
     for line in lines:
@@ -200,7 +217,7 @@ def prepare(mails: Sequence[Mail]) -> str:
         last = [lines[-1][:half]]
     left = len(lines) - len(first) - len(last)
     gap = [f"[{left} mails left out]"] if left > 0 else []
-    return "\n".join(first + gap + last)[:BUDGET]
+    return "\n".join(first + gap + last)[:budget]
 
 
 # --- The answer -----------------------------------------------------------------------------------
@@ -259,7 +276,10 @@ def check(
         chosen = client(values, keys, key, timeout=90)
         chosen.retries = 0  # a person is waiting for the answer
         started = time.monotonic()
-        summary = summarize(chosen, prepare(SAMPLE))
+        try:
+            summary = summarize(chosen, prepare(SAMPLE))
+        finally:
+            _close(chosen)
     except TranslationError as error:
         return {"ok": False, "message": str(error)}
     return {
@@ -267,9 +287,16 @@ def check(
         "summary": summary,
         "words": _count(summary),
         "seconds": round(time.monotonic() - started, 1),
-        "local": is_local_endpoint(endpoint(values)),
+        "local": apple(values) or is_local_endpoint(endpoint(values)),
         "used_key": bool(chosen.api_key),
     }
+
+
+def _close(chosen: Any) -> None:
+    """Stop what a client started (Apple Intelligence's helpers); an endpoint client has nothing."""
+    close = getattr(chosen, "close", None)
+    if callable(close):
+        close()
 
 
 # --- Summarizing the box's conversations ----------------------------------------------------------
@@ -328,12 +355,13 @@ def run(
     todo = pending(box)
     name = model(values)
     if not todo:
-        return {"written": 0, "left": 0, "model": name, "error": None}
+        return {"written": 0, "left": 0, "model": name, "error": None, "declined": 0}
+    budget = APPLE_BUDGET if apple(values) else BUDGET
     chosen = client(values, keys)
     chosen.retries = 1
     message = "Summarizing conversations"
     progress(Progress("summarizing", 0, len(todo), message))
-    written, error = 0, None
+    written, declined, error = 0, 0, None
     pool = ThreadPoolExecutor(max_workers=workers(values))
     try:
         queue = iter(todo)
@@ -341,7 +369,7 @@ def run(
 
         def more() -> None:
             for thread, current, mails in queue:
-                running[pool.submit(summarize, chosen, prepare(mails))] = (thread, current)
+                running[pool.submit(summarize, chosen, prepare(mails, budget))] = (thread, current)
                 if len(running) >= workers(values):
                     return
 
@@ -352,6 +380,9 @@ def run(
                 thread, current = running.pop(future)
                 try:
                     summary = future.result()
+                except apple_intelligence.Declined:
+                    declined += 1  # its entry keeps the opening words; the others go on
+                    continue
                 except TranslationError as failed:
                     error = error or str(failed)
                     continue
@@ -368,4 +399,6 @@ def run(
                 more()
     finally:
         pool.shutdown(wait=False, cancel_futures=True)
-    return {"written": written, "left": len(todo) - written, "model": name, "error": error}
+        _close(chosen)
+    left = len(todo) - written
+    return {"written": written, "left": left, "model": name, "error": error, "declined": declined}
