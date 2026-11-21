@@ -1,5 +1,5 @@
-/* The box's index: a category at a time, sorting people into categories, naming the people nobody
-   named and removing people from the box. Without this script every section shows, one after
+/* The box's index: a category at a time, sorting people into categories and their subcategories,
+   naming the people nobody named and removing people from the box. Without this script every section shows, one after
    another. Changes need Caixa (it saves them in the box); opened any other way the page says so
    and only browses. */
 (function () {
@@ -85,7 +85,20 @@
       var gallery = document.getElementById("people");
       tiles.forEach(function (t) { gallery.appendChild(cell(t)); });
     }
+    // --- Subcategories: views named sub-<id>, each holding its people and its own's -----------
+    function subLink(id) { return document.querySelector('.sidebar a[data-sub="' + id + '"]'); }
+    function subName(link) { return link ? link.firstChild.textContent.trim() : ""; }
+    function isSub(name) { return /^sub-\d+$/.test(name) && subLink(name.slice(4)) !== null; }
+    function inSub(tile, id) {
+      var own = tile.getAttribute("data-sub");
+      if (!own) return false;
+      if (own === id) return true;
+      var link = subLink(own);
+      return link !== null && link.getAttribute("data-parent") === id;
+    }
+    function label(name) { return isSub(name) ? subName(subLink(name.slice(4))) : LABELS[name]; }
     function belongs(tile, name) {
+      if (/^sub-/.test(name)) return inSub(tile, name.slice(4));
       var category = tile.getAttribute("data-category");
       if (name === "all") return category !== "unrecognized";
       if (name === "unassigned") return category === "";
@@ -127,19 +140,21 @@
     function clear() { selected().forEach(unpick); anchor = null; }
     function choosable(t, name) { return CAIXA && ((name === "unassigned" && t.getAttribute("data-name") !== null) || name === "unrecognized"); }
     function show(name) {
-      if (!LABELS[name]) name = "all";
+      if (!LABELS[name] && !isSub(name)) name = "all";
       view = name;
       clear();
       arrange(name);
       say(CHOOSING[name] && !CAIXA ? NEEDS_CAIXA : "");
       app.setAttribute("data-view", name);
-      title.textContent = LABELS[name];
+      title.textContent = label(name);
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
         link.classList.toggle("current", link.getAttribute("data-view") === name);
       });
       tiles.forEach(function (t) {
         var pickable = choosable(t, name);
-        t.draggable = pickable && name === "unassigned";
+        // dragged onto a category or a subcategory: from Unassigned, or from within a category
+        t.draggable = (pickable && name === "unassigned") ||
+          (CAIXA && (ASSIGNED[name] || isSub(name)) && t.getAttribute("data-name") !== null);
         if (pickable) t.setAttribute("aria-pressed", "false"); else t.removeAttribute("aria-pressed");
       });
       update();
@@ -157,20 +172,28 @@
       }
       update();
     }
-    function categorize(chosen, category, done) {
-      var names = chosen.map(function (t) { return t.getAttribute("data-name"); });
+    function categorize(chosen, category, done, sub) {
+      var names = chosen.map(function (t) { return t.getAttribute("data-name"); }).filter(function (n) { return n !== null; });
       if (!names.length) return;
       if (!CAIXA) { say(NEEDS_CAIXA); return; }
       say("Saving…");
-      rpc("people.categorize", { people: names, category: category }).then(function () {
-        chosen.forEach(function (t) { t.setAttribute("data-category", category || ""); unpick(t); t.draggable = false; t.removeAttribute("aria-pressed"); });
+      var params = { people: names, category: category };
+      if (sub) params.subcategory = Number(sub);
+      rpc("people.categorize", params).then(function () {
+        chosen.forEach(function (t) {
+          t.setAttribute("data-category", category || "");
+          if (sub) t.setAttribute("data-sub", sub); else t.removeAttribute("data-sub");
+          unpick(t); t.draggable = false; t.removeAttribute("aria-pressed");
+        });
         anchor = null;
         say(done(names.length));
         update();
       }, function (error) { say("Not saved: " + error.message); });
     }
-    function move(category) {
-      categorize(selected(), category, function (n) { return people(n) + " moved to " + LABELS[category] + "."; });
+    function move(category, sub) {
+      var chosen = selected(), where = sub ? subName(subLink(sub)) : LABELS[category];
+      categorize(chosen, category, function (n) { return people(n) + " moved to " + where + "."; }, sub);
+      if (CAIXA && (ASSIGNED[view] || isSub(view))) setTimeout(function () { show(view); }, 0);
     }
 
     // --- Removing people from the box ------------------------------------------------------
@@ -452,19 +475,152 @@
       app.classList.remove("dragging");
       Array.prototype.forEach.call(document.querySelectorAll(".drop"), function (el) { el.classList.remove("drop"); });
     });
-    Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-category]"), function (target) {
-      target.addEventListener("dragover", function (event) {
-        if (!app.classList.contains("dragging")) return;
-        event.preventDefault();
-        target.classList.add("drop");
-      });
-      target.addEventListener("dragleave", function () { target.classList.remove("drop"); });
-      target.addEventListener("drop", function (event) {
-        event.preventDefault();
-        target.classList.remove("drop");
-        move(target.getAttribute("data-category"));
-      });
+    var sidebar = document.querySelector(".sidebar");
+    function dropTarget(event) { return event.target.closest ? event.target.closest(".sidebar a[data-category]") : null; }
+    sidebar.addEventListener("dragover", function (event) {
+      var target = dropTarget(event);
+      if (!target || !app.classList.contains("dragging")) return;
+      event.preventDefault();
+      target.classList.add("drop");
     });
+    sidebar.addEventListener("dragleave", function (event) { var target = dropTarget(event); if (target) target.classList.remove("drop"); });
+    sidebar.addEventListener("drop", function (event) {
+      var target = dropTarget(event);
+      if (!target) return;
+      event.preventDefault();
+      target.classList.remove("drop");
+      move(target.getAttribute("data-category"), target.getAttribute("data-sub"));
+    });
+
+    // --- Folding, adding, renaming and deleting subcategories ------------------------------
+    var OPEN = "caixa-index-open";
+    function opened() { try { return JSON.parse(localStorage.getItem(OPEN) || "[]"); } catch (e) { return []; } }
+    function remember(key, open) {
+      var list = opened().filter(function (k) { return k !== key; });
+      if (open) list.push(key);
+      try { localStorage.setItem(OPEN, JSON.stringify(list)); } catch (e) { /* (from disk, not kept) */ }
+    }
+    function folding(button, open) {
+      var list = document.querySelector('.sidebar .subs[data-for="' + button.getAttribute("data-fold") + '"]');
+      button.setAttribute("aria-expanded", open ? "true" : "false");
+      if (list) list.hidden = !open;
+    }
+    var keep = opened();
+    Array.prototype.forEach.call(document.querySelectorAll(".sidebar .fold"), function (b) { folding(b, keep.indexOf(b.getAttribute("data-fold")) >= 0); });
+    if (CAIXA) Array.prototype.forEach.call(document.querySelectorAll(".sidebar .add"), function (li) { li.hidden = false; });
+    function removeButton(row, name) {
+      var gone = document.createElement("button");
+      gone.type = "button"; gone.className = "remove-sub"; gone.textContent = "×";
+      gone.setAttribute("aria-label", "Delete " + name); gone.title = "Delete " + name;
+      row.appendChild(gone);
+    }
+    if (CAIXA) Array.prototype.forEach.call(document.querySelectorAll(".sidebar .sub-row"), function (row) { removeButton(row, subName(row.querySelector("a"))); });
+    function element(html) { var box = document.createElement("div"); box.innerHTML = html; return box.firstElementChild; }
+    function escapeText(text) { var span = document.createElement("span"); span.textContent = text; return span.innerHTML; }
+    function addedRow(category, parent, id, name) {
+      var safe = escapeText(name), top = !parent, label = top ? "" : ' data-parent="' + parent + '"';
+      var li = element("<li><div class=\"sub-row\">" + (top ? '<button type="button" class="fold" data-fold="sub-' + id + '" aria-expanded="false" aria-label="Subcategories of ' + safe + '"></button>' : "") +
+        '<a href="#sub-' + id + '" data-view="sub-' + id + '" data-category="' + category + '" data-sub="' + id + '"' + label + ">" + safe + ' <span class="n">0</span></a></div>' +
+        (top ? '<ul class="subs" data-for="sub-' + id + '" hidden><li class="add"><button type="button" class="add-sub" data-category="' + category + '" data-parent="' + id + '" aria-label="Add a subcategory to ' + safe + '">+</button></li></ul>' : "") + "</li>");
+      removeButton(li.querySelector(".sub-row"), name);
+      return li;
+    }
+    function placeRow(list, li, name) {
+      var rows = Array.prototype.filter.call(list.children, function (c) { return !c.classList.contains("add"); });
+      var before = rows.filter(function (c) { return subName(c.querySelector("a")).toLowerCase().localeCompare(name.toLowerCase()) > 0; })[0];
+      list.insertBefore(li, before || list.querySelector(":scope > .add"));
+    }
+    function editor(labelText, value, done, cancel) {
+      var field = document.createElement("input");
+      field.type = "text"; field.className = "sub-edit"; field.value = value || "";
+      field.setAttribute("aria-label", labelText);
+      var finished = false;
+      field.addEventListener("keydown", function (event) {
+        if (event.key === "Enter") { event.preventDefault(); var typed = field.value.trim(); if (typed) { finished = true; done(typed); } }
+        else if (event.key === "Escape") { event.preventDefault(); finished = true; cancel(); }
+      });
+      field.addEventListener("blur", function () { if (!finished) { finished = true; cancel(); } });
+      return field;
+    }
+    sidebar.addEventListener("click", function (event) {
+      var fold = event.target.closest(".fold");
+      if (fold) {
+        event.preventDefault();
+        var open = fold.getAttribute("aria-expanded") !== "true";
+        folding(fold, open);
+        remember(fold.getAttribute("data-fold"), open);
+        return;
+      }
+      var add = event.target.closest(".add-sub");
+      if (add && CAIXA) {
+        event.preventDefault();
+        var li = add.parentNode, category = add.getAttribute("data-category"), parent = add.getAttribute("data-parent");
+        var above = parent ? subName(subLink(parent)) : LABELS[category];
+        var field = editor("New subcategory of " + above, "", function (typed) {
+          say("Saving…");
+          var params = { category: category, name: typed };
+          if (parent) params.parent = Number(parent);
+          rpc("people.subcategory.add", params).then(function (result) {
+            li.replaceChild(add, field);
+            placeRow(li.parentNode, addedRow(category, parent, String(result.id), typed), typed);
+            say(typed + " added under " + above + ".");
+          }, function (error) { li.replaceChild(add, field); say("Not saved: " + error.message); });
+        }, function () { if (field.parentNode === li) li.replaceChild(add, field); });
+        li.replaceChild(field, add);
+        field.focus();
+        return;
+      }
+      var gone = event.target.closest(".remove-sub");
+      if (gone && CAIXA) {
+        event.preventDefault();
+        var link = gone.parentNode.querySelector("a[data-sub]");
+        confirmDeleteSub(link);
+      }
+    });
+    sidebar.addEventListener("dblclick", function (event) {
+      var link = event.target.closest && event.target.closest("a[data-sub]");
+      if (!link || !CAIXA) return;
+      event.preventDefault();
+      var row = link.parentNode, old = subName(link), id = link.getAttribute("data-sub");
+      var field = editor("Rename " + old, old, function (typed) {
+        say("Saving…");
+        rpc("people.subcategory.rename", { id: Number(id), name: typed }).then(function () {
+          row.replaceChild(link, field);
+          link.firstChild.textContent = typed + " ";
+          var li = row.parentNode;
+          placeRow(li.parentNode, li, typed);
+          if (view === "sub-" + id) title.textContent = typed;
+          say(old + " renamed " + typed + ".");
+        }, function (error) { row.replaceChild(link, field); say("Not saved: " + error.message); });
+      }, function () { if (field.parentNode === row) row.replaceChild(link, field); });
+      row.replaceChild(field, link);
+      field.focus();
+      field.select();
+    });
+    function confirmDeleteSub(link) {
+      var name = subName(link), id = link.getAttribute("data-sub"), parent = link.getAttribute("data-parent");
+      var category = link.getAttribute("data-category");
+      var up = parent ? subName(subLink(parent)) : LABELS[category];
+      dialog.querySelector("h2").textContent = "Delete the subcategory " + name + "?";
+      dialog.querySelector("p").textContent = "The people in it" + (parent ? "" : " and in its own subcategories") + " move up to " + up + ". Nobody leaves the box.";
+      asking = function () {
+        say("Deleting…");
+        rpc("people.subcategory.delete", { id: Number(id) }).then(function () {
+          var li = link.closest("li"), removed = [id];
+          Array.prototype.forEach.call(li.querySelectorAll("a[data-sub]"), function (a) { removed.push(a.getAttribute("data-sub")); });
+          tiles.forEach(function (t) {
+            if (removed.indexOf(t.getAttribute("data-sub")) < 0) return;
+            if (parent) t.setAttribute("data-sub", parent); else t.removeAttribute("data-sub");
+          });
+          li.parentNode.removeChild(li);
+          if (removed.some(function (r) { return view === "sub-" + r; })) show(parent ? "sub-" + parent : category);
+          else update();
+          say(name + " deleted. Its people are in " + up + ".");
+        }, function (error) { say("Not deleted: " + error.message); });
+      };
+      if (dialog.showModal) dialog.showModal(); else if (window.confirm(dialog.querySelector("h2").textContent)) asking();
+      dialog.querySelector("button.danger").focus();
+    }
     show((location.hash || "#all").slice(1));
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

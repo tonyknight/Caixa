@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
@@ -213,5 +214,107 @@ run('sorting people on the index page, in a browser', () => {
     expect(html).toMatch(/data-category="" data-items="2" data-name="Sara Lima"/)  // her call and the number that joined her
     expect(html).not.toContain('Tio Rui')
     expect(html).not.toContain('+15550000456')  // removed, not just renamed
+  }, 240_000)
+
+  it('makes subcategories, sorts someone into one, renames and deletes it; from disk they only show', async () => {
+    const idle = async () => {
+      for (let i = 0; i < 300; i++) {
+        const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+        if (!jobs.some(j => ['queued', 'running'].includes(j.status))) return
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+    }
+    const tree = async () => (await running.rpc('people.subcategories')).result.subcategories as { id: number; name: string; parent_id: number | null; people: number }[]
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      await page.getByRole('navigation').getByRole('button', { name: 'Browse' }).click()
+      const [index] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: "Open the box's index page" }).click()])
+      await index.setViewportSize({ width: 1280, height: 900 })
+      await index.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
+      // Sara into Friends first
+      await index.locator('.sidebar a[data-view="unassigned"]').click()
+      await index.locator('#people .tile:visible', { hasText: 'Sara Lima' }).click()
+      await index.locator('#actions').getByRole('button', { name: 'Friends' }).click()
+      await index.getByText('1 person moved to Friends.').waitFor({ timeout: 30_000 })
+
+      // folded to begin with; the chevron unfolds Friends, with a + at the bottom of its list
+      const fold = index.getByRole('button', { name: 'Subcategories of Friends' })
+      expect(await fold.getAttribute('aria-expanded')).toBe('false')
+      expect(await index.locator('.subs[data-for="friends"]').isVisible()).toBe(false)
+      await fold.click()
+      expect(await fold.getAttribute('aria-expanded')).toBe('true')
+      await index.getByRole('button', { name: 'Add a subcategory to Friends' }).click()
+      await index.getByRole('textbox', { name: 'New subcategory of Friends' }).fill('School')
+      await index.getByRole('textbox', { name: 'New subcategory of Friends' }).press('Enter')
+      const school = index.locator('.sidebar a[data-sub]', { hasText: 'School' })
+      await school.waitFor({ timeout: 30_000 })
+      // and one under it, which cannot have its own
+      await index.getByRole('button', { name: 'Subcategories of School' }).click()
+      await index.getByRole('button', { name: 'Add a subcategory to School' }).click()
+      await index.getByRole('textbox', { name: 'New subcategory of School' }).fill('Class of 98')
+      await index.getByRole('textbox', { name: 'New subcategory of School' }).press('Enter')
+      const year = index.locator('.sidebar a[data-sub]', { hasText: 'Class of 98' })
+      await year.waitFor({ timeout: 30_000 })
+      expect(await index.getByRole('button', { name: 'Add a subcategory to Class of 98' }).count()).toBe(0)
+      await shot(index, 'subcategories')
+      // a double click renames it
+      await year.dblclick()
+      const rename = index.getByRole('textbox', { name: 'Rename Class of 98' })
+      await rename.fill("Class of '98")
+      await rename.press('Enter')
+      await index.locator('.sidebar a[data-sub]', { hasText: "Class of '98" }).waitFor({ timeout: 30_000 })
+      expect((await tree()).map(s => s.name)).toEqual(['School', "Class of '98"])
+
+      // Sara, dragged from Friends onto it, is counted in it, in School and in Friends
+      await index.locator('.sidebar a[data-view="friends"]').click()
+      const target = await index.locator('.sidebar a[data-sub]', { hasText: "Class of '98" }).getAttribute('data-sub')
+      await index.locator('#people .tile:visible', { hasText: 'Sara Lima' }).evaluate((tile: HTMLElement, id: string) => {
+        const goal = document.querySelector(`.sidebar a[data-sub="${id}"]`)!
+        const data = new DataTransfer()
+        tile.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+        tile.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: data }))
+      }, target!)
+      await index.getByText("1 person moved to Class of '98.").waitFor({ timeout: 30_000 })
+      for (const view of ['friends', `sub-${target}`]) expect(await index.locator(`.sidebar a[data-view="${view}"] .n`).textContent()).toBe('1')
+      await school.click()
+      expect(await index.locator('#people .tile:visible .name').allTextContents()).toEqual(['Sara Lima'])
+      expect((await tree()).map(s => s.people)).toEqual([1, 1])
+
+      // deleting School asks, then takes its own with it; Sara stays in Friends
+      await school.hover()
+      await index.getByRole('button', { name: 'Delete School' }).click()
+      const ask = index.getByRole('dialog', { name: 'Delete the subcategory School?' })
+      await ask.waitFor()
+      await ask.getByRole('button', { name: 'Delete' }).click()
+      await index.getByText('School deleted.', { exact: false }).waitFor({ timeout: 30_000 })
+      expect(await index.locator('.sidebar a[data-sub]').count()).toBe(0)
+      expect(await tree()).toEqual([])
+      expect(await index.getByRole('heading', { level: 1 }).textContent()).toBe('Friends')
+      expect(await index.locator('#people .tile:visible .name').allTextContents()).toEqual(['Sara Lima'])
+    } finally {
+      await browser.close()
+    }
+
+    // From disk: the subcategories show and filter, but cannot be changed
+    const made = (await running.rpc('people.subcategory.add', { category: 'friends', name: 'Climbing' })).result
+    await running.rpc('people.categorize', { people: ['Sara Lima'], category: 'friends', subcategory: made.id })
+    await idle()
+    const offline = await playwright()!.chromium.launch()
+    try {
+      const disk = await offline.newPage({ viewport: { width: 1280, height: 900 } })
+      await disk.goto(pathToFileURL(join(box, 'index.html')).href)
+      await disk.getByRole('heading', { name: 'All people' }).waitFor()
+      await disk.getByRole('button', { name: 'Subcategories of Friends' }).click()
+      await disk.locator('.sidebar a[data-sub]', { hasText: 'Climbing' }).click()
+      expect(await disk.locator('#people .tile:visible .name').allTextContents()).toEqual(['Sara Lima'])
+      expect(await disk.getByRole('button', { name: 'Add a subcategory to Friends' }).isVisible()).toBe(false)
+      expect(await disk.locator('#people .tile:visible').first().getAttribute('draggable')).not.toBe('true')
+      expect(await disk.getByRole('button', { name: 'Delete Climbing' }).count()).toBe(0)
+    } finally {
+      await offline.close()
+    }
   }, 240_000)
 })

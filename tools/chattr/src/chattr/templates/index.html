@@ -24,6 +24,7 @@
 .sidebar .fold { flex:none; width:1.3rem; height:1.3rem; padding:0; border:0; border-radius:.3rem; background:transparent; color:var(--muted); cursor:pointer; font:inherit; font-size:.7rem; line-height:1; }
 .sidebar .fold::before { content:"\25BE"; display:inline-block; transition:transform .12s; } .sidebar .fold[aria-expanded="false"]::before { transform:rotate(-90deg); }
 .sidebar .fold:hover { background:var(--card); color:var(--fg); }
+.sidebar > a[data-view] { margin-left:1.4rem; } /* in line with the categories after their chevrons */
 .sidebar .subs { list-style:none; margin:0 0 .2rem 1.3rem; padding:0; } .sidebar .subs .subs { margin-left:1.3rem; }
 .sidebar .subs a { font-size:.86rem; padding:.3rem .55rem; }
 .sidebar .sub-row > a:only-child { margin-left:1.4rem; }
@@ -95,7 +96,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
   .sidebar { position:sticky; top:0; z-index:4; height:auto; display:flex; gap:.3rem; overflow-x:auto; padding:.5rem .6rem; border-right:0; border-bottom:1px solid var(--line); }
   .brand, .sep { display:none; }
   .sidebar a { white-space:nowrap; margin:0; padding:.35rem .6rem; font-size:.85rem; }
-  .sidebar .subs, .sidebar .fold { display:none; } .cat-row { display:contents; }
+  .sidebar .subs, .sidebar .fold { display:none; } .cat-row { display:contents; } .sidebar > a[data-view] { margin-left:0; }
   .content { padding:1rem 1rem 1.5rem; }
   .status { padding:.5rem 1rem; }
 }

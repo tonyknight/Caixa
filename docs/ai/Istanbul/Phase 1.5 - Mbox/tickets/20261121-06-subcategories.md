@@ -3,16 +3,15 @@ id: 20261121-06-subcategories
 title: Subcategories
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-21
 updated: 2026-11-21
-closed:
-notes: ''
+closed: 2026-11-21
+notes: 'Done: subcategories two levels deep on the people page, kept through a reset.'
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -20,10 +19,10 @@ Subcategories under Family, Friends, Business and Acquaintances on the people pa
 
 ## Acceptance criteria
 
-- [ ] Each of the four categories has a folding chevron; unfolded, its subcategories are listed alphabetically with counts, and a centered + at the bottom adds one
-- [ ] A subcategory can have subcategories, which cannot; double click renames; deleting moves its people (and its children's) up to its parent
-- [ ] People are sorted into a subcategory by dragging or the buttons; a category's count and view include its subcategories
-- [ ] Stored in the master (`subcategories`, `people.subcategory_id`), kept through a reset like categories; from disk, subcategories show and filter but cannot be changed
+- [x] Each of the four categories has a folding chevron; unfolded, its subcategories are listed alphabetically with counts, and a centered + at the bottom adds one
+- [x] A subcategory can have subcategories, which cannot; double click renames; deleting moves its people (and its children's) up to its parent
+- [x] People are sorted into a subcategory by dragging or the buttons; a category's count and view include its subcategories
+- [x] Stored in the master (`subcategories`, `people.subcategory_id`), kept through a reset like categories; from disk, subcategories show and filter but cannot be changed
 
 ## Context
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:**
 
@@ -87,14 +86,22 @@ Current task: T03
   drag a person onto it (counted in Friends too), delete it (the person back in Friends); from
   `file://` the subcategories show and filter with no + and no dragging.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Family, Friends, Business and Acquaintances each fold open on the people page to their subcategories (alphabetical, with counts) and a centered + to add one; a subcategory can hold its own, which cannot. Double click renames, the × on hover deletes (its people move up). People are dragged into a subcategory from Unassigned or from a category, and a category's count and view include its subcategories. Stored in the master (migration 5) and in `owner.json`, so they outlive a reset. From disk they show and filter only.
+- **Files:** `caixa/{schema,master,owner,service}.py`, `caixa/collectors/chattr.py`, `tools/chattr/src/chattr/{commands,pages}.py`, `tools/chattr/src/chattr/templates/{index.html,index.js}`; tests `tests/test_subcategories.py` (new), `tests/{test_owner,test_worker_protocol}.py`, `web/tests/e2e-categories.test.ts`.
+- **Errors:** my first index test expected two + buttons (there are three: one per category list and one per top-level subcategory); a reworded footer message broke the existing test (the original wording kept); the chevron alignment took two tries (screenshots).
+- **Verify:** `python -m pytest -q` 1463 passed, 1 skipped; black and mypy clean; web `tsc` clean, vitest 265 passed.
+
+## Review
+
+2026-11-21, in-session. **Verdict: clean (minors only).**
+
+- Minor: in one full web run the existing category e2e test timed out waiting 30 s while all browser tests started servers at once; it passed alone three times and in the next full run. Watch for it.
+- Minor: a subcategory made on the page is drawn into `index.html` by the redraw job that follows; until then a page reloaded from disk does not have it.
+- Spec: files as planned; all acceptance criteria met.
 
 ## Notes
 
@@ -105,3 +112,6 @@ T01: migration 5 (subcategories table with a case-insensitive unique index on ca
 
 ### 2026-11-21
 T02: Chattr publish/render_pages/_index take subcategories {tree, placed}; Caixa's collector passes them from the master on every redraw. The index's sidebar draws each of the four categories in a row with a folding chevron, its subcategories (alphabetical, counts incl. children) and their own, nested once, and a + (hidden until the script shows it in Caixa) at the bottom of each list that may grow; tiles carry data-sub. Hidden on the narrow layout. RED then GREEN (my first expectation of two + was wrong: Friends and each top-level subcategory have one).
+
+### 2026-11-21
+T03: index.js: sub-<id> views (a subcategory's people and its own's; a category's view includes them), chevrons fold and unfold (folded to begin with, remembered in localStorage), + makes a subcategory inline (Enter saves, Escape or leaving cancels), double click renames, a × on hover deletes after asking (people move up; the view follows), drop targets delegated so new subcategories take dragged people; people can be dragged from a category or a subcategory view too. Read-only from disk: no +, ×, renaming or dragging. Rows without a chevron indented to line up. RED: the e2e test failed (nothing folded), then GREEN; the existing footer wording kept. Visual check from a screenshot.
