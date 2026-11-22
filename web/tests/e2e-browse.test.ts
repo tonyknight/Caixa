@@ -6,7 +6,7 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildFixtures, canRun, openCaixa, playwright, startCaixa, type Running } from './e2e-support.ts'
+import { buildFixtures, canRun, openCaixa, playwright, shot, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 
@@ -145,6 +145,43 @@ run('Browse and Settings, in a browser', () => {
       await check(`${running.base}/box/People/Ana%20Costa/Ana%20Costa.html`)
       await check(pathToFileURL(join(box, 'People', 'Ana Costa', 'Ana Costa.html')).href)
       expect(errors.filter(text => /Content Security Policy|Refused to (execute|frame|load)/i.test(text))).toEqual([])
+    } finally {
+      await browser.close()
+    }
+  }, 180_000)
+
+  it('folds Mail open to its accounts and their labels, and shows only theirs', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      await page.goto(`${running.base}/box/index.html`, { waitUntil: 'load' })
+      await page.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
+      const fold = page.getByRole('button', { name: 'Accounts in Mail' })
+      expect(await fold.getAttribute('aria-expanded')).toBe('false')
+      await fold.click()
+      const gmail = page.locator('.sidebar a[data-account="Gmail"]:not([data-label])')
+      await gmail.click()
+      expect(await page.getByRole('heading', { level: 1 }).textContent()).toBe('Gmail')
+      const shown = page.locator('#mail li:visible')
+      const badge = Number(await gmail.locator('.n').textContent())
+      expect(await shown.count()).toBe(badge)
+      expect(await page.locator('#count').textContent()).toContain(String(badge))
+      // its labels: one of them shows only the conversations carrying it
+      await page.getByRole('button', { name: 'Labels of Gmail' }).click()
+      const label = page.locator('.sidebar a[data-account="Gmail"][data-label]').first()
+      const name = (await label.getAttribute('data-label'))!
+      await label.click()
+      expect(await page.getByRole('heading', { level: 1 }).textContent()).toBe(`Gmail › ${name}`)
+      await shot(page, 'mail-accounts')
+      expect(await page.locator('.sidebar .remove-sub').count()).toBe(0)  // (accounts and labels are not deleted here)
+      const labelled = Number(await label.locator('.n').textContent())
+      expect(await shown.count()).toBe(labelled)
+      for (const labels of await shown.evaluateAll((items: HTMLElement[]) => items.map(li => JSON.parse(li.dataset.labels || '[]')))) {
+        expect(labels).toContain(name)
+      }
+      // Mail itself shows every conversation
+      await page.locator('.sidebar a[data-view="mail"]').click()
+      expect(await shown.count()).toBeGreaterThanOrEqual(badge)
     } finally {
       await browser.close()
     }

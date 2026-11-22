@@ -724,6 +724,15 @@ from a category's own view. In a category or subcategory, ⌘-click (Ctrl-click)
 without opening their page, Shift-⌘-click selects everyone up to the one clicked, and dragging a box
 from the empty space selects everyone it touches.
 
+**Mail, by account and label.** On the left, **Mail** has a chevron: unfolded, it lists each account
+by the name you gave it when the mbox was read, with its number of conversations, and each account
+unfolds to its labels: Gmail's own labels on the mails (Inbox, Sent, your labels; not Unread or
+Opened), or, for mail without them, the folder it was exported from (the mbox file's name, as Apple
+Mail and Thunderbird export one file per folder: Inbox, Sent, Family…). Click Mail for every
+conversation, an account for its own, a label for that account's conversations with that label;
+a conversation with several labels is under each. To add more mail to an account, read another mbox
+and give it the same account name: mail already in the box is recognised and not added twice.
+
 **Dragging, everywhere.** In Caixa you can drag anyone onto a category, a subcategory or
 **Unassigned** (no category) from any view: All, a category, Unassigned or Unrecognized. Someone
 known only by a number or an address is kept as a person under that number as they are sorted

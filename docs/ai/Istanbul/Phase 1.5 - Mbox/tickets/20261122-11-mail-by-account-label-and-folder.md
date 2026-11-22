@@ -3,16 +3,15 @@ id: 20261122-11-mail-by-account-label-and-folder
 title: Mail by account, label and folder
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-22
 updated: 2026-11-22
-closed:
-notes: ''
+closed: 2026-11-22
+notes: 'Done: Mail ▸ account ▸ label/folder on the people page.'
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -20,10 +19,10 @@ The box will hold many mailboxes: on the people page, Mail should fold open to e
 
 ## Acceptance criteria
 
-- [ ] Mail on the people page has a chevron; unfolded, each account is listed by its name with its conversation count, and each account has a chevron of its own
-- [ ] Under an account, its labels: Gmail's own labels on the mails (without Unread and Opened), else the folder the mail came from (the mbox file's name: Inbox, Sent, Family…), with conversation counts; a conversation with several labels is under each
-- [ ] Clicking Mail shows every conversation; an account, only its conversations; a label, only that account's conversations with that label; the title and count follow
-- [ ] The folder is kept with each mail at import (from the mbox the import read, or the one it was cleaned or reduced from)
+- [x] Mail on the people page has a chevron; unfolded, each account is listed by its name with its conversation count, and each account has a chevron of its own
+- [x] Under an account, its labels: Gmail's own labels on the mails (without Unread and Opened), else the folder the mail came from (the mbox file's name: Inbox, Sent, Family…), with conversation counts; a conversation with several labels is under each
+- [x] Clicking Mail shows every conversation; an account, only its conversations; a label, only that account's conversations with that label; the title and count follow
+- [x] The folder is kept with each mail at import (from the mbox the import read, or the one it was cleaned or reduced from)
 
 ## Context
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:**
 
@@ -57,14 +56,20 @@ Current task: T02
 - `tools/chattr/src/chattr/pages.py`, `templates/{index.html,index.js}`.
 - Tests (`tests/test_mail_pages.py`): the sidebar has Mail ▸ Gmail ▸ its labels with counts, items carry account and labels; (`web/tests/e2e-browse.test.ts`) unfold Mail, click the account and a label: only those conversations show, the title and count follow.
 - Verify: `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** On the people page, Mail folds open to each account (by the name given at import, with its conversation count), and each account to its labels: Gmail's own labels on the mails, or the folder the mail was exported from (the mbox's name). Clicking Mail, an account or a label shows just those conversations. The folder is now kept with every imported mail.
+- **Files:** `tools/chattr/src/chattr/{parsers/mbox_parser.py,pages.py}`, `tools/chattr/src/chattr/templates/{index.html,index.js}`, `caixa/{service.py,collectors/chattr.py}`, `docs/Documentation/Collector.md`; tests `tools/chattr/tests/test_mbox_accounts.py`, `tests/{test_mail_service,test_mail_pages}.py`, `web/tests/e2e-browse.test.ts`.
+- **Errors:** a missing `import re`; the subcategory delete button appeared on mail rows (fixed).
+- **Verify:** `python -m pytest -q` 1486 passed, 1 skipped; black and mypy clean; web `tsc` clean, vitest 273 passed.
+
+## Review
+
+2026-11-22, in-session. **Verdict: clean (minors only).**
+
+- Minor: mail imported before this has no folder, so mail without Gmail labels from before shows under its account only (importing it again is not needed for Gmail, whose labels were always kept).
 
 ## Notes
 
@@ -72,3 +77,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-22
 T01: MboxParser takes folder (kept in service_specific['folder'], also through its worker processes); Caixa's mail collector passes it; the mail import derives it from the mbox it read, following a Cleaned or Reduced copy back to the original, from the zip member's, the Apple Mail <name>.mbox folder's or the file's name, without its date or [Cleaned]/[Reduced]. RED: 3 tests, then GREEN.
+
+### 2026-11-22
+T02: pages._index computes each account mail conversation's labels (Gmail labels without Unread/Opened/IMAP_, else the mail's folder; union; Inbox and Sent first, then by name) and a tree of accounts with label counts; index.html draws Mail as a row with a chevron, its accounts (mail-a<n>, with a chevron when they have labels) and labels (mail-a<n>-l<m>), and items carry data-account and data-labels; index.js shows the Mail section for these views, only the matching items (empty account groups hidden), the title 'Gmail › Inbox' and the count. The subcategory delete button no longer lands on mail rows (seen in a screenshot). RED: the sidebar test and the e2e test, then GREEN; an older test's item pattern updated. Full verify: pytest 1486 passed, vitest 273 passed.

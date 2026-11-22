@@ -789,6 +789,7 @@ def _index(
                     "date": f"{first['local']:%Y-%m-%d}",
                     "person": page.home or "",
                     "count": _plural(len(page.message_ids), "mail"),
+                    "labels": _mail_labels(renderer, page),
                 }
             else:  # Phase 1: one list
                 entry = {
@@ -796,6 +797,7 @@ def _index(
                     "date": "",
                     "person": "",
                     "count": _plural(len(page.message_ids), "message"),
+                    "labels": [],
                 }
             mail.append(
                 {**entry, "href": href, "account": page.account or "", "at": first["timestamp_utc"]}
@@ -827,8 +829,62 @@ def _index(
         groups=groups,
         mail=_mail_lists(mail),
         mail_count=len(mail),
+        mail_tree=_mail_tree(mail),
         stats=_stats(site),
     )
+
+
+#: Gmail labels that say how a mail was read, not where it belongs.
+NOT_LABELS = {"unread", "opened"}
+#: The labels listed first under an account, in this order; the rest by name.
+FIRST_LABELS = ("Inbox", "Sent")
+
+
+def _mail_labels(renderer: Renderer, page: PageSpec) -> list[str]:
+    """A mail conversation's labels: Gmail's own labels on its mails (not Unread, Opened or
+    IMAP_…); a mail without them has the folder it was exported from (its mbox file's name)."""
+    found: list[str] = []
+    for message_id in page.message_ids:
+        message = renderer.messages[message_id]
+        headers = json.loads(message["mail_headers"]) if message["mail_headers"] else {}
+        own = [
+            str(label) for label in headers.get("labels", [])
+            if str(label).strip() and str(label).casefold() not in NOT_LABELS
+            and not str(label).upper().startswith("IMAP_")
+        ]  # fmt: skip
+        if not own:
+            specific = (
+                json.loads(message["service_specific"]) if message["service_specific"] else {}
+            )
+            own = [str(specific["folder"])] if specific.get("folder") else []
+        found += [label for label in own if label not in found]
+    first = [label for label in FIRST_LABELS if label in found]
+    return first + sorted((l for l in found if l not in FIRST_LABELS), key=str.casefold)
+
+
+def _mail_tree(mail: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The sidebar's Mail: each account (by name) with its conversations' labels and counts."""
+    accounts = sorted({m["account"] for m in mail if m["account"]}, key=str.casefold)
+    tree = []
+    for number, account in enumerate(accounts, 1):
+        mine = [m for m in mail if m["account"] == account]
+        names: list[str] = []
+        for m in mine:
+            names += [label for label in m["labels"] if label not in names]
+        first = [label for label in FIRST_LABELS if label in names]
+        ordered = first + sorted((l for l in names if l not in FIRST_LABELS), key=str.casefold)
+        tree.append(
+            {
+                "id": number,
+                "account": account,
+                "count": len(mine),
+                "labels": [
+                    {"id": n, "name": label, "count": sum(label in m["labels"] for m in mine)}
+                    for n, label in enumerate(ordered, 1)
+                ],
+            }
+        )
+    return tree
 
 
 def _mail_lists(mail: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -114,7 +114,30 @@
         link.classList.toggle("flat", !!flat[link.getAttribute("data-view")]);
       });
     }
+    // --- Mail: each account (mail-a<n>) and each of its labels (mail-a<n>-l<m>) ---------------
+    function mailLink(name) {
+      return /^mail-a\d+(-l\d+)?$/.test(name) ? document.querySelector('.sidebar a[data-view="' + name + '"]') : null;
+    }
+    function isMail(name) { return name === "mail" || mailLink(name) !== null; }
+    function mailItems() {
+      var link = mailLink(view), account = link && link.getAttribute("data-account"), wanted = link && link.getAttribute("data-label");
+      Array.prototype.forEach.call(document.querySelectorAll("#mail li"), function (li) {
+        var labels = [];
+        try { labels = JSON.parse(li.getAttribute("data-labels") || "[]"); } catch (e) { labels = []; }
+        li.hidden = !!link && (li.getAttribute("data-account") !== account || (wanted !== null && labels.indexOf(wanted) < 0));
+      });
+      Array.prototype.forEach.call(document.querySelectorAll("#mail ul"), function (list) {
+        var empty = !list.querySelector("li:not([hidden])"), heading = list.previousElementSibling;
+        list.hidden = empty;
+        if (heading && heading.tagName === "H3") heading.hidden = empty;
+      });
+    }
     function label(name) {
+      var mail = mailLink(name);
+      if (mail) {
+        var wanted = mail.getAttribute("data-label");
+        return mail.getAttribute("data-account") + (wanted !== null ? " \u203a " + wanted : "");
+      }
       var text = isSub(name) ? subName(subLink(name.slice(4))) : LABELS[name];
       return flat[name] && flattens(name) ? text + ", with its subcategories" : text;
     }
@@ -150,14 +173,15 @@
     function counts() {
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
         var name = link.getAttribute("data-view"), badge = link.querySelector(".n");
-        if (!badge || name === "groups" || name === "mail") return;
+        if (!badge || name === "groups" || isMail(name)) return;
         badge.textContent = tiles.filter(function (t) { return belongs(t, name); }).length.toLocaleString();
       });
     }
     function update() {
       tiles.forEach(function (t) { cell(t).hidden = !belongs(t, view); });
+      if (isMail(view)) mailItems();
       if (view === "groups") footer.count.textContent = plural(document.querySelectorAll("#groups .tile").length, "group");
-      else if (view === "mail") footer.count.textContent = plural(document.querySelectorAll("#mail li").length, "conversation");
+      else if (isMail(view)) footer.count.textContent = plural(document.querySelectorAll("#mail li:not([hidden])").length, "conversation");
       else footer.count.textContent = people(shown().length);
       var picked = selected().length;
       footer.picked.textContent = selecting(view) ? picked.toLocaleString() + " selected" : "";
@@ -169,14 +193,14 @@
     function clear() { selected().forEach(unpick); anchor = null; }
     function choosable(t, name) { return CAIXA && ((name === "unassigned" && t.getAttribute("data-name") !== null) || name === "unrecognized"); }
     function show(name) {
-      if (!LABELS[name] && !isSub(name)) name = "all";
+      if (!LABELS[name] && !isSub(name) && !isMail(name)) name = "all";
       view = name;
       clear();
       arrange(name);
       say(CHOOSING[name] && !CAIXA ? NEEDS_CAIXA : "");
       var hint = document.querySelector(".hint.selecting");
       if (hint) hint.hidden = !inCategory(name);
-      app.setAttribute("data-view", name);
+      app.setAttribute("data-view", isMail(name) ? "mail" : name);
       title.textContent = label(name);
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
         link.classList.toggle("current", link.getAttribute("data-view") === name);
@@ -585,7 +609,10 @@
       gone.setAttribute("aria-label", "Delete " + name); gone.title = "Delete " + name;
       row.appendChild(gone);
     }
-    if (CAIXA) Array.prototype.forEach.call(document.querySelectorAll(".sidebar .sub-row"), function (row) { removeButton(row, subName(row.querySelector("a"))); });
+    if (CAIXA) Array.prototype.forEach.call(document.querySelectorAll(".sidebar .sub-row"), function (row) {
+      var link = row.querySelector("a[data-sub]");  // (a subcategory; not Mail's accounts and labels)
+      if (link) removeButton(row, subName(link));
+    });
     function element(html) { var box = document.createElement("div"); box.innerHTML = html; return box.firstElementChild; }
     function escapeText(text) { var span = document.createElement("span"); span.textContent = text; return span.innerHTML; }
     function addedRow(category, parent, id, name) {

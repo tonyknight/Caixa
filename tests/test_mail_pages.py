@@ -91,10 +91,50 @@ def test_the_index_lists_mail_by_account(box: Box) -> None:
     mail = index.split('<section class="list" id="mail"', 1)[1].split("</section>", 1)[0]
     assert '<h3 class="account">@Gmail</h3>' in mail
     (photos,) = [
-        li for li in re.findall(r"<li>.*?</li>", mail, re.S) if "Fotos de São Martinho" in li
+        li for li in re.findall(r"<li[^>]*>.*?</li>", mail, re.S) if "Fotos de São Martinho" in li
     ]
     assert "2019-11-02" in photos and "João Costa" in photos and "4 mails" in photos
     assert 'href="People/Jo%C3%A3o%20Costa/Mail/Gmail/(2019-11-02)%20Fotos' in photos
     pages = len(list((box.root / "People").glob("*/Mail/Gmail/*.html")))
     dashboard = index.split('<section class="dashboard"', 1)[1].split("</section>", 1)[0]
     assert f'<span class="by-account">@Gmail {pages}</span>' in dashboard
+
+
+# --- Mail by account, label and folder (20261122-11) ----------------------------------------------
+
+import json  # noqa: E402
+
+
+def test_mail_folds_open_to_its_accounts_and_their_labels(box: Box) -> None:
+    index = (box.root / "index.html").read_text(encoding="utf-8")
+    sidebar = index.split('<nav class="sidebar"', 1)[1].split("</nav>", 1)[0]
+    assert 'data-fold="mail"' in sidebar
+    pages = len(list((box.root / "People").glob("*/Mail/Gmail/*.html")))
+    account = re.search(
+        r'data-view="(mail-a\d+)" data-account="Gmail">Gmail <span class="n">(\d+)<', sidebar
+    )
+    assert account and int(account.group(2)) == pages
+    labels = dict(
+        re.findall(
+            r'data-account="Gmail" data-label="([^"]+)">[^<]+<span class="n">(\d+)<', sidebar
+        )
+    )
+    assert (
+        {"Inbox", "Sent", "Família"} <= set(labels)
+        and "Unread" not in labels
+        and "Opened" not in labels
+    )
+    assert f'data-fold="{account.group(1)}"' in sidebar
+    mail = index.split('<section class="list" id="mail"', 1)[1].split("</section>", 1)[0]
+    (photos,) = [
+        li for li in re.findall(r"<li [^>]*>.*?</li>", mail, re.S) if "Fotos de São Martinho" in li
+    ]
+    attributes = re.search(r'data-account="([^"]*)" data-labels="([^"]*)"', photos)
+    assert attributes and attributes.group(1) == "Gmail"
+    assert {"Inbox", "Família", "Sent"} <= set(json.loads(html.unescape(attributes.group(2))))
+    # every label's count is the conversations carrying it
+    carrying = sum(
+        "Família" in json.loads(html.unescape(m))
+        for m in re.findall(r'data-labels="([^"]*)"', mail)
+    )
+    assert int(labels["Família"]) == carrying

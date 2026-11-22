@@ -121,7 +121,13 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 {% endif %}{% endfor %}<a href="#unassigned" data-view="unassigned" data-category=""><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
 <div class="sep">Conversations</div>
 <a href="#groups" data-view="groups"><span class="dot c-groups"></span>Groups <span class="n">{{ groups | length }}</span></a>
-<a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>
+{% if mail_tree %}<div class="cat-row"><button type="button" class="fold" data-fold="mail" aria-expanded="true" aria-label="Accounts in Mail"></button><a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a></div>
+<ul class="subs" data-for="mail">{% for a in mail_tree %}
+<li><div class="sub-row">{% if a.labels %}<button type="button" class="fold" data-fold="mail-a{{ a.id }}" aria-expanded="true" aria-label="Labels of {{ a.account }}"></button>{% endif %}<a href="#mail-a{{ a.id }}" data-view="mail-a{{ a.id }}" data-account="{{ a.account }}">{{ a.account }} <span class="n">{{ a.count }}</span></a></div>
+{% if a.labels %}<ul class="subs" data-for="mail-a{{ a.id }}">{% for l in a.labels %}<li><div class="sub-row"><a href="#mail-a{{ a.id }}-l{{ l.id }}" data-view="mail-a{{ a.id }}-l{{ l.id }}" data-account="{{ a.account }}" data-label="{{ l.name }}">{{ l.name }} <span class="n">{{ l.count }}</span></a></div></li>
+{% endfor %}</ul>{% endif %}</li>{% endfor %}
+</ul>
+{% else %}<a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>{% endif %}
 </nav>
 <main class="content">
 <h1 id="view-title">All people</h1>
@@ -163,7 +169,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 <section class="list" id="mail" aria-label="Mail">
 <h2>Mail</h2>
 {% for group in mail %}{% if group.account %}<h3 class="account">@{{ group.account }}</h3>
-{% endif %}<ul>{% for m in group.mails %}<li>{% if m.date %}<span class="when">{{ m.date }}</span>{% endif %}<a href="{{ m.href }}">{{ m.title }}</a>{% if m.person %}<span class="person">{{ m.person }}</span>{% endif %}<span class="count">{{ m.count }}</span></li>
+{% endif %}<ul>{% for m in group.mails %}<li data-account="{{ m.account }}" data-labels="{{ m.labels | tojson | forceescape }}">{% if m.date %}<span class="when">{{ m.date }}</span>{% endif %}<a href="{{ m.href }}">{{ m.title }}</a>{% if m.person %}<span class="person">{{ m.person }}</span>{% endif %}<span class="count">{{ m.count }}</span></li>
 {% endfor %}</ul>
 {% endfor %}
 </section>
