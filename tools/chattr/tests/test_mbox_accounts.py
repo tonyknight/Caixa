@@ -94,3 +94,13 @@ def test_the_parser_keeps_content_ids_and_the_header_block(tmp_path: Path) -> No
     headers = logo.service_specific["headers"]
     assert "X-Gmail-Labels: Inbox" in headers and "Subject: Book club in March" in headers
     assert "content_ids" not in records["joao-attic-1@example.org"].service_specific
+
+
+def test_the_folder_a_mail_came_from_is_kept(tmp_path: Path) -> None:
+    noisy = build_noisy_mbox(tmp_path / "noisy")
+    for workers in (1, 2):
+        batches = MboxParser(account="Work", folder="Family", workers=workers).parse(noisy.work)
+        records = [r for b in batches for r in b.records]
+        assert records and all(r.service_specific["folder"] == "Family" for r in records)
+    plain = MboxParser(account="Work").parse(noisy.work)
+    assert all("folder" not in r.service_specific for b in plain for r in b.records)

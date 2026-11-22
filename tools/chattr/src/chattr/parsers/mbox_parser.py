@@ -141,6 +141,7 @@ class MboxParser(BaseParser):
         attachments_dir: Optional[PathLike] = None,
         account: Optional[str] = None,
         workers: int = 1,
+        folder: Optional[str] = None,
     ):
         self.owner = (owner or "").strip().lower()
         self.aliases = aliases or {}
@@ -148,6 +149,8 @@ class MboxParser(BaseParser):
         self.attachments_dir = Path(attachments_dir) if attachments_dir else None
         #: The account the mail comes from (Caixa's name for it), kept with each mail.
         self.account = account
+        #: The folder the mail was exported from (an mbox file's name: Inbox, Sent, Family…).
+        self.folder = folder
         #: Processes that build the mails' records (decoding, attachments) from their bytes.
         self.workers = max(1, int(workers or 1))
 
@@ -186,7 +189,7 @@ class MboxParser(BaseParser):
                     held = 0
         finally:
             box.close()
-        settings = (self.owner, self.aliases, self.attachments_dir, self.account)
+        settings = (self.owner, self.aliases, self.attachments_dir, self.account, self.folder)
         pool = concurrent.futures.ProcessPoolExecutor(
             max_workers=self.workers, mp_context=multiprocessing.get_context("spawn")
         )
@@ -294,6 +297,8 @@ class MboxParser(BaseParser):
         extras["headers"] = "".join(f"{k}: {v}\n" for k, v in message.raw_items())[:HEADERS]
         if self.account:
             extras["account"] = self.account
+        if self.folder:
+            extras["folder"] = self.folder
         attachments = tuple(self._attachments(message))
         source_id = message_id or self._synthetic_id(sender, timestamp, subject, text)
         return MessageRecord(
@@ -404,10 +409,10 @@ BATCH = 16 * 1024 * 1024
 
 
 def _build_batch(
-    settings: tuple[str, dict[str, str], Optional[Path], Optional[str]],
+    settings: tuple[str, dict[str, str], Optional[Path], Optional[str], Optional[str]],
     batch: list[tuple[bytes, Optional[str]]],
 ) -> list[MessageRecord]:
     """Records for a batch of mails (runs in a worker process)."""
-    owner, aliases, attachments_dir, account = settings
-    parser = MboxParser(owner, aliases, attachments_dir, account)
+    owner, aliases, attachments_dir, account, folder = settings
+    parser = MboxParser(owner, aliases, attachments_dir, account, folder=folder)
     return [parser._from_bytes(data, from_line) for data, from_line in batch]

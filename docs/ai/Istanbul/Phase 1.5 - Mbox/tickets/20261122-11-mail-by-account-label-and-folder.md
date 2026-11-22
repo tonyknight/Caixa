@@ -1,18 +1,19 @@
 ---
 id: 20261122-11-mail-by-account-label-and-folder
-title: "Mail by account, label and folder"
+title: Mail by account, label and folder
 type: feature
 priority: medium
-status: todo
+status: in-progress
 created: 2026-11-22
 updated: 2026-11-22
 closed:
-notes: ""
+notes: ''
 parent:
 depends_on: []
 subtasks: []
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
 The box will hold many mailboxes: on the people page, Mail should fold open to each account (by the name given at import), and each account to the mail's own labels (Gmail) or folders (the mbox file's name, as Apple Mail and Thunderbird export one per folder).
@@ -35,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:**
 
@@ -49,7 +50,7 @@ Current task: T01
 - `tools/chattr/src/chattr/parsers/mbox_parser.py`, `caixa/collectors/chattr.py`, `caixa/service.py` (`_mail_import`, the folder name).
 - Tests: the parser keeps `folder`; an import from a mbox named `Family.mbox` keeps `Family` on its mails, and one from a Cleaned copy keeps the original's name.
 - Verify: `python -m pytest -q tools/chattr/tests/test_mbox_accounts.py tests/test_mail_service.py`
-- [ ] done
+- [x] done
 
 ### T02: Mail ▸ account ▸ label on the people page
 
@@ -68,3 +69,6 @@ Current task: T01
 ## Notes
 
 Append-only running log. Each entry dated.
+
+### 2026-11-22
+T01: MboxParser takes folder (kept in service_specific['folder'], also through its worker processes); Caixa's mail collector passes it; the mail import derives it from the mbox it read, following a Cleaned or Reduced copy back to the original, from the zip member's, the Apple Mail <name>.mbox folder's or the file's name, without its date or [Cleaned]/[Reduced]. RED: 3 tests, then GREEN.

@@ -23,6 +23,7 @@ import functools
 import inspect
 import mimetypes
 import queue
+import re
 import sys
 import threading
 import time
@@ -1066,6 +1067,29 @@ class Service:
             raise ServiceError("not_found", "That mbox has not been read into the box's index.")
         return dict(zip(("id", "path", "member", "kind", "account", "mails", "size"), row))
 
+    @staticmethod
+    def _mail_folder(index: mail_index.MailIndex, source: int) -> str:
+        """The folder an mbox's mail was exported from: the original mbox's name (for a Cleaned
+        or Reduced copy, the one it came from), as Apple Mail and Thunderbird export one file per
+        folder: a zip member's, an Apple Mail `<name>.mbox` folder's, or the file's name."""
+        row = index.connection.execute(
+            "SELECT path, member, parent_id FROM sources WHERE id = ?", (source,)
+        ).fetchone()
+        seen = {source}
+        while row and row[2] and int(row[2]) not in seen:
+            seen.add(int(row[2]))
+            row = index.connection.execute(
+                "SELECT path, member, parent_id FROM sources WHERE id = ?", (int(row[2]),)
+            ).fetchone()
+        if not row:
+            return ""
+        name = Path(str(row[1] or row[0]))
+        if name.name == "mbox" and name.parent.name:  # Apple Mail: <name>.mbox/mbox
+            name = name.parent
+        stem = name.name[: -len(".mbox")] if name.name.lower().endswith(".mbox") else name.stem
+        stem = re.sub(r"^\(\d{4}-\d{2}-\d{2}\)\s*", "", stem)
+        return re.sub(r"\s*\[(Cleaned|Reduced)\]$", "", stem).strip()
+
     def _mail_owner(self, box: Box, index: mail_index.MailIndex, source: int) -> set[str]:
         """The owner's addresses for this mbox: the ones confirmed for its account (with the
         master's), else the master's and those the owner's Sent mail came from."""
@@ -1287,6 +1311,7 @@ class Service:
         target = box.work_dir("mail") / f"import-{job['id']}.mbox"
         with mail_index.MailIndex.for_box(box, read_only=True) as index:
             account = str(self._mail_source(index, source)["account"] or "")
+            folder = self._mail_folder(index, source)
             chosen, _, _, picked = self._mail_choice(box, index, source)
             positions = sorted(p for mails in picked.threads.values() for p in mails)
             marks = ", ".join("?" for _ in positions) or "NULL"
@@ -1309,6 +1334,7 @@ class Service:
                     {
                         "account": account,
                         "workers": workers,
+                        "folder": folder,
                         "translate": job["options"].get("translate", True),
                     },
                     progress,

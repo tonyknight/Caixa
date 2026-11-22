@@ -491,3 +491,43 @@ def test_the_command_line_says_how_mail_is_imported(
     assert cli.main(["import", "mail", str(gmail), "--box", str(box)]) == 1
     said = capsys.readouterr().err
     assert "cleaned and sorted first" in said and "caixa mail" in said
+
+
+# --- The folder a mail came from (20261122-11) -----------------------------------------------------
+
+
+def _folders(service: Service) -> set[str]:
+    from caixa.mail.records import chattr_database
+    import sqlite3
+
+    with sqlite3.connect(chattr_database(_box(service))) as db:
+        return {
+            json.loads(row[0] or "{}").get("folder", "")
+            for row in db.execute(
+                "SELECT service_specific FROM messages WHERE content_type = 'email'"
+            )
+        }
+
+
+def test_an_import_keeps_the_mbox_name_as_the_folder(
+    service: Service, tmp_path: Path, noisy_mail: NoisyMail
+) -> None:
+    folder = tmp_path / "exports"
+    folder.mkdir()
+    family_mbox = Path(shutil.copy(noisy_mail.gmail, folder / "Family.mbox"))
+    source = _read(service, family_mbox)
+    service.call("mail.choose", {"source": source, "addresses": ["beatriz.lima@example.net"]})
+    _imported(service, source)
+    assert _folders(service) == {"Family"}
+
+
+def test_an_import_from_a_cleaned_copy_keeps_the_original_name(
+    service: Service, gmail: Path
+) -> None:
+    source = _read(service, gmail)
+    service.call("mail.clean", {"source": source})
+    done = service.wait(service.call("mail.clean.write", {"source": source})["id"], timeout=60)
+    child = done["result"]["source_id"]
+    service.call("mail.choose", {"source": child, "addresses": ["beatriz.lima@example.net"]})
+    _imported(service, child)
+    assert _folders(service) == {Path(MAILBOX_NAME).stem}

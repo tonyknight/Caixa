@@ -1158,7 +1158,7 @@ class Mail(_Chattr):
         final: bool,
     ) -> None:
         # The mail workflow (caixa.mail) passes the account the mail comes from and the workers.
-        parser_options = {k: options[k] for k in ("account", "workers") if options.get(k)}
+        parser_options = {k: options[k] for k in ("account", "workers", "folder") if options.get(k)}
         commands.convert(
             settings,
             "mail",
