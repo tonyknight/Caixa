@@ -32,6 +32,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -342,6 +343,29 @@ class AppleIntelligence:
             helpers, self._all = self._all, []
         for one in helpers:
             one.close()
+
+
+_remembered: dict[str, tuple[float, bool]] = {}
+#: How long an answer to "can Apple Intelligence be used?" is trusted.
+REMEMBER_SECONDS = 600
+
+
+def available() -> bool:
+    """Whether Apple Intelligence can be used now (building its helper the first time), the answer
+    remembered for ten minutes: Automatic asks this before every summary and translation run."""
+    key = os.environ.get(OVERRIDE, "")
+    now = time.monotonic()
+    found = _remembered.get(key)
+    if found and now - found[0] < REMEMBER_SECONDS:
+        return found[1]
+    ready = bool(check()["ready"])
+    _remembered[key] = (now, ready)
+    return ready
+
+
+def forget() -> None:
+    """Ask again next time (after the helper was built, or Apple Intelligence turned on)."""
+    _remembered.clear()
 
 
 def provider(workers: int, target_language: str = "English") -> Optional[AppleIntelligence]:

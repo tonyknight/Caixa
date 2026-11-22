@@ -116,9 +116,11 @@ export function SortMail() {
     if (saved.ok) {
       const v = saved.result.values
       const text = (key: string) => String(v[key] ?? '').trim()
+      // Apple Intelligence: chosen, or Automatic (the default) on a Mac that has it
+      const mac = (key: string) => v[key] === 'apple' || ((v[key] ?? 'auto') === 'auto' && saved.result.apple?.ready === true)
       const can = {
-        translate: v['translation.provider'] === 'apple' || Boolean(text('translation.endpoint') && text('translation.model')),
-        summarize: v['summaries.provider'] === 'apple'
+        translate: mac('translation.provider') || Boolean(text('translation.endpoint') && text('translation.model')),
+        summarize: mac('summaries.provider')
           || Boolean((text('summaries.endpoint') || text('translation.endpoint')) && (text('summaries.model') || text('translation.model'))),
       }
       setReady(can)

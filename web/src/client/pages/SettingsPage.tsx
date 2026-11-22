@@ -98,7 +98,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
   const test = async () => {
     setTesting(true); setTested(undefined)
     const reply = await store.api.testTranslation({
-      'translation.provider': String(values['translation.provider'] ?? '') || 'endpoint', ...workersNow(),
+      'translation.provider': String(values['translation.provider'] ?? '') || 'auto', ...workersNow(),
       'translation.endpoint': endpoint, 'translation.model': String(values['translation.model'] ?? '').trim(),
     }, key.trim())
     setTesting(false)
@@ -110,7 +110,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
     setSummarizing('testing'); setSummaryTested(undefined)
     const reply = await store.api.call<SummariesTest>('summaries.test', {
       values: {
-        'summaries.provider': typed('summaries.provider') || 'endpoint', ...workersNow(),
+        'summaries.provider': typed('summaries.provider') || 'auto', ...workersNow(),
         'summaries.endpoint': typed('summaries.endpoint'), 'summaries.model': typed('summaries.model'),
         'translation.endpoint': endpoint, 'translation.model': typed('translation.model'),
       },

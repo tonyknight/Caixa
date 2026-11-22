@@ -375,8 +375,9 @@ ends. Sort mail's Import dialog has **Translate** and **Summarize** switches for
 as Settings say (greyed out when that work is not set up yet); when an import writes no summaries it
 says why (off in Settings, off for this import, not set up, or the model could not be reached).
 
-**Summaries.** In Settings → **Summaries**, turn on **Summarize mail conversations** and choose who
-writes them: **Apple Intelligence (on this Mac)** (as for translation: nothing leaves the Mac, several
+**Summaries.** In Settings → **Summaries**, turn on **Summarize mail conversations**. Who writes
+them is **Automatic** to begin with, as for translation (Apple Intelligence when this Mac has it,
+otherwise the endpoint); you can also choose one of the two: **Apple Intelligence (on this Mac)** (as for translation: nothing leaves the Mac, several
 at once as Workers says; long conversations are summarized from their first and last mails, as its
 model reads less at a time; a conversation its safety filter declines keeps its first words, and the
 import says how many), or an OpenAI-compatible endpoint and model (left empty, translation's are used): a model on this computer
@@ -812,8 +813,11 @@ is never changed; the translation is stored beside it and shown under it on the 
   nothing is sent;
 - never twice: a message that has a translation is not sent again.
 
-**What does the translating.** **Translations are written by** chooses between **Apple
-Intelligence (on this Mac)** and **An endpoint**.
+**What does the translating.** **Translations are written by** is **Automatic** to begin with:
+Apple Intelligence whenever this Mac can use it, otherwise the endpoint below. (It was the faster
+and better of the two in our benchmark, `caixa benchmark`; see `tools/ai-benchmark`.) You can also
+choose **Apple Intelligence (on this Mac)** or **An endpoint** only. With Automatic, an endpoint is
+needed only on a computer where Apple Intelligence cannot be used.
 
 *Apple Intelligence* is the Mac's own model: macOS 26 or later, Apple silicon, Apple Intelligence
 turned on (System Settings, Apple Intelligence & Siri). It needs no address, model or key, nothing

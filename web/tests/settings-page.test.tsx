@@ -170,7 +170,7 @@ describe('translation: the key and the test', () => {
     expect(result.textContent).toContain('It works')
     expect(result.textContent).toContain('Bom dia!')
     expect(result.textContent).toContain('Good morning!')
-    expect(view.api.tests).toEqual([[{ 'translation.provider': 'endpoint', 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
+    expect(view.api.tests).toEqual([[{ 'translation.provider': 'auto', 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
     expect(view.api.savedSettings).toEqual([])  // testing saves nothing
   })
 

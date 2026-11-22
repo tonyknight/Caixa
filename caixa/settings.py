@@ -71,8 +71,8 @@ SCHEMA: dict[str, Any] = {
         },
         "translation.provider": {
             "type": "string",
-            "default": "endpoint",
-            "enum": ["endpoint", "apple"],
+            "default": "auto",
+            "enum": ["auto", "apple", "endpoint"],
             "title": "Translations are written by",
             "description": (
                 "An OpenAI-compatible endpoint (below), or Apple Intelligence: the Mac's own model "
@@ -80,8 +80,9 @@ SCHEMA: dict[str, Any] = {
                 "every message on this Mac and runs as many at once as Workers says."
             ),
             "x-labels": {
-                "endpoint": "An endpoint (the address and model below)",
+                "auto": "Automatic: Apple Intelligence when this Mac has it, else the endpoint",
                 "apple": "Apple Intelligence (on this Mac)",
+                "endpoint": "An endpoint (the address and model below)",
             },
         },
         "translation.endpoint": {
@@ -126,8 +127,8 @@ SCHEMA: dict[str, Any] = {
         },
         "summaries.provider": {
             "type": "string",
-            "default": "endpoint",
-            "enum": ["endpoint", "apple"],
+            "default": "auto",
+            "enum": ["auto", "apple", "endpoint"],
             "title": "Summaries are written by",
             "description": (
                 "An OpenAI-compatible endpoint (below; translation's when left empty), or Apple "
@@ -136,8 +137,9 @@ SCHEMA: dict[str, Any] = {
                 "mails."
             ),
             "x-labels": {
-                "endpoint": "An endpoint (the address and model below)",
+                "auto": "Automatic: Apple Intelligence when this Mac has it, else the endpoint",
                 "apple": "Apple Intelligence (on this Mac)",
+                "endpoint": "An endpoint (the address and model below)",
             },
         },
         "summaries.endpoint": {
@@ -203,9 +205,19 @@ SCHEMA: dict[str, Any] = {
 }
 
 
+#: The settings' own version in `box.yaml`. 2: summaries and translation choose Automatic (Apple
+#: Intelligence when the Mac has it) by default; "An endpoint" saved before was only the old default.
+VERSION = 2
+
+
 def load(box: Box) -> dict[str, Any]:
     """Every setting, with defaults for the ones nobody has changed."""
-    saved = _read(box).get("settings", {})
+    document = _read(box)
+    saved = dict(document.get("settings", {}))
+    if int(document.get("settings_version") or 1) < 2:  # (the old default becomes the new one)
+        for name in ("summaries.provider", "translation.provider"):
+            if saved.get(name) == "endpoint":
+                saved[name] = "auto"
     return {**defaults(SCHEMA), **{k: v for k, v in saved.items() if k in SCHEMA["properties"]}}
 
 
@@ -220,6 +232,7 @@ def save(box: Box, values: Mapping[str, Any]) -> dict[str, Any]:
         raise OptionsError(wrong)
     document = _read(box)
     document["settings"] = merged
+    document["settings_version"] = VERSION
     path = box.caixa_dir / "box.yaml"
     temporary = path.with_name("box.yaml.part")
     temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", "utf-8")

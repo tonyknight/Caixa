@@ -29,6 +29,9 @@ def _private_caixa_home(
     """No test reads or writes the real per-user Caixa folder (what Caixa remembers lives there),
     and a worker or `caixa` process a test starts inherits this one."""
     monkeypatch.setenv("CAIXA_HOME", str(tmp_path_factory.mktemp("caixa-home")))
+    from caixa import apple_intelligence
+
+    apple_intelligence.forget()  # (whether the Mac's model is ready is asked afresh in each test)
 
 
 @pytest.fixture(scope="session")

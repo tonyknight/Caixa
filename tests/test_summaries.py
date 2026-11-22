@@ -4,6 +4,7 @@ Only a stand-in endpoint on this computer is ever asked (`stub_server`)."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -68,7 +69,7 @@ def test_a_service_on_the_internet_needs_an_explicit_yes(box: Box) -> None:
 
 def test_summaries_on_without_an_endpoint_are_refused_in_words(box: Box) -> None:
     with pytest.raises(OptionsError) as refused:
-        settings.save(box, {"summaries.enabled": True})
+        settings.save(box, {"summaries.enabled": True, "summaries.provider": "endpoint"})
     assert any("Summaries are on but have no endpoint" in e for e in refused.value.errors)
 
 
@@ -415,3 +416,58 @@ def test_settings_say_when_apple_intelligence_cannot_be_chosen(
     blocked = service.call("settings.get")["schema"]["properties"]
     for name in ("summaries.provider", "translation.provider"):
         assert "turned off" in blocked[name]["x-unavailable"]["apple"]
+
+
+# --- Apple Intelligence first, when available (20261122-06) ----------------------------------------
+
+
+def test_automatic_is_the_default_for_both(box: Box) -> None:
+    values = settings.load(box)
+    assert values["summaries.provider"] == "auto" and values["translation.provider"] == "auto"
+
+
+def test_automatic_uses_apple_intelligence_when_it_is_ready(box: Box, apple: None) -> None:
+    settings.save(box, {"summaries.enabled": True})  # no endpoint at all
+    values = settings.load(box)
+    assert summaries.apple(values) and summaries.ready(values)
+    assert summaries.model(values) == "Apple Intelligence"
+    from caixa import translation
+
+    assert (
+        translation.apple(values)
+        and translation.problems({**values, "translation.enabled": True}) == []
+    )
+
+
+def test_automatic_uses_the_endpoint_when_apple_intelligence_is_not_ready(
+    box: Box, apple: None, server: StubServer, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("STAND_IN_APPLE", "not_enabled")
+    settings.save(box, {"summaries.enabled": True, "summaries.endpoint": server.endpoint,
+                        "summaries.model": "test-model"})  # fmt: skip
+    values = settings.load(box)
+    assert not summaries.apple(values) and summaries.model(values) == "test-model"
+    assert summaries.ready(values)
+
+
+def test_with_neither_saving_summaries_on_is_refused_saying_both(box: Box) -> None:
+    with pytest.raises(OptionsError) as refused:
+        settings.save(box, {"summaries.enabled": True})  # (no Mac model here, no endpoint)
+    assert any("Apple Intelligence" in e and "endpoint" in e for e in refused.value.errors)
+
+
+def test_an_old_boxs_endpoint_choice_becomes_automatic_once(box: Box) -> None:
+    path = box.caixa_dir / "box.yaml"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    document["settings"] = {"summaries.provider": "endpoint", "translation.provider": "endpoint"}
+    document.pop("settings_version", None)
+    path.write_text(json.dumps(document), encoding="utf-8")
+    assert settings.load(box)["summaries.provider"] == "auto"
+    assert settings.load(box)["translation.provider"] == "auto"
+    settings.save(box, {"translation.provider": "endpoint"})  # chosen now: kept
+    assert settings.load(box)["translation.provider"] == "endpoint"
+    assert settings.load(box)["summaries.provider"] == "auto"
+
+
+def test_settings_say_whether_apple_intelligence_is_ready(service: Service, apple: None) -> None:
+    assert service.call("settings.get")["apple"]["ready"] is True

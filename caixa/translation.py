@@ -81,8 +81,10 @@ class Keys:
 
 
 def apple(values: Mapping[str, Any]) -> bool:
-    """Whether Apple Intelligence (the Mac's own model) writes the translations."""
-    return values.get("translation.provider") == "apple"
+    """Whether Apple Intelligence (the Mac's own model) writes the translations: chosen, or
+    Automatic (the default) on a Mac that can use it."""
+    chosen = values.get("translation.provider") or "auto"
+    return chosen == "apple" or (chosen == "auto" and apple_intelligence.available())
 
 
 def problems(values: Mapping[str, Any]) -> list[str]:
@@ -107,7 +109,15 @@ def problems(values: Mapping[str, Any]) -> list[str]:
                     "to agree to that, or use an address on this computer."
                 )
     if values.get("translation.enabled") and not endpoint:
-        found.append("Translation is on but has no endpoint. Give one, or turn translation off.")
+        if (values.get("translation.provider") or "auto") == "auto":
+            found.append(
+                "Translation is on, but Apple Intelligence cannot be used on this computer and "
+                "there is no endpoint. Give one, or turn translation off."
+            )
+        else:
+            found.append(
+                "Translation is on but has no endpoint. Give one, or turn translation off."
+            )
     if values.get("translation.enabled") and not model:
         found.append("Translation is on but has no model. Give one, or turn translation off.")
     return found

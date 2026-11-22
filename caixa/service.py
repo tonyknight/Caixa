@@ -458,6 +458,7 @@ class Service:
         return {
             "values": values,
             "schema": schema,
+            "apple": {"ready": bool(mac["ready"]), "message": mac["message"]},
             "box": {"root": str(box.root), "name": box.name},
             # whether a key is saved for this endpoint; the key itself never leaves the worker
             "translation": {"key_saved": self._keys().get(endpoint) is not None},

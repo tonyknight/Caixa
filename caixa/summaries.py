@@ -91,8 +91,10 @@ _SENTENCE_END = re.compile(r"[.!?…](?:[\"'”’)\]]*)(?=\s|$)")
 
 
 def apple(values: Mapping[str, Any]) -> bool:
-    """Whether Apple Intelligence (the Mac's own model) writes the summaries."""
-    return values.get("summaries.provider") == "apple"
+    """Whether Apple Intelligence (the Mac's own model) writes the summaries: chosen, or Automatic
+    (the default) on a Mac that can use it."""
+    chosen = values.get("summaries.provider") or "auto"
+    return chosen == "apple" or (chosen == "auto" and apple_intelligence.available())
 
 
 def endpoint(values: Mapping[str, Any]) -> str:
@@ -127,6 +129,10 @@ def problems(values: Mapping[str, Any]) -> list[str]:
         return []
     address = endpoint(values)
     if not address:
+        if (values.get("summaries.provider") or "auto") == "auto":
+            return ["Summaries are on, but Apple Intelligence cannot be used on this computer "
+                    "and there is no endpoint. Give an endpoint (or translation's), or turn "
+                    "summaries off."]  # fmt: skip
         return ["Summaries are on but have no endpoint. Give one (or translation's), or turn "
                 "summaries off."]  # fmt: skip
     parsed = urlparse(address)

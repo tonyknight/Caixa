@@ -266,6 +266,8 @@ export interface SettingsReply {
   readonly box: { readonly root: string; readonly name: string }
   /** Whether a translation key is saved for the endpoint (the key itself never reaches the page). */
   readonly translation?: { readonly key_saved: boolean }
+  /** Whether Apple Intelligence (the Mac's own model) can be used now, and why not. */
+  readonly apple?: { readonly ready: boolean; readonly message: string }
 }
 
 /** How many people one source of contacts can name, or why it cannot. */
