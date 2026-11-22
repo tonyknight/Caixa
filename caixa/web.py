@@ -193,6 +193,16 @@ class CaixaServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
+    def handle_error(self, request: Any, client_address: Any) -> None:
+        """A browser closing a connection (an idle one, a page left mid-load) is not an error:
+        nothing is printed for it. Anything else is reported as `socketserver` does."""
+        if isinstance(
+            sys.exc_info()[1],
+            (ConnectionResetError, BrokenPipeError, ConnectionAbortedError, TimeoutError),
+        ):
+            return
+        super().handle_error(request, client_address)
+
     def __init__(self, service: Service, port: int = 0, inbox_poll: float = 2.0) -> None:
         super().__init__(("127.0.0.1", port), _Handler)
         self.service = service

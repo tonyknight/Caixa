@@ -310,3 +310,22 @@ def test_a_page_drawn_with_an_older_script_gets_the_current_one(running, tmp_pat
         "<p>hi</p><script>alert(1)</script>", encoding="utf-8"
     )
     assert browser.ask("GET", "/box/plain.html")[2] == b"<p>hi</p><script>alert(1)</script>"
+
+
+def test_a_connection_the_browser_closes_is_not_printed(running, capsys) -> None:
+    """A browser closing an idle connection is not an error worth a traceback in the terminal."""
+    server, _, _ = running
+    for closed in (
+        ConnectionResetError(54, "Connection reset by peer"),
+        BrokenPipeError(32, "Broken pipe"),
+    ):
+        try:
+            raise closed
+        except OSError:
+            server.handle_error(None, ("127.0.0.1", 50094))
+    assert capsys.readouterr().err == ""
+    try:
+        raise ValueError("something else went wrong")
+    except ValueError:
+        server.handle_error(None, ("127.0.0.1", 50094))
+    assert "something else went wrong" in capsys.readouterr().err
