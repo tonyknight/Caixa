@@ -117,6 +117,25 @@ class Box:
         part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
         part.replace(path)
 
+    @property
+    def pages(self) -> str:
+        """What drew the box's pages last (`chattr.pages.templates_fingerprint`); "" when unknown."""
+        try:
+            return str(self._settings().get("pages") or "")
+        except (OSError, ValueError):
+            return ""
+
+    def mark_pages(self, fingerprint: str) -> None:
+        """Record what drew the box's pages."""
+        data = self._settings()
+        if data.get("pages") == fingerprint:
+            return
+        data["pages"] = fingerprint
+        path = self.caixa_dir / "box.yaml"
+        part = path.with_name("box.yaml.part")
+        part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+        part.replace(path)
+
     # --- Where things are ---------------------------------------------------------------
 
     @property

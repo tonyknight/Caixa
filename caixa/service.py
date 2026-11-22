@@ -33,6 +33,7 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
+from chattr.pages import templates_fingerprint
 from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import TranslationError, is_local_endpoint
 
@@ -317,6 +318,16 @@ class Service:
             self.jobs.mark_interrupted()
             if box.layout < LAYOUT:
                 self._move_files(box)
+            elif box.pages != templates_fingerprint():
+                self._redraw_older(box)
+
+    def _redraw_older(self, box: Box) -> None:
+        """Pages drawn by an older Caixa lack what this one draws (a page's script is brought up to
+        date when it is served, its contents are not): draw them again, once. The drawing records
+        the new templates, so the next opening starts nothing."""
+        chattr_db = box.caixa_dir / "work" / "chattr" / "Database" / "chattr.sqlite"
+        if chattr_db.is_file():
+            self._enqueue("refresh", None, None, {"pages": "redrawn with this version of Caixa"})
 
     def _move_files(self, box: Box) -> None:
         """A box built before every source had an Attachments folder: draw its pages again, which

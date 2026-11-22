@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import base64
 import calendar
+import hashlib
 import json
 import os
 import re
@@ -53,6 +54,15 @@ _ISLAND_ESCAPES = {
 def _nl2br(value: Optional[str]) -> Markup:
     """Escape text, then keep its line breaks."""
     return Markup("<br>\n").join(escape(line) for line in (value or "").split("\n"))
+
+
+def templates_fingerprint() -> str:
+    """A short hash of every page template, script and style Chattr draws with: pages drawn with a
+    different one were drawn by another version and lack what this one draws."""
+    digest = hashlib.sha256()
+    for file in sorted(p for p in _TEMPLATES.rglob("*") if p.is_file()):
+        digest.update(file.relative_to(_TEMPLATES).as_posix().encode() + b"\0" + file.read_bytes())
+    return digest.hexdigest()[:16]
 
 
 def _environment() -> Environment:

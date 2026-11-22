@@ -29,6 +29,7 @@ from chattr.database_manager import DatabaseManager, unresolved_rows
 from chattr.filing import playable_copy
 from chattr.meta_friends import Friends, find_friend_files, find_profile_name, load_friends
 from chattr.parsers.voicemail_parser import AUDIO_SUFFIXES, audio_files
+from chattr.pages import templates_fingerprint
 from chattr.render import Renderer
 from chattr.transcription import TranscriptionUnavailable, make_transcriber
 from chattr.translation import TranslationError, translate_archive
@@ -703,6 +704,7 @@ class _Chattr:
             subcategories=subcategories,
         )
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
+        box.mark_pages(templates_fingerprint())  # what drew them (redrawn when Caixa changes)
         with DatabaseManager(commands.central_database(settings)) as db:
             renderer = Renderer(db)
             pages = {mid: spec.path for spec in renderer.pages for mid in spec.message_ids}
