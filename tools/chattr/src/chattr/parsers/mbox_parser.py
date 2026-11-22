@@ -33,6 +33,7 @@ from chattr import blobs
 from chattr.parsers.base_parser import BaseParser
 from chattr.parsers.batch import ConversationBatch
 from chattr.records import AttachmentRecord, ConversationRecord, MessageRecord
+from chattr.surrogates import repair, repair_text
 
 SERVICE = "Mail"
 PathLike = Union[str, Path]
@@ -90,8 +91,29 @@ def html_to_text(html: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
 
+def _headers(message: EmailMessage, name: str) -> list[str]:
+    """Every value of a header, decoded.
+
+    A value with bytes its mail could not explain is read from its raw form, with those bytes
+    recovered (UTF-8, else Windows-1252), so a stray "ñ" stays "ñ" rather than "�".
+    """
+    return [
+        str(
+            message.policy.header_fetch_parse(
+                key, repair_text(raw) if isinstance(raw, str) else raw
+            )
+        )
+        for key, raw in message.raw_items()
+        if key.lower() == name.lower()
+    ]
+
+
+def _header(message: EmailMessage, name: str) -> str:
+    return next(iter(_headers(message, name)), "")
+
+
 def _people(message: EmailMessage, header: str) -> list[dict[str, str]]:
-    values = [str(v) for v in message.get_all(header, [])]
+    values = _headers(message, header)
     return [
         {"name": name, "address": address.lower()}
         for name, address in getaddresses(values)
@@ -100,13 +122,25 @@ def _people(message: EmailMessage, header: str) -> list[dict[str, str]]:
 
 
 def _body(part: Optional[MIMEPart]) -> Optional[str]:
+    """A text part's text: in its declared charset, else UTF-8, else Windows-1252.
+
+    Old clients often send 8-bit text without declaring it (or declare the wrong charset); the
+    library would turn every such byte into "�". Only what none of the three explains does.
+    """
     if part is None:
         return None
-    try:
-        return str(part.get_content())
-    except (LookupError, UnicodeError):  # an unknown charset: decode loosely rather than fail
-        payload = part.get_payload(decode=True)
-        return payload.decode("utf-8", errors="replace") if isinstance(payload, bytes) else ""
+    payload = part.get_payload(decode=True)
+    if not isinstance(payload, bytes):
+        try:
+            return str(part.get_content())
+        except (LookupError, UnicodeError):
+            return ""
+    for charset in (part.get_content_charset() or "us-ascii", "utf-8"):
+        try:
+            return payload.decode(charset)
+        except (LookupError, UnicodeError):
+            continue
+    return payload.decode("cp1252", errors="replace")
 
 
 _PREFIX = re.compile(r"^\s*(?:re|fwd?|aw|sv|vs|res|rv|enc)\s*:\s*", re.IGNORECASE)
@@ -262,13 +296,15 @@ class MboxParser(BaseParser):
     # --- One mail ---------------------------------------------------------------------------
 
     def _record(self, message: EmailMessage, from_line: Optional[str]) -> MessageRecord:
-        sender_name, address = (getaddresses([str(message.get("From", ""))]) or [("", "")])[0]
+        # Bytes the mail's encoding could not explain arrive as stand-in characters that UTF-8
+        # refuses: recovered (or "�") here, before anything hashes or stores them.
+        sender_name, address = (getaddresses([_header(message, "From")]) or [("", "")])[0]
         sender: Optional[str] = address.lower() or None
         timestamp, assumed = self._time(message, from_line)
         message_id = normalize_message_id(message.get("Message-ID"))
         references = _message_ids(message.get("References"))
         in_reply_to = next(iter(_message_ids(message.get("In-Reply-To"))), None)
-        subject = str(message.get("Subject", "") or "")
+        subject = _header(message, "Subject")
         labels = [
             label.strip()
             for label in str(message.get("X-Gmail-Labels", "") or "").split(",")
@@ -287,7 +323,8 @@ class MboxParser(BaseParser):
         }
         plain = _body(message.get_body(preferencelist=("plain",)))
         html = _body(message.get_body(preferencelist=("html",)))
-        text = (plain if plain is not None else html_to_text(html or "")).strip()
+        html = repair_text(html) if html else html
+        text = repair_text((plain if plain is not None else html_to_text(html or "")).strip())
         extras: dict[str, Any] = {"body_html": html} if html else {}
         # What a page of the mail needs that the record has no field for: which file each
         # `cid:` in the HTML means, and the header block (shown folded under each mail).
@@ -301,7 +338,7 @@ class MboxParser(BaseParser):
             extras["folder"] = self.folder
         attachments = tuple(self._attachments(message))
         source_id = message_id or self._synthetic_id(sender, timestamp, subject, text)
-        return MessageRecord(
+        record = MessageRecord(
             timestamp=timestamp,
             sender=sender,
             sender_name=self._name(sender, sender_name or None),
@@ -315,6 +352,7 @@ class MboxParser(BaseParser):
             service_specific=extras,
             attachments=attachments,
         )
+        return repair(record)
 
     @staticmethod
     def _content_ids(message: EmailMessage) -> dict[str, str]:
@@ -341,6 +379,7 @@ class MboxParser(BaseParser):
                 continue
             mime = part.get_content_type()
             name = part.get_filename()
+            name = repair_text(name) if name else name
             if not name:
                 extension = mimetypes.guess_extension(mime) or ".bin"
                 name = f"attachment-{index}{extension}"

@@ -30,6 +30,7 @@ from chattr.records import (
     records_from_parser,
 )
 from chattr.schema import apply_migrations
+from chattr.surrogates import repair
 
 
 @dataclass
@@ -627,6 +628,10 @@ class DatabaseManager:
         import_id: Optional[int] = None,
     ) -> ImportCounts:
         """Insert new messages, update changed ones, count unchanged ones."""
+        # Text a source could not decode (stand-in characters SQLite refuses) is recovered or
+        # replaced, whichever parser built the records.
+        conversation = repair(conversation)
+        records = [repair(record) for record in records]
         db = self._db
         service = conversation.service
         db.execute(
