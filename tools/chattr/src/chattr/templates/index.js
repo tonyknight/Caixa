@@ -105,6 +105,10 @@
       return category === name;
     }
     function shown() { return tiles.filter(function (t) { return belongs(t, view); }); }
+    // a category or a subcategory, in Caixa: a click opens the page; ⌘-click, Shift-⌘-click and a
+    // box drawn around people select them, to move them into a subcategory
+    function inCategory(name) { return CAIXA && (ASSIGNED[name] || isSub(name)); }
+    function selecting(name) { return (CHOOSING[name] && CAIXA) || inCategory(name); }
     function selected() { return tiles.filter(function (t) { return t.classList.contains("selected"); }); }
     function plural(n, word) { return n.toLocaleString() + " " + word + (n === 1 ? "" : "s"); }
     function people(n) { return plural(n, "person").replace("persons", "people"); }
@@ -131,7 +135,7 @@
       else if (view === "mail") footer.count.textContent = plural(document.querySelectorAll("#mail li").length, "conversation");
       else footer.count.textContent = people(shown().length);
       var picked = selected().length;
-      footer.picked.textContent = CHOOSING[view] && CAIXA ? picked.toLocaleString() + " selected" : "";
+      footer.picked.textContent = selecting(view) ? picked.toLocaleString() + " selected" : "";
       footer.actions.hidden = !(view === "unassigned" && CAIXA && picked);
       app.setAttribute("data-picked", picked ? "1" : "");
       counts();
@@ -145,6 +149,8 @@
       clear();
       arrange(name);
       say(CHOOSING[name] && !CAIXA ? NEEDS_CAIXA : "");
+      var hint = document.querySelector(".hint.selecting");
+      if (hint) hint.hidden = !inCategory(name);
       app.setAttribute("data-view", name);
       title.textContent = label(name);
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
@@ -357,7 +363,13 @@
       if (option) { choose(option.parentNode.parentNode, option.getAttribute("data-name")); return; }
       if (event.target.closest(".naming")) return;
       var picked = event.target.closest(".tile");
-      if (!picked || !CHOOSING[view] || !choosable(picked, view)) return;
+      if (!picked) return;
+      if (inCategory(view) && (event.metaKey || event.ctrlKey) && picked.getAttribute("data-name") !== null) {
+        event.preventDefault();  // selected in place: the page is not opened
+        pick(picked, event.shiftKey);
+        return;
+      }
+      if (!CHOOSING[view] || !choosable(picked, view)) return;
       event.preventDefault();
       pick(picked, event.shiftKey);
     });
@@ -452,6 +464,9 @@
       if (button) move(button.getAttribute("data-move"));
     });
     document.addEventListener("keydown", function (event) {
+      if (inCategory(view) && event.key === "Escape" && !dialog.open && !(event.target.closest && event.target.closest("input, textarea, select"))) {
+        clear(); update(); return;
+      }
       if (!CHOOSING[view] || (dialog.open)) return;
       if (event.target.closest && event.target.closest("input, textarea, select")) return;
       if (event.key === "Escape") { clear(); update(); }
@@ -621,6 +636,45 @@
       if (dialog.showModal) dialog.showModal(); else if (window.confirm(dialog.querySelector("h2").textContent)) asking();
       dialog.querySelector("button.danger").focus();
     }
+    // --- Drawing a box around people ------------------------------------------------------
+    var content = document.querySelector(".content") || gallery.parentNode;
+    var box = null, start = null, before = [], moved = false;
+    function canPick(t) { return t.getAttribute("data-name") !== null ? true : view === "unrecognized"; }
+    content.addEventListener("mousedown", function (event) {
+      if (event.button !== 0 || !selecting(view)) return;
+      if (event.target.closest(".cell, a, button, input, select, textarea, .dashboard, label")) return;
+      event.preventDefault();  // (no text selection while drawing)
+      start = { x: event.clientX, y: event.clientY };
+      before = event.metaKey || event.ctrlKey ? selected() : [];
+      moved = false;
+    });
+    document.addEventListener("mousemove", function (event) {
+      if (!start) return;
+      var left = Math.min(start.x, event.clientX), top = Math.min(start.y, event.clientY);
+      var right = Math.max(start.x, event.clientX), bottom = Math.max(start.y, event.clientY);
+      if (!moved && right - left < 4 && bottom - top < 4) return;
+      moved = true;
+      if (!box) { box = document.createElement("div"); box.className = "marquee"; document.body.appendChild(box); }
+      box.style.left = left + "px"; box.style.top = top + "px";
+      box.style.width = (right - left) + "px"; box.style.height = (bottom - top) + "px";
+      shown().forEach(function (t) {
+        var r = t.getBoundingClientRect();
+        var touched = r.right >= left && r.left <= right && r.bottom >= top && r.top <= bottom;
+        var on = (touched && canPick(t)) || before.indexOf(t) >= 0;
+        t.classList.toggle("selected", on);
+        t.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+      update();
+    });
+    document.addEventListener("mouseup", function () {
+      if (!start) return;
+      if (!moved && !before.length) { clear(); update(); }  // a press on the empty space: nothing selected
+      var last = selected();
+      anchor = last.length ? last[last.length - 1] : null;
+      if (box) { box.parentNode.removeChild(box); box = null; }
+      start = null;
+    });
+
     show((location.hash || "#all").slice(1));
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

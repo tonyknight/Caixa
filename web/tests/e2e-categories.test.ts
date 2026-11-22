@@ -216,6 +216,82 @@ run('sorting people on the index page, in a browser', () => {
     expect(html).not.toContain('+15550000456')  // removed, not just renamed
   }, 240_000)
 
+  it('selects people within a category with Cmd-click, Shift-Cmd-click or a box, and moves them', async () => {
+    const cousins = (await running.rpc('people.subcategory.add', { category: 'family', name: 'Cousins' })).result.id as number
+    for (let i = 0; i < 300; i++) {  // (the redraw that adding it started)
+      const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+      if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      await page.getByRole('navigation').getByRole('button', { name: 'Browse' }).click()
+      const [index] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: "Open the box's index page" }).click()])
+      await index.setViewportSize({ width: 1280, height: 900 })
+      await index.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
+      await index.locator('.sidebar a[data-view="family"]').click()
+      expect(await index.getByText('⌘-click', { exact: false }).isVisible()).toBe(true)  // the page says how
+      const tiles = index.locator('#people .tile:visible')
+      expect(await tiles.count()).toBe(2)
+      const at = index.url()
+      // Cmd-click selects in place: no page opens
+      await tiles.nth(0).click({ modifiers: ['Meta'] })
+      await tiles.nth(1).click({ modifiers: ['Meta'] })
+      expect(index.url()).toBe(at)
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('2 selected')
+      await shot(index, 'category-selected')
+      // dragging one of them moves both
+      await tiles.nth(0).evaluate((tile: HTMLElement, id: number) => {
+        const goal = document.querySelector(`.sidebar a[data-sub="${id}"]`)!
+        const data = new DataTransfer()
+        tile.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+        tile.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: data }))
+      }, cousins)
+      await index.getByText('2 people moved to Cousins.').waitFor({ timeout: 30_000 })
+      const listed = (await running.rpc('people.list')).result.people as { name: string; subcategory: number | null }[]
+      expect(listed.filter(p => p.subcategory === cousins).map(p => p.name).sort()).toEqual(['Luisa Gomes', 'Pedro Dias'])
+
+      // in the subcategory: Cmd-click one, Shift-Cmd-click the other selects the range
+      await index.getByRole('button', { name: 'Subcategories of Family' }).click()
+      await index.locator(`.sidebar a[data-sub="${cousins}"]`).click()
+      await expect.poll(() => tiles.count()).toBe(2)
+      await tiles.nth(0).click({ modifiers: ['Meta'] })
+      await tiles.nth(1).click({ modifiers: ['Meta', 'Shift'] })
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('2 selected')
+      await index.keyboard.press('Escape')
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('0 selected')
+
+      // a box drawn from the empty space across the tiles selects them; a press there clears
+      const first = (await tiles.nth(0).boundingBox())!, last = (await tiles.nth(1).boundingBox())!
+      const content = (await index.locator('#people').boundingBox())!
+      const start = { x: content.x + content.width - 5, y: first.y - 8 }
+      await index.mouse.move(start.x, start.y)
+      await index.mouse.down()
+      await index.mouse.move(first.x + 10, last.y + last.height - 10, { steps: 8 })
+      expect(await index.locator('.marquee').isVisible()).toBe(true)
+      await index.mouse.up()
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('2 selected')
+      expect(await index.locator('.marquee').count()).toBe(0)
+      await index.mouse.click(start.x, start.y)
+      await expect.poll(() => index.locator('#picked').textContent()).toBe('0 selected')
+
+      // and a plain click still opens the person's page
+      await tiles.nth(0).click()
+      await index.getByRole('link', { name: '← All people' }).waitFor({ timeout: 30_000 })
+    } finally {
+      await browser.close()
+    }
+    await running.rpc('people.subcategory.delete', { id: cousins })  // (as the next test expects)
+    for (let i = 0; i < 300; i++) {
+      const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+      if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }, 240_000)
+
   it('makes subcategories, sorts someone into one, renames and deletes it; from disk they only show', async () => {
     const idle = async () => {
       for (let i = 0; i < 300; i++) {

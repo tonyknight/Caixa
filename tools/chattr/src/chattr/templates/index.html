@@ -63,6 +63,7 @@ table.sources tr:last-child td { border-bottom:0; } table.sources tfoot td { fon
 .tip ul { list-style:none; margin:0; padding:0; } .tip li { display:flex; align-items:center; gap:.45rem; padding:.08rem 0; }
 .tip li i { width:.55rem; height:.55rem; border-radius:50%; display:inline-block; } .tip li b { margin-left:auto; font-variant-numeric:tabular-nums; }
 .tile.selected { border-color:var(--accent); background:var(--card); }
+.marquee { position:fixed; z-index:20; pointer-events:none; border:1px solid var(--accent); background:color-mix(in srgb,var(--accent) 15%,transparent); border-radius:.2rem; }
 .tile.selected .face { box-shadow:0 0 0 3px var(--accent); }
 .tile.selected::after { content:"\2713"; position:absolute; top:.35rem; right:.6rem; width:1.4rem; height:1.4rem; border-radius:50%; background:var(--accent); color:var(--on-accent); font-size:.85rem; display:grid; place-items:center; }
 section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
@@ -121,6 +122,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 <main class="content">
 <h1 id="view-title">All people</h1>
 <p class="hint browse">Click someone to open everything from them. Hover to see where it came from.</p>
+<p class="hint selecting" hidden>To move people into a subcategory, select them first: ⌘-click (Ctrl-click) to select someone, Shift-⌘-click for everyone up to them, or drag a box around people from the empty space. Then drag one of them onto the subcategory.</p>
 <p class="hint sorting">Click people to select them (Shift-click for a range), then drag them onto a category, or use the buttons below. Delete (or Backspace) removes the people selected from the box.</p>
 <p class="hint naming">Hover over someone and type a name under them: pick a person already in the box to join them, or type a new name, then Apply. Click to select (Shift-click for a range); Delete (or Backspace) removes the people selected from the box.</p>
 <section class="dashboard" aria-label="About this box">
