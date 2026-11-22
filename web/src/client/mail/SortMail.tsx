@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { CaixaResult, Job, Person } from '../api.ts'
-import { IMPORT_STAGES, ProgressView } from '../components/Progress.tsx'
+import { IMPORT_STAGES, ProgressView, duration } from '../components/Progress.tsx'
+import { openBoxWindow } from '../pages/BrowsePage.tsx'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import { MailList, useCounts, type Category, type RowTool } from './MailList.tsx'
 import { Preview } from './Preview.tsx'
@@ -38,6 +39,8 @@ export function SortMail() {
   const [asking, setAsking] = useState<ImportPreview | undefined>()
   const [importing, setImporting] = useState<number | undefined>()
   const [counting, setCounting] = useState(false)
+  // the report of the import this window started, until it is closed
+  const [reportClosed, setReportClosed] = useState<number | undefined>()
   // this import's switches, preset from Settings; work that is not set up cannot be switched on
   const [switches, setSwitches] = useState({ translate: false, summarize: false })
   const [ready, setReady] = useState({ translate: false, summarize: false })
@@ -197,6 +200,35 @@ export function SortMail() {
   const busy = counting || running
   const threads = (n: number) => (n === 1 ? t('mail.count.conversation') : t('mail.count.conversations', { count: n.toLocaleString('en') }))
 
+  const reported = job && (job.status === 'done' || job.status === 'failed') && reportClosed !== job.id ? job : undefined
+  const took = (finished: Job) => {
+    const from = finished.started_at ? Date.parse(finished.started_at) : started
+    const to = finished.finished_at ? Date.parse(finished.finished_at) : Date.now()
+    return Number.isFinite(from) && Number.isFinite(to) ? duration((to - from) / 1000) : ''
+  }
+  const backToCaixa = () => {
+    const opener = window.opener as Window | null
+    if (opener && !opener.closed) { opener.focus(); window.close() } else window.location.href = '/'
+  }
+  const report = (finished: Job) => {
+    const r = (finished.result ?? {}) as unknown as {
+      mails?: number; conversations?: number; senders?: number; inserted?: number; files?: number; translated?: number
+      summaries?: { written: number; model?: string; reason?: string | null }; warnings?: string[]
+    }
+    const summaries = r.summaries
+    const lines = [
+      t('mail.report.brought', { mails: counts.mails(r.mails ?? 0), threads: threads(r.conversations ?? 0) }),
+      t('mail.report.senders', { senders: counts.senders(r.senders ?? 0) }),
+      t('mail.report.items', { count: (r.inserted ?? 0).toLocaleString('en') }),
+      ...(r.files ? [t('mail.report.files', { count: r.files.toLocaleString('en') })] : []),
+      summaries && summaries.written
+        ? t('mail.report.summaries', { count: summaries.written.toLocaleString('en'), model: summaries.model || '' })
+        : summaries?.reason && summaries.reason !== 'nothing_new' ? t(`mail.summaries.${summaries.reason}` as never) : t('mail.report.noSummaries'),
+      ...(r.translated ? [t('mail.report.translated', { count: r.translated.toLocaleString('en') })] : []),
+    ]
+    return { lines, warnings: r.warnings ?? [] }
+  }
+
   return (
     <>
       <MailList
@@ -275,6 +307,30 @@ export function SortMail() {
             <div className={css.buttons}>
               <button type="button" className={css.button} onClick={() => setAskReduce(false)}>{t('mail.write.cancel')}</button>
               <button type="button" className={`${css.button} ${css.primaryButton}`} autoFocus onClick={() => void reduce()}>{t('mail.write.go')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {reported && (
+        <div className={css.backdrop} onClick={() => setReportClosed(reported.id)}>
+          <div className={`${css.confirm} ${css.reportDialog}`} role="dialog" aria-modal="true" aria-labelledby="import-report" onClick={(event) => event.stopPropagation()}>
+            {reported.status === 'done' ? (() => {
+              const said = report(reported)
+              return <>
+                <h2 id="import-report">{t('mail.report.title')}</h2>
+                <ul className={css.reportList}>{said.lines.map(line => <li key={line}>{line}</li>)}</ul>
+                {took(reported) && <p className={css.muted}>{t('mail.report.took', { time: took(reported) })}</p>}
+                {said.warnings.length > 0 && <ul className={css.reportWarnings}>{said.warnings.map(w => <li key={w}>{w}</li>)}</ul>}
+              </>
+            })() : <>
+              <h2 id="import-report">{t('mail.report.failed')}</h2>
+              <p className={css.problem}>{reported.error}</p>
+            </>}
+            <div className={css.buttons}>
+              <button type="button" className={css.button} onClick={() => setReportClosed(reported.id)}>{t('mail.report.close')}</button>
+              <button type="button" className={css.button} onClick={backToCaixa}>{t('mail.report.caixa')}</button>
+              {reported.status === 'done' && !reducing && <button type="button" className={css.button} onClick={() => { setReportClosed(reported.id); setAskReduce(true) }}>{t('mail.reduce')}</button>}
+              <button type="button" className={`${css.button} ${css.primaryButton}`} autoFocus onClick={() => openBoxWindow('index.html')}>{t('mail.report.people')}</button>
             </div>
           </div>
         </div>

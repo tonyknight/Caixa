@@ -67,6 +67,12 @@ run('sorting an mbox, in a browser', () => {
       const imported = page.getByRole('status', { name: 'Imported' })
       await imported.waitFor({ timeout: 120_000 })
       expect(await imported.textContent()).toContain('8 mails in 5 conversations')
+      // a report says what came in, with ways back to the box; closing it leaves the window as it was
+      const report = page.getByRole('dialog', { name: 'The import is done' })
+      expect(await report.textContent()).toContain('8 mails in 5 conversations came into the box.')
+      expect(await report.getByRole('button', { name: "Open the box's people page" }).isVisible()).toBe(true)
+      await shot(page, 'sort-mail-report')
+      await report.getByRole('button', { name: 'Close' }).click()
       await groups.getByRole('link', { name: /Imported/ }).click()
       await page.getByRole('row', { name: /Beatriz Lima/ }).waitFor({ timeout: 15_000 })
 

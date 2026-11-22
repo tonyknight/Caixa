@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SortMail } from '../src/client/mail/SortMail.tsx'
 import type { SortReply, SortRow } from '../src/client/mail/types.ts'
 import { SETTINGS, job, ok, type FakeApi } from './fake-api.ts'
@@ -291,6 +291,54 @@ describe('the Sort mail window', () => {
     expect(within(screen.getByRole('main')).getByRole('status', { name: 'Imported' }).textContent).toContain('No summaries: they are off in Settings, Summaries.')
   })
 
+  it('reports when the import is done, with ways back to the box', async () => {
+    const view = await opened()
+    view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+    view.api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    fireEvent.click(within(screen.getByRole('dialog', { name: /Import 5 mails/ })).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    const result = { inserted: 5, updated: 0, unchanged: 0, pages: 4, unresolved: [], files: 1, translated: 3, mails: 5, conversations: 2, senders: 1,
+      summaries: { written: 2, left: 0, model: 'Apple Intelligence', error: null, reason: null }, warnings: ['1 conversation was declined by the safety filter.'] }
+    await view.emit('job.finished', { ...job9, status: 'done', job: 9, result, started_at: '2026-11-22T10:00:00+00:00', finished_at: '2026-11-22T10:02:05+00:00' })
+    await view.flush()
+    const report = screen.getByRole('dialog', { name: 'The import is done' })
+    for (const words of ['5 mails in 2 conversations', '1 sender', '5 new items', '2 summaries written by Apple Intelligence', '3 messages translated', '2 min 5 s', 'declined by the safety filter']) {
+      expect(report.textContent).toContain(words)
+    }
+    // the box's people page, in the box window
+    const opens: [string, string][] = []
+    window.open = ((url: string, name: string) => { opens.push([url, name]); return null }) as typeof window.open
+    fireEvent.click(within(report).getByRole('button', { name: "Open the box's people page" }))
+    expect(opens[0]![0]).toMatch(/^\/box\/index\.html\?fresh=\d+$/)
+    expect(opens[0]![1]).toBe('caixa-box')
+    // back to Caixa's own window
+    const focus = vi.fn(), close = vi.fn()
+    Object.defineProperty(window, 'opener', { value: { focus, closed: false }, configurable: true })
+    window.close = close
+    fireEvent.click(within(report).getByRole('button', { name: 'Back to Caixa' }))
+    expect(focus).toHaveBeenCalled()
+    expect(close).toHaveBeenCalled()
+    // and closing it leaves the Imported bar
+    fireEvent.click(within(report).getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('dialog', { name: 'The import is done' })).toBeNull()
+    expect(within(screen.getByRole('main')).getByRole('status', { name: 'Imported' })).toBeTruthy()
+  })
+
+  it('reports a failed import in the same place', async () => {
+    const view = await opened()
+    view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
+    view.api.generic['mail.import'] = () => ok({ ...job9, status: 'queued', result: null })
+    fireEvent.click(within(screen.getByRole('contentinfo')).getByRole('button', { name: 'Import' }))
+    await view.flush()
+    fireEvent.click(within(screen.getByRole('dialog', { name: /Import 5 mails/ })).getByRole('button', { name: 'Import them' }))
+    await view.flush()
+    await view.emit('job.finished', { ...job9, status: 'failed', job: 9, result: null, error: 'The mbox could not be read.' })
+    await view.flush()
+    expect(screen.getByRole('dialog', { name: 'The import did not finish' }).textContent).toContain('The mbox could not be read.')
+  })
+
   it('writes the reduced mbox after an import, after asking', async () => {
     const view = await opened()
     view.api.generic['mail.import.preview'] = () => ok({ senders: 1, conversations: 2, mails: 5, files: 1, size: 9_000 })
@@ -301,7 +349,8 @@ describe('the Sort mail window', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import them' }))
     await view.flush()
     await view.emit('job.finished', { ...job9, status: 'done', job: 9 })
-    fireEvent.click(screen.getByRole('button', { name: 'Write the reduced mbox' }))
+    // (from the report that opens when the import is done)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'The import is done' })).getByRole('button', { name: 'Write the reduced mbox' }))
     const ask = screen.getByRole('dialog', { name: 'Write the reduced mbox?' })
     expect(ask.textContent).toContain('is not changed')
     expect(ask.textContent).toContain('undo')

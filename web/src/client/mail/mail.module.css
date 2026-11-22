@@ -137,3 +137,6 @@
 .switch { display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; }
 .switch label { display: inline-flex; align-items: center; gap: .4rem; cursor: pointer; }
 .switch input:disabled + span { opacity: .55; }
+.reportList { margin: .3rem 0 .6rem; padding-left: 1.1rem; line-height: 1.6; }
+.reportWarnings { margin: .4rem 0 .8rem; padding-left: 1.1rem; font-size: .85rem; color: var(--muted, #4c566a); }
+.reportDialog { max-width: min(44rem, 94vw); width: auto; } .reportDialog .button { white-space: nowrap; }
