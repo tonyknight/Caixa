@@ -342,7 +342,7 @@ run('sorting people on the index page, in a browser', () => {
       await index.locator('.sidebar a[data-sub]', { hasText: "Class of '98" }).waitFor({ timeout: 30_000 })
       expect((await tree()).map(s => s.name)).toEqual(['School', "Class of '98"])
 
-      // Sara, dragged from Friends onto it, is counted in it, in School and in Friends
+      // Sara, dragged from Friends onto it
       await index.locator('.sidebar a[data-view="friends"]').click()
       const target = await index.locator('.sidebar a[data-sub]', { hasText: "Class of '98" }).getAttribute('data-sub')
       await index.locator('#people .tile:visible', { hasText: 'Sara Lima' }).evaluate((tile: HTMLElement, id: string) => {
@@ -354,10 +354,38 @@ run('sorting people on the index page, in a browser', () => {
         tile.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: data }))
       }, target!)
       await index.getByText("1 person moved to Class of '98.").waitFor({ timeout: 30_000 })
-      for (const view of ['friends', `sub-${target}`]) expect(await index.locator(`.sidebar a[data-view="${view}"] .n`).textContent()).toBe('1')
+      // like folders: each label holds only its own people
+      const count = (view: string) => index.locator(`.sidebar a[data-view="${view}"] .n`).textContent()
+      const shownNames = () => index.locator('#people .tile:visible .name').allTextContents()
+      expect(await count(`sub-${target}`)).toBe('1')
+      expect(await count('friends')).toBe('0')
+      expect(await shownNames()).toEqual([])  // (Friends is still the view: Sara left it)
       await school.click()
-      expect(await index.locator('#people .tile:visible .name').allTextContents()).toEqual(['Sara Lima'])
+      expect(await shownNames()).toEqual([])
       expect((await tree()).map(s => s.people)).toEqual([1, 1])
+      // ⌘-click flattens a label: everyone beneath it, counted, and its label blue
+      const friends = index.locator('.sidebar a[data-view="friends"]')
+      await friends.click({ modifiers: ['Meta'] })
+      await expect.poll(() => count('friends')).toBe('1')
+      expect(await shownNames()).toEqual(['Sara Lima'])
+      expect(await friends.evaluate((a: HTMLElement) => a.classList.contains('flat'))).toBe(true)
+      expect(await index.getByRole('heading', { level: 1 }).textContent()).toBe('Friends, with its subcategories')
+      const blue = await friends.evaluate((a: HTMLElement) => getComputedStyle(a).color)
+      const accent = await friends.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--accent').trim())
+      expect(blue).toBe(await friends.evaluate((_a: HTMLElement, c: string) => { const probe = document.createElement('span'); probe.style.color = c; document.body.appendChild(probe); const v = getComputedStyle(probe).color; probe.remove(); return v }, accent))
+      await shot(index, 'flattened')
+      const schoolId = await school.getAttribute('data-sub')
+      await school.click({ modifiers: ['Meta'] })
+      await expect.poll(() => count(`sub-${schoolId}`)).toBe('1')
+      expect(await shownNames()).toEqual(['Sara Lima'])
+      // a plain click on a flattened label keeps it flattened; ⌘-click again nests it
+      await friends.click()
+      expect(await shownNames()).toEqual(['Sara Lima'])
+      await friends.click({ modifiers: ['Meta'] })
+      await expect.poll(() => count('friends')).toBe('0')
+      expect(await shownNames()).toEqual([])
+      expect(await friends.evaluate((a: HTMLElement) => a.classList.contains('flat'))).toBe(false)
+      await school.click({ modifiers: ['Meta'] })  // (School back to nested for what follows)
 
       // deleting School asks, then takes its own with it; Sara stays in Friends
       await school.hover()

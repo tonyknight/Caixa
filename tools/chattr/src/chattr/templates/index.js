@@ -96,10 +96,35 @@
       var link = subLink(own);
       return link !== null && link.getAttribute("data-parent") === id;
     }
-    function label(name) { return isSub(name) ? subName(subLink(name.slice(4))) : LABELS[name]; }
+    // Each category and subcategory holds only its own people, as a folder holds only its own
+    // files; ⌘-click on its label flattens it (everyone beneath it too), and again nests it.
+    var FLAT = "caixa-index-flat";
+    var flat = {};
+    try { (JSON.parse(localStorage.getItem(FLAT) || "[]") || []).forEach(function (k) { flat[k] = true; }); } catch (e) { /* (from disk: not kept) */ }
+    function flattens(name) {  // a label with something beneath it: a category, or a subcategory that can have its own
+      return !!ASSIGNED[name] || (isSub(name) && !subLink(name.slice(4)).getAttribute("data-parent"));
+    }
+    function flatten(name) {
+      if (flat[name]) delete flat[name]; else flat[name] = true;
+      try { localStorage.setItem(FLAT, JSON.stringify(Object.keys(flat))); } catch (e) { /* (from disk: not kept) */ }
+      marks();
+    }
+    function marks() {
+      Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
+        link.classList.toggle("flat", !!flat[link.getAttribute("data-view")]);
+      });
+    }
+    function label(name) {
+      var text = isSub(name) ? subName(subLink(name.slice(4))) : LABELS[name];
+      return flat[name] && flattens(name) ? text + ", with its subcategories" : text;
+    }
     function belongs(tile, name) {
-      if (/^sub-/.test(name)) return inSub(tile, name.slice(4));
+      if (/^sub-/.test(name)) {
+        var id = name.slice(4);
+        return flat[name] ? inSub(tile, id) : tile.getAttribute("data-sub") === id;
+      }
       var category = tile.getAttribute("data-category");
+      if (ASSIGNED[name]) return category === name && (flat[name] || !tile.getAttribute("data-sub"));
       if (name === "all") return category !== "unrecognized";
       if (name === "unassigned") return category === "";
       return category === name;
@@ -456,6 +481,7 @@
       var link = event.target.closest("[data-view]");
       if (!link) return;
       event.preventDefault();
+      if ((event.metaKey || event.ctrlKey) && flattens(link.getAttribute("data-view"))) flatten(link.getAttribute("data-view"));
       show(link.getAttribute("data-view"));
       history.replaceState(null, "", "#" + link.getAttribute("data-view"));
     });
@@ -675,6 +701,7 @@
       start = null;
     });
 
+    marks();
     show((location.hash || "#all").slice(1));
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);

@@ -719,8 +719,15 @@ bottom of the list, a **+** that adds one (type its name, Enter). A subcategory 
 subcategories of its own (School → Class of 98), which cannot. Double-click one to rename it; the ×
 that shows when you point at it deletes it after asking, and its people (and its own
 subcategories' people) move up to where it was. Drag people onto a subcategory from Unassigned or
-from a category's own view. A category's count and view include everyone in its subcategories.
-The folding is remembered. Opened from the folder, subcategories show and filter but cannot be
+from a category's own view. In a category or subcategory, ⌘-click (Ctrl-click) selects people
+without opening their page, Shift-⌘-click selects everyone up to the one clicked, and dragging a box
+from the empty space selects everyone it touches.
+
+**Like folders.** A category shows and counts only the people in it who are not in one of its
+subcategories, and a subcategory only its own, so you can see who is still to be sorted. ⌘-click a
+category's name (or a subcategory that has its own) to **flatten** it: it then shows and counts
+everyone in it and beneath it, its name turns blue, and the title says "with its subcategories".
+⌘-click it again to go back. The folding and flattening are remembered. Opened from the folder, subcategories show and filter but cannot be
 changed. They are kept when you reset the box, like categories.
 
 Sorting works when the index is opened in Caixa: Browse, **Open the box's index page**. It opens in
