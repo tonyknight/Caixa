@@ -168,6 +168,32 @@ def build_parser() -> argparse.ArgumentParser:
     keep.add_argument("--forget", action="store_true", help="stop keeping them")
     _box_argument(keep)
 
+    bench = commands.add_parser(
+        "benchmark",
+        help="time summaries and translations: Apple Intelligence against your own model",
+        description="Times summaries and translations of 100 made-up emails (tools/ai-benchmark) "
+        "through Apple Intelligence and through an OpenAI-compatible endpoint, at several worker "
+        "counts, and writes a report. Nothing from a box is sent.",
+    )
+    bench.add_argument("--endpoint", help="your model's address, such as http://localhost:8000/v1")
+    bench.add_argument("--model", help="the model's name as the endpoint knows it")
+    bench.add_argument("--api-key", help="the endpoint's key (or set CAIXA_BENCHMARK_API_KEY)")
+    bench.add_argument("--ask-key", action="store_true", help="ask for the key without showing it")
+    bench.add_argument(
+        "--apple-workers", default="1,2,4,8", help="helpers at once (default 1,2,4,8)"
+    )
+    bench.add_argument(
+        "--endpoint-workers", default="1,2,4", help="requests at once (default 1,2,4)"
+    )
+    bench.add_argument("--only", choices=["apple", "endpoint"], help="time only one side")
+    bench.add_argument(
+        "--tasks", default="summaries,translations", help="summaries, translations or both"
+    )
+    bench.add_argument("--emails", help="another emails file in the same form")
+    bench.add_argument(
+        "--out", help="the folder for the report (default: ai-benchmark-<date> here)"
+    )
+
     serve = commands.add_parser("serve", help="start the browser interface and open it")
     serve.add_argument("--box", help="open this box when it starts")
     serve.add_argument("--read-only", action="store_true", help="refuse every change to the box")
@@ -698,6 +724,51 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         raise ServiceError("serve", str(error)) from None
 
 
+def _cmd_benchmark(args: argparse.Namespace) -> int:
+    """Apple Intelligence against an endpoint, on made-up emails (see `caixa.benchmark`)."""
+    import getpass
+    from datetime import datetime
+
+    from caixa import benchmark
+
+    def counts(text: str) -> list[int]:
+        try:
+            found = [int(n) for n in text.replace(" ", "").split(",") if n]
+        except ValueError:
+            found = []
+        if not found or any(n < 1 or n > 32 for n in found):
+            raise ServiceError(
+                "invalid_params",
+                f"Worker counts are whole numbers from 1 to 32, such as 1,2,4: not '{text}'.",
+            )
+        return found
+
+    key = args.api_key or os.environ.get("CAIXA_BENCHMARK_API_KEY") or None
+    if not key and args.ask_key:
+        key = getpass.getpass("API key for the endpoint (not shown): ").strip() or None
+    if args.only != "apple" and not (args.endpoint and args.model):
+        print("Give your model's --endpoint and --model (or --only apple).", file=sys.stderr)
+        return 2
+    out = (
+        Path(args.out).expanduser()
+        if args.out
+        else Path.cwd() / f"ai-benchmark-{datetime.now():%Y-%m-%d-%H%M}"
+    )
+    tasks = [t.strip() for t in args.tasks.split(",") if t.strip()]
+    if not tasks or any(t not in benchmark.TASKS for t in tasks):
+        print("--tasks is summaries, translations, or both (comma between).", file=sys.stderr)
+        return 2
+    print(f"Timing {', '.join(tasks)} on made-up emails; the report goes to {out}")
+    benchmark.run(
+        endpoint=args.endpoint, model=args.model, api_key=key,
+        apple_workers=counts(args.apple_workers), endpoint_workers=counts(args.endpoint_workers),
+        only=args.only, tasks=tasks, emails=Path(args.emails).expanduser() if args.emails else None,
+        out=out, say=print,
+    )  # fmt: skip
+    print(f"Report: {out / 'report.md'}")
+    return 0
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
     if arguments[:1] == ["worker"]:  # the worker has its own options; hand them over as they are
@@ -716,6 +787,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "mail": _cmd_mail,
+        "benchmark": _cmd_benchmark,
         "people": _cmd_people,
         "serve": _cmd_serve,
     }

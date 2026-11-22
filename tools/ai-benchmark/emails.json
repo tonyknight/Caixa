@@ -1,0 +1,751 @@
+{
+  "description": "100 made-up emails in 35 conversations for `caixa benchmark` (synthetic names; 20 emails in Portuguese).",
+  "owner": "Maria Costa",
+  "conversations": [
+    {
+      "id": "c01",
+      "language": "en",
+      "subject": "Dentist reminder",
+      "mails": [
+        {
+          "from": "Rui Pereira",
+          "date": "2024-02-05",
+          "text": "Hi Maria, just a reminder that your check-up with Dr. Alves is moved to Thursday the 8th at 10:30 instead of Wednesday. If that time does not suit you, call the front desk before Tuesday and they will find another slot. Bring your new insurance card, they need a copy for the file."
+        }
+      ]
+    },
+    {
+      "id": "c02",
+      "language": "en",
+      "subject": "Photos from the beach",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2023-08-21",
+          "text": "Mum, I finally sorted the photos from Comporta. There are about two hundred, so I put the best forty in a shared album and left the rest on the drive. The one of Dad asleep under the umbrella with the newspaper on his face is my favourite. Tell me which ones you want printed for the hallway."
+        }
+      ]
+    },
+    {
+      "id": "c03",
+      "language": "en",
+      "subject": "Book recommendation",
+      "mails": [
+        {
+          "from": "Beatriz Lima",
+          "date": "2023-05-14",
+          "text": "Maria, you asked what I was reading on the train. It is 'The Remains of the Day' by Kazuo Ishiguro. A butler driving across England, remembering his years of service and what he never said. Short, quiet and very sad in a good way. I think you would like it more than the crime novels we did in March."
+        }
+      ]
+    },
+    {
+      "id": "c04",
+      "language": "en",
+      "subject": "Garage door",
+      "mails": [
+        {
+          "from": "Carlos Mendes",
+          "date": "2024-10-03",
+          "text": "Dear Mrs Costa, I came by this morning to look at the garage door. The spring on the left side is broken and the motor is fine. I can replace the spring next Monday; the part costs 85 euros and the work about an hour. Please reply to confirm and leave the side gate open, as I will not need to come into the house."
+        }
+      ]
+    },
+    {
+      "id": "c05",
+      "language": "en",
+      "subject": "Lost scarf",
+      "mails": [
+        {
+          "from": "Inês Rocha",
+          "date": "2022-12-12",
+          "text": "I think I left my green wool scarf at your place on Saturday, probably on the coat rack by the stairs. No rush at all, I can pick it up when I bring back your casserole dish. Thank you again for the dinner, the lamb was wonderful and the kids still talk about the chocolate mousse."
+        }
+      ]
+    },
+    {
+      "id": "c06",
+      "language": "en",
+      "subject": "Car service",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2024-03-02",
+          "text": "Maria, the car is due for its service and the tyres look worn at the front. The garage in Benfica can take it on the 12th. Can you drop it off on your way to work? I will pick it up in the afternoon."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-03-02",
+          "text": "Yes, I can drop it at eight. Ask them to check the air conditioning too, it smells strange when it starts.\n\nOn Sat, 2 Mar 2024, João Costa wrote:\n> Maria, the car is due for its service and the tyres look worn at the front."
+        }
+      ]
+    },
+    {
+      "id": "c07",
+      "language": "en",
+      "subject": "Piano lessons",
+      "mails": [
+        {
+          "from": "Maria Costa",
+          "date": "2023-09-04",
+          "text": "Hello Sofia, we would like to start piano lessons for Tomás this term. He is nine and has never played, but he picks out tunes on his grandmother's keyboard. Do you have a slot on Tuesday or Thursday after school, and what do you charge?"
+        },
+        {
+          "from": "Sofia Alves",
+          "date": "2023-09-05",
+          "text": "Hello Maria, I would be glad to teach Tomás. I have Thursday at 17:00 free. Lessons are 25 euros for 45 minutes, paid monthly. For the first month he does not need a piano at home; a small keyboard is fine."
+        }
+      ]
+    },
+    {
+      "id": "c08",
+      "language": "en",
+      "subject": "Concert tickets",
+      "mails": [
+        {
+          "from": "Pedro Alves",
+          "date": "2024-06-11",
+          "text": "Maria, the jazz festival tickets go on sale Friday at ten. Last year they sold out in an hour. Shall I buy four for the Saturday night, for you, João, Inês and me? They are 38 each."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-06-11",
+          "text": "Yes please, four for Saturday. I will send you the money as soon as you have them. Thank you for remembering!"
+        }
+      ]
+    },
+    {
+      "id": "c09",
+      "language": "en",
+      "subject": "Recipe for the soup",
+      "mails": [
+        {
+          "from": "Inês Rocha",
+          "date": "2023-01-18",
+          "text": "Maria, can you send me the recipe for that green soup you made at New Year? Everyone asked for it."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-01-18",
+          "text": "Of course. Potatoes, an onion and garlic boiled in salted water, then blended; add very finely cut kale and a chouriço sliced thin, cook ten more minutes, olive oil at the end. The secret is to cut the kale as thin as hair."
+        }
+      ]
+    },
+    {
+      "id": "c10",
+      "language": "en",
+      "subject": "School trip permission",
+      "mails": [
+        {
+          "from": "Escola Azul",
+          "date": "2023-04-20",
+          "text": "Dear parents, the year four trip to the Oceanarium is on 5 May. Children must be at school by 8:15 and will be back by 16:00. Please sign the attached form and send 12 euros for the ticket and the bus by Friday 28 April. Children should bring a packed lunch and a water bottle."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-04-21",
+          "text": "Dear teacher, Tomás will go on the trip. I am sending the signed form and the money in his bag tomorrow. He has a nut allergy, so please make sure the adults know. Thank you."
+        }
+      ]
+    },
+    {
+      "id": "c11",
+      "language": "en",
+      "subject": "Moving the sofa",
+      "mails": [
+        {
+          "from": "Rui Pereira",
+          "date": "2024-07-27",
+          "text": "Maria, I can help you move the sofa on Sunday morning, but my van is in the workshop. Can João borrow his brother's car with the trailer?"
+        },
+        {
+          "from": "João Costa",
+          "date": "2024-07-27",
+          "text": "Rui, I have the trailer already, it is in our garage. Come at nine and we will have it done before lunch. Maria will make coffee."
+        }
+      ]
+    },
+    {
+      "id": "c12",
+      "language": "en",
+      "subject": "Swimming pool hours",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2025-01-08",
+          "text": "Mum, the municipal pool changed its hours. Lane swimming is now 7 to 9 in the morning and 19 to 21 in the evening on weekdays, and Saturday mornings only. Your monthly pass still works."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2025-01-08",
+          "text": "Thank you, darling. Evenings are better for me now. Will you come with me on Wednesday?"
+        }
+      ]
+    },
+    {
+      "id": "c13",
+      "language": "en",
+      "subject": "Wedding update",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2025-01-15",
+          "text": "Mum, the wedding is on 14 June in Sintra, at the quinta we visited in October. The ceremony is at four in the garden and dinner in the old stables. We have 90 guests so far. Could you ask Aunt Inês whether she can do the flowers? She offered last summer but I do not want to assume."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2025-01-15",
+          "text": "Darling, how wonderful that it is settled. I spoke to Inês and she is delighted; she wants to use white peonies and olive branches. She needs to know the number of tables by March. I will bake the orange cake for the dessert table as I promised."
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2025-01-16",
+          "text": "Perfect, thank you! Twelve tables of eight, plus a long table for us. I will send Inês the plan of the stables so she can see the space."
+        }
+      ]
+    },
+    {
+      "id": "c14",
+      "language": "en",
+      "subject": "Leaking kitchen tap",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2024-11-02",
+          "text": "Maria, the kitchen tap is dripping again, worse than before. I tried tightening it but the washer must be gone."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-11-02",
+          "text": "Can you call Carlos? He fixed the bathroom one in spring and was quick and cheap."
+        },
+        {
+          "from": "João Costa",
+          "date": "2024-11-04",
+          "text": "Carlos came this morning. It was the cartridge, not the washer. He replaced it for 30 euros including the part. No more dripping."
+        }
+      ]
+    },
+    {
+      "id": "c15",
+      "language": "en",
+      "subject": "Running club",
+      "mails": [
+        {
+          "from": "Pedro Alves",
+          "date": "2023-03-06",
+          "text": "Hi everyone, the Sunday running group is starting again. We meet at 8:00 at the lighthouse in Belém and run along the river to Cais do Sodré and back, about 10 km at an easy pace. New people welcome."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-03-06",
+          "text": "Pedro, I would love to join but 10 km is too much for me now. Does anyone turn back earlier?"
+        },
+        {
+          "from": "Pedro Alves",
+          "date": "2023-03-07",
+          "text": "Absolutely, Sofia and Rui turn back at the bridge, that makes about 6 km. Come along, we always have coffee at the end."
+        }
+      ]
+    },
+    {
+      "id": "c16",
+      "language": "en",
+      "subject": "Grandma's birthday",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2024-05-02",
+          "text": "Mum, Grandma turns ninety on the 25th. Should we do a lunch at home or book the restaurant in Cascais she likes?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-05-02",
+          "text": "The restaurant, I think; she would worry about the work if we did it at home. I will call them for a table for fourteen on Sunday the 26th."
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2024-05-03",
+          "text": "Great. I will make a photo book of her life, João's sister has the old albums. Can you find the picture of her wedding in 1956?"
+        }
+      ]
+    },
+    {
+      "id": "c17",
+      "language": "en",
+      "subject": "Insurance renewal",
+      "mails": [
+        {
+          "from": "Seguros Atlântico",
+          "date": "2024-09-01",
+          "text": "Dear Mrs Costa, your home insurance policy renews on 1 October. The new annual premium is 412 euros, an increase of 6 per cent because of the revised building value. No action is needed if you wish to renew. To change your cover, reply to this email or call us."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-09-02",
+          "text": "Hello, could you tell me whether the policy now covers water damage from neighbours' flats? Last year it did not."
+        },
+        {
+          "from": "Seguros Atlântico",
+          "date": "2024-09-04",
+          "text": "Dear Mrs Costa, water damage from neighbouring properties is covered from this renewal, up to 15,000 euros per claim, with a 150 euro excess. You will find it in section 4 of the conditions."
+        }
+      ]
+    },
+    {
+      "id": "c18",
+      "language": "en",
+      "subject": "Garden plans",
+      "mails": [
+        {
+          "from": "Beatriz Lima",
+          "date": "2024-02-20",
+          "text": "Maria, I am planning the vegetable patch for spring. Do you want me to grow extra tomato and courgette plants for you again? Last year you had too many courgettes, so maybe just two plants this time."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-02-20",
+          "text": "Yes please, two courgettes and four tomatoes, the small yellow ones if you can. I can give you basil and parsley seedlings in exchange."
+        },
+        {
+          "from": "Beatriz Lima",
+          "date": "2024-02-21",
+          "text": "Deal. They will be ready in late April. I am also trying aubergines this year, I will tell you how they do."
+        }
+      ]
+    },
+    {
+      "id": "c19",
+      "language": "en",
+      "subject": "Book club in March",
+      "mails": [
+        {
+          "from": "Beatriz Lima",
+          "date": "2023-02-01",
+          "text": "Hi all, our March book club meets on the 9th at my place at seven. We are discussing 'Small Things Like These' by Claire Keegan. It is short, so no excuses! Please let me know if you are coming so I know how many chairs to borrow."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-02-02",
+          "text": "I will be there and I will bring the cake. I loved the book, especially the ending.\n\n> Hi all, our March book club meets on the 9th at my place at seven."
+        },
+        {
+          "from": "Beatriz Lima",
+          "date": "2023-02-02",
+          "text": "Lovely, thank you. That makes seven of us. See you on the 9th.\n\n-- \nBeatriz\nSent from my phone"
+        }
+      ]
+    },
+    {
+      "id": "c20",
+      "language": "en",
+      "subject": "Holiday in the Algarve",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2024-04-10",
+          "text": "Maria, I found a house in Tavira for the first two weeks of August: three bedrooms, a small pool, ten minutes to the beach. 2,100 euros for the two weeks. Shall I book it before someone else does?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-04-10",
+          "text": "It looks lovely. Does it have air conditioning? August in Tavira without it is hard, and Grandma might come for a few days."
+        },
+        {
+          "from": "João Costa",
+          "date": "2024-04-11",
+          "text": "Air conditioning in every bedroom, and a downstairs room with its own bathroom, so Grandma would not need the stairs."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-04-11",
+          "text": "Then book it. I will tell Ana and the children; maybe Ana can come the second week with her fiancé."
+        }
+      ]
+    },
+    {
+      "id": "c21",
+      "language": "en",
+      "subject": "Water damage in the flat",
+      "mails": [
+        {
+          "from": "Rui Pereira",
+          "date": "2023-11-14",
+          "text": "Maria, there is a brown stain spreading on my ceiling, right under your bathroom. I think water is coming through. Can I come up and look?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-11-14",
+          "text": "Oh no, of course. I am home after six. I have not noticed anything in the bathroom but the bath is old."
+        },
+        {
+          "from": "Rui Pereira",
+          "date": "2023-11-15",
+          "text": "The plumber says the seal around your bath has failed and water runs under the tiles when you shower. He can fix the seal tomorrow, but my ceiling needs to dry for a month before it can be painted."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-11-15",
+          "text": "I am so sorry, Rui. Please send me the plumber's bill and the painter's quote and I will pass them to my insurance; it is covered now."
+        }
+      ]
+    },
+    {
+      "id": "c22",
+      "language": "en",
+      "subject": "Christmas plans",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2023-11-28",
+          "text": "Mum, are we doing Christmas Eve at yours this year? Miguel's parents asked us for the 25th, so the 24th with you would work well."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-11-28",
+          "text": "Yes, at ours on the 24th. Bacalhau as always, and Grandma insists on making the rabanadas. Will Miguel come too?"
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2023-11-29",
+          "text": "Yes, he wants to try the famous bacalhau. What can we bring?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-11-29",
+          "text": "Bring wine and the board games. Your father wants a rematch at Scrabble after last year."
+        }
+      ]
+    },
+    {
+      "id": "c23",
+      "language": "en",
+      "subject": "Electricity bill too high",
+      "mails": [
+        {
+          "from": "Maria Costa",
+          "date": "2024-03-18",
+          "text": "Hello, my electricity bill for February is 238 euros, more than twice January's. Nothing has changed at home. Could you check whether the meter reading is correct? My customer number is 4471-0093."
+        },
+        {
+          "from": "Energia Lisboa",
+          "date": "2024-03-20",
+          "text": "Dear customer, the February bill was based on an estimated reading because our technician could not reach the meter. Please send us a photo of the meter showing the current reading and we will correct the bill."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-03-20",
+          "text": "Here is the photo: the meter shows 48,392 kWh today."
+        },
+        {
+          "from": "Energia Lisboa",
+          "date": "2024-03-22",
+          "text": "Thank you. Your bill has been corrected to 104 euros. The difference will be credited on your next invoice."
+        }
+      ]
+    },
+    {
+      "id": "c24",
+      "language": "en",
+      "subject": "Tomás and football",
+      "mails": [
+        {
+          "from": "Pedro Alves",
+          "date": "2024-09-09",
+          "text": "Maria, the under-11 football team trains on Tuesdays and Fridays at six. Tomás is welcome to try a session before you decide."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-09-09",
+          "text": "Thank you, Pedro. He is very excited. Does he need boots with studs or are trainers fine for the first time?"
+        },
+        {
+          "from": "Pedro Alves",
+          "date": "2024-09-10",
+          "text": "Trainers are fine for the trial. If he joins, studs and shin pads, and the club sells the kit for 40 euros."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-09-14",
+          "text": "He loved it and wants to join. I will bring the form and the fee on Tuesday."
+        }
+      ]
+    },
+    {
+      "id": "c25",
+      "language": "en",
+      "subject": "Old photos of the village",
+      "mails": [
+        {
+          "from": "Inês Rocha",
+          "date": "2024-01-22",
+          "text": "Maria, my aunt is clearing her house in Monsaraz and found a box of photos from the sixties, many with your parents in them. Would you like them?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-01-22",
+          "text": "Inês, yes, very much! I have almost nothing from before 1970. Can you post them, or shall I come and collect them?"
+        },
+        {
+          "from": "Inês Rocha",
+          "date": "2024-01-23",
+          "text": "I will bring them when I visit in February; they are fragile and I do not trust the post. There is one of your mother at the village fair that you will love."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-01-23",
+          "text": "Thank you so much. I will have them scanned so everyone in the family can have a copy."
+        }
+      ]
+    },
+    {
+      "id": "c26",
+      "language": "en",
+      "subject": "Kitchen renovation",
+      "mails": [
+        {
+          "from": "Maria Costa",
+          "date": "2024-05-06",
+          "text": "Carlos, we would like to renovate the kitchen this summer: new cupboards, worktop and floor, keeping the layout as it is. Could you come and give us a quote?"
+        },
+        {
+          "from": "Carlos Mendes",
+          "date": "2024-05-07",
+          "text": "Mrs Costa, I can come on Thursday at five. Please have an idea of the materials you like for the worktop; it changes the price a lot."
+        },
+        {
+          "from": "Carlos Mendes",
+          "date": "2024-05-10",
+          "text": "As discussed: cupboards in white lacquer, a quartz worktop, porcelain floor tiles. 9,800 euros including removal of the old kitchen, three weeks of work, starting 1 July if you confirm by the end of May."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-05-12",
+          "text": "Thank you. Could we use a cheaper laminate worktop instead of quartz? And does the price include the electrician for the new oven?"
+        },
+        {
+          "from": "Carlos Mendes",
+          "date": "2024-05-13",
+          "text": "With a laminate worktop the total is 8,600 euros. The electrician is included. I can hold the July start until 31 May.\n\n-- \nCarlos Mendes\nSent from my phone"
+        }
+      ]
+    },
+    {
+      "id": "c27",
+      "language": "en",
+      "subject": "Lunch next week",
+      "mails": [
+        {
+          "from": "Maria Costa",
+          "date": "2024-04-29",
+          "text": "Rui, are you free for lunch next week? It has been months. Tuesday or Wednesday near your office?"
+        },
+        {
+          "from": "Rui Pereira",
+          "date": "2024-04-30",
+          "text": "Maria! Wednesday works. There is a new place by the Gulbenkian garden with a good lunch menu."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-04-30",
+          "text": "Wednesday at one, then. Shall I book?"
+        },
+        {
+          "from": "Rui Pereira",
+          "date": "2024-05-01",
+          "text": "Booked under my name, table by the window. I will bring the photos from the Azores trip."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-05-02",
+          "text": "Lovely. See you there."
+        }
+      ]
+    },
+    {
+      "id": "c28",
+      "language": "en",
+      "subject": "Planning the family reunion",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2024-02-11",
+          "text": "Everyone, it has been five years since the whole Costa family was together. I propose a weekend in late June at the farm in Alentejo that my cousin rents out: it sleeps twenty, has a big kitchen and a pool. We would cook together on Saturday and have a barbecue on Sunday. Please tell me which weekend works: 21–23 or 28–30 June."
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2024-02-11",
+          "text": "Great idea, Dad! 28–30 is better for us, Miguel has a conference the week before.\n\n> I propose a weekend in late June at the farm in Alentejo"
+        },
+        {
+          "from": "Inês Rocha",
+          "date": "2024-02-12",
+          "text": "Either works for us, but the children finish school on the 21st, so 28–30 would be more relaxed. I can organize the Saturday dinner if someone helps with the shopping."
+        },
+        {
+          "from": "Rui Pereira",
+          "date": "2024-02-12",
+          "text": "Count me in for 28–30. I will bring my grill and do the barbecue on Sunday. Is there shade by the pool? My father cannot be in the sun."
+        },
+        {
+          "from": "João Costa",
+          "date": "2024-02-14",
+          "text": "So it is 28–30 June. There is a big pergola with vines by the pool, so plenty of shade, Rui. The farm costs 1,800 euros for the weekend; with eighteen people that is 100 each, children free. Please send your share by the end of April. Inês, Maria and I will do the Saturday shopping with you.\n\nOn Mon, 12 Feb 2024, Rui Pereira wrote:\n> Count me in for 28–30. I will bring my grill"
+        },
+        {
+          "from": "Beatriz Lima",
+          "date": "2024-02-15",
+          "text": "I know I am only an honorary Costa, but I would love to come and bring my guitar for Saturday night. I can also make the dessert: an almond tart for twenty is no problem.\n\n-- \nBeatriz\nSent from my phone"
+        }
+      ]
+    },
+    {
+      "id": "c29",
+      "language": "pt",
+      "subject": "Receita de bacalhau",
+      "mails": [
+        {
+          "from": "Inês Rocha",
+          "date": "2021-12-23",
+          "text": "Maria, aqui vai a receita do bacalhau com natas que prometi. Demolhar o bacalhau dois dias, mudando a água três vezes. Cozer, desfiar e juntar a cebola alourada em azeite com batata frita aos cubos. Por fim, as natas e um pouco de noz-moscada, e vai ao forno com queijo ralado por cima durante vinte minutos. Feliz Natal para todos!"
+        }
+      ]
+    },
+    {
+      "id": "c30",
+      "language": "pt",
+      "subject": "Fotos de São Martinho",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2019-11-02",
+          "text": "Olá Maria, as fotos da festa de São Martinho estão prontas. Ficaram muito bonitas, sobretudo as das castanhas na fogueira e a da avó a dançar com o Tomás. Pus todas numa pasta partilhada."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2019-11-02",
+          "text": "Que maravilha! Vou escolher algumas para imprimir e mandar à tia Lurdes, que não pôde vir este ano."
+        }
+      ]
+    },
+    {
+      "id": "c31",
+      "language": "pt",
+      "subject": "Jantar de sexta-feira",
+      "mails": [
+        {
+          "from": "Beatriz Lima",
+          "date": "2022-01-19",
+          "text": "Maria, confirmas o jantar de sexta-feira em minha casa? Somos oito. Vou fazer arroz de pato e gostava que trouxesses a tua salada de grão."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2022-01-19",
+          "text": "Confirmo! Levo a salada de grão e uma garrafa de tinto do Douro. A que horas?"
+        },
+        {
+          "from": "Beatriz Lima",
+          "date": "2022-01-20",
+          "text": "Às oito e meia. Não te esqueças de que o portão da garagem está avariado, toca à campainha da frente."
+        }
+      ]
+    },
+    {
+      "id": "c32",
+      "language": "pt",
+      "subject": "Obras no prédio",
+      "mails": [
+        {
+          "from": "Administração do Condomínio",
+          "date": "2023-03-10",
+          "text": "Caros condóminos, informamos que as obras de reparação da fachada começam no dia 3 de abril e devem durar seis semanas. Durante este período os andaimes vão cobrir as janelas do lado da rua. Pedimos que mantenham as persianas fechadas nos dias de pintura."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2023-03-11",
+          "text": "Boa tarde, os andaimes vão impedir o acesso às varandas? Tenho plantas que precisam de ser regadas todos os dias."
+        },
+        {
+          "from": "Administração do Condomínio",
+          "date": "2023-03-13",
+          "text": "Boa tarde, as varandas continuarão acessíveis, exceto nos dois dias de pintura de cada piso, que serão avisados com antecedência por aviso no elevador."
+        }
+      ]
+    },
+    {
+      "id": "c33",
+      "language": "pt",
+      "subject": "Consulta do Tomás",
+      "mails": [
+        {
+          "from": "Clínica do Lumiar",
+          "date": "2024-02-26",
+          "text": "Exma. Senhora, lembramos que o Tomás tem consulta de pediatria com a Dra. Sousa no dia 4 de março às 9h30. Pedimos que traga o boletim de vacinas atualizado."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-02-27",
+          "text": "Bom dia, é possível passar a consulta para a tarde? O Tomás tem um teste de matemática nessa manhã."
+        },
+        {
+          "from": "Clínica do Lumiar",
+          "date": "2024-02-27",
+          "text": "Bom dia, temos vaga às 16h00 do mesmo dia. A consulta foi alterada. Com os melhores cumprimentos."
+        }
+      ]
+    },
+    {
+      "id": "c34",
+      "language": "pt",
+      "subject": "Férias em Lagos",
+      "mails": [
+        {
+          "from": "Ana Costa",
+          "date": "2024-06-03",
+          "text": "Mãe, encontrámos uma casa em Lagos para a segunda semana de agosto, com vista para o mar e a cinco minutos da praia Dona Ana. Querem vir connosco uns dias? Há um quarto a mais."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-06-03",
+          "text": "Que bom convite! O pai e eu podemos ir de quarta a domingo. Precisas que levemos alguma coisa?"
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2024-06-04",
+          "text": "Tragam as cadeiras de praia e o guarda-sol grande, os da casa são pequenos. E a máquina de café, por favor, a da casa é péssima."
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-06-04",
+          "text": "Combinado. Levamos tudo e eu faço a tarte de amêndoa para o lanche na praia."
+        }
+      ]
+    },
+    {
+      "id": "c35",
+      "language": "pt",
+      "subject": "Aniversário do avô",
+      "mails": [
+        {
+          "from": "João Costa",
+          "date": "2024-09-15",
+          "text": "Maria, o meu pai faz oitenta e cinco anos no dia 12 de outubro. Pensei num almoço no restaurante da quinta em Azeitão, onde fizemos os setenta. O que achas?"
+        },
+        {
+          "from": "Maria Costa",
+          "date": "2024-09-15",
+          "text": "Acho ótimo, ele gostou muito da última vez. Somos quantos? Convém reservar já, em outubro há muitos casamentos."
+        },
+        {
+          "from": "João Costa",
+          "date": "2024-09-16",
+          "text": "Contei vinte e dois, com os netos. Já liguei e reservaram a sala do lagar para as treze horas."
+        },
+        {
+          "from": "Ana Costa",
+          "date": "2024-09-17",
+          "text": "Eu trato do bolo! O avô gosta de pão de ló, vou encomendar na pastelaria de Ovar. Fazemos um vídeo com mensagens de toda a família?"
+        }
+      ]
+    }
+  ]
+}
