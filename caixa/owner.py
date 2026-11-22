@@ -26,6 +26,7 @@ readable only by its owner. The box's settings are a different file, `box.yaml`,
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from datetime import datetime, timezone
@@ -175,19 +176,38 @@ def set_mail_kept(box: Box, addresses: Iterable[str], keep: bool = True) -> list
     return list(data["mail"]["kept"])
 
 
+#: Every version of the file this Caixa wrote itself (their SHA-256): reading one of those back
+#: teaches the master nothing, and could undo a change made since (a redraw reading the file while
+#: people are being sorted). Only what someone typed into the file is applied.
+_written: set[str] = set()
+
+
 def _write(box: Box, data: dict[str, Any]) -> None:
     file = path(box)
     part = file.with_name(NAME + ".part")
+    text = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+    _written.add(hashlib.sha256(text.encode("utf-8")).hexdigest())
     handle = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(handle, "w", encoding="utf-8") as out:
-        json.dump(data, out, ensure_ascii=False, indent=2, sort_keys=True)
-        out.write("\n")
+        out.write(text)
     os.replace(part, file)
 
 
-def apply(box: Box, master: Master) -> int:
+def _ours(box: Box) -> bool:
+    """Whether the file is, byte for byte, a version this Caixa wrote."""
+    try:
+        return hashlib.sha256(path(box).read_bytes()).hexdigest() in _written
+    except OSError:
+        return False
+
+
+def apply(box: Box, master: Master, force: bool = False) -> int:
     """Teach the master what the file says: its names (as names given by hand) and categories.
-    Returns how many names were new to it. What the master already has is left as it is."""
+    Returns how many names were new to it. What the master already has is left as it is, and a
+    version of the file Caixa wrote itself is not applied again (see `_written`) unless `force`
+    (opening a box, a reset: the master is being brought up to the file, not running beside it)."""
+    if not force and _ours(box):
+        return 0
     data = load(box)
     learned = 0
     known = {(a.kind, a.normalized, a.service or "") for a in master.aliases()}

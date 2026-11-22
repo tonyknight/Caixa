@@ -478,4 +478,45 @@ run('sorting people on the index page, in a browser', () => {
     }
   }, 240_000)
 
+  it('merges by dropping one person onto another', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const index = await openIndex(browser)
+      const tile = (name: string) => index.locator('#people .tile:visible', { hasText: name })
+      const names = async () => ((await running.rpc('people.list')).result.people as { name: string }[]).map(p => p.name)
+      await index.locator('.sidebar a[data-view="all"]').click()
+      const before = Number(await tile('Luisa Gomes').getAttribute('data-items'))
+      // Pedro onto Luisa: asked once, then merged into her
+      await drag(index, tile('Pedro Dias'), '#people .tile[data-name="Luisa Gomes"]')
+      const ask = index.getByRole('dialog', { name: 'Merge Pedro Dias into Luisa Gomes?' })
+      await ask.waitFor()
+      await shot(index, 'merge-ask')
+      await ask.getByRole('button', { name: 'Merge' }).click()
+      await index.getByText('Pedro Dias merged into Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
+      expect(await names()).not.toContain('Pedro Dias')
+      expect(await tile('Pedro Dias').count()).toBe(0)
+      expect(Number(await tile('Luisa Gomes').getAttribute('data-items'))).toBeGreaterThan(before)
+      // a number onto a person joins them
+      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await drag(index, tile('+15550000888'), '#people .tile[data-name="Luisa Gomes"]')
+      await index.getByRole('dialog', { name: 'Add +15550000888 to Luisa Gomes?' }).getByRole('button', { name: 'Merge' }).click()
+      await index.getByText('+15550000888 added to Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
+      for (let i = 0; i < 300; i++) {  // (the redraw the change started brings the store up to date)
+        const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+        if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
+        await new Promise(resolve => setTimeout(resolve, 200))
+      }
+      const listed = (await running.rpc('people.unresolved')).result
+      expect(JSON.stringify(listed)).not.toContain('+15550000888')
+      // dropping onto someone with no name is refused
+      await index.locator('.sidebar a[data-view="all"]').click()
+      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await index.locator('.sidebar a[data-view="all"]').click()
+      await drag(index, tile('Luisa Gomes'), '#people .tile[data-handles*="+15550000999"]')
+      await index.getByText('Name +15550000999 first', { exact: false }).waitFor({ timeout: 10_000 })
+      expect(await names()).toContain('Luisa Gomes')
+    } finally {
+      await browser.close()
+    }
+  }, 240_000)
 })

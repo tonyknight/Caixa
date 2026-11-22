@@ -724,6 +724,14 @@ from a category's own view. In a category or subcategory, ⌘-click (Ctrl-click)
 without opening their page, Shift-⌘-click selects everyone up to the one clicked, and dragging a box
 from the empty space selects everyone it touches.
 
+**Dragging, everywhere.** In Caixa you can drag anyone onto a category, a subcategory or
+**Unassigned** (no category) from any view: All, a category, Unassigned or Unrecognized. Someone
+known only by a number or an address is kept as a person under that number as they are sorted
+(rename them later, or merge them). **To merge two people, drop one onto the other:** after you
+confirm, the one you dragged and everything from them become the other person (their conversations,
+files and numbers). A number dropped onto a person joins them. Dropping onto someone with no name
+yet is refused: name them first.
+
 **Like folders.** A category shows and counts only the people in it who are not in one of its
 subcategories, and a subcategory only its own, so you can see who is still to be sorted. ⌘-click a
 category's name (or a subcategory that has its own) to **flatten** it: it then shows and counts

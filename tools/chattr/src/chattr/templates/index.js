@@ -270,6 +270,7 @@
     dialog.addEventListener("cancel", function () { asking = null; });
     function confirmRemoval(chosen) {
       var n = chosen.length;
+      dialog.querySelector("button.danger").textContent = "Delete";
       dialog.querySelector("h2").textContent = "Delete " + people(n) + " from this box?";
       dialog.querySelector("p").textContent = (n === 1 ? "Their" : "Each one's") +
         " conversations with you and the photos, recordings and files in them are deleted, and later imports leave them out. " +
@@ -310,8 +311,11 @@
     }
     learnKnown(tiles.filter(function (t) { return t.getAttribute("data-name") !== null; })
       .map(function (t) { return { name: t.getAttribute("data-name"), detail: "" }; }));
+    var ids = {};  // a person's id by name (lower case), for merging
+    function learnIds(result) { result.people.forEach(function (p) { ids[p.name.toLowerCase()] = p.id; }); }
     if (CAIXA) {
       rpc("people.list", {}).then(function (result) {
+        learnIds(result);
         learnKnown(result.people.filter(function (p) { return !p.is_owner; }).map(function (p) {
           return { name: p.name, detail: p.items ? plural(p.items, "item") : "" };
         }));
@@ -668,6 +672,7 @@
       var name = subName(link), id = link.getAttribute("data-sub"), parent = link.getAttribute("data-parent");
       var category = link.getAttribute("data-category");
       var up = parent ? subName(subLink(parent)) : LABELS[category];
+      dialog.querySelector("button.danger").textContent = "Delete";
       dialog.querySelector("h2").textContent = "Delete the subcategory " + name + "?";
       dialog.querySelector("p").textContent = "The people in it" + (parent ? "" : " and in its own subcategories") + " move up to " + up + ". Nobody leaves the box.";
       asking = function () {
@@ -688,6 +693,73 @@
       if (dialog.showModal) dialog.showModal(); else if (window.confirm(dialog.querySelector("h2").textContent)) asking();
       dialog.querySelector("button.danger").focus();
     }
+    // --- Merging: one person dropped on another takes their identity ----------------------
+    function mergeTarget(event) {
+      var target = event.target.closest ? event.target.closest("#people .tile") : null;
+      return target && !target.classList.contains("selected") && app.classList.contains("dragging") ? target : null;
+    }
+    gallery.addEventListener("dragover", function (event) {
+      var target = mergeTarget(event);
+      if (!target) return;
+      event.preventDefault();
+      target.classList.add("merge-into");
+    });
+    gallery.addEventListener("dragleave", function (event) {
+      var target = event.target.closest ? event.target.closest("#people .tile") : null;
+      if (target) target.classList.remove("merge-into");
+    });
+    gallery.addEventListener("drop", function (event) {
+      var target = mergeTarget(event);
+      if (!target) return;
+      event.preventDefault();
+      target.classList.remove("merge-into");
+      var chosen = selected();
+      if (chosen.length !== 1) { say("Drag one person at a time onto another to merge them."); return; }
+      confirmMerge(chosen[0], target);
+    });
+    function tileName(t) { return t.querySelector(".name").textContent.trim(); }
+    function confirmMerge(source, target) {
+      var into = target.getAttribute("data-name"), from = tileName(source);
+      if (into === null) { say("Name " + tileName(target) + " first, then drop people onto them."); clear(); update(); return; }
+      var named = source.getAttribute("data-name") !== null;
+      dialog.querySelector("button.danger").textContent = "Merge";
+      dialog.querySelector("h2").textContent = named ? "Merge " + from + " into " + into + "?" : "Add " + from + " to " + into + "?";
+      dialog.querySelector("p").textContent = named
+        ? from + "'s conversations, files and names become " + into + "'s, and " + from + " is no longer a separate person. This can't be undone."
+        : "Everything from " + from + " becomes " + into + "'s.";
+      asking = function () { merge(source, target, named); };
+      if (dialog.showModal) dialog.showModal(); else if (window.confirm(dialog.querySelector("h2").textContent)) merge(source, target, named);
+      dialog.querySelector("button.danger").focus();
+    }
+    function merge(source, target, named) {
+      var into = target.getAttribute("data-name"), from = tileName(source);
+      say("Saving…");
+      var done;
+      if (named) {
+        var ask = ids[from.toLowerCase()] && ids[into.toLowerCase()] ? Promise.resolve() : rpc("people.list", {}).then(learnIds);
+        done = ask.then(function () {
+          return rpc("people.merge", { source: ids[from.toLowerCase()], target: ids[into.toLowerCase()] });
+        });
+      } else {
+        done = Promise.resolve();
+        JSON.parse(source.getAttribute("data-handles") || "[]").forEach(function (h) {
+          done = done.then(function () { return rpc("people.link", { service: h.service, identifier: h.identifier, person: into }); });
+        });
+      }
+      done.then(function () {
+        var total = items(target) + items(source);
+        target.setAttribute("data-items", String(total));
+        var meta = target.querySelector(".meta");
+        if (meta) meta.textContent = meta.textContent.replace(/^\s*[\d.,\s\u00a0\u202f]+?\s*items?\b/, plural(total, "item"));
+        var gone = cell(source);
+        gone.parentNode.removeChild(gone);
+        tiles = tiles.filter(function (t) { return t !== source; });
+        anchor = null;
+        say(named ? from + " merged into " + into + ". Their page is being redrawn." : from + " added to " + into + ". Their page is being redrawn.");
+        update();
+      }).catch(function (error) { say("Not merged: " + error.message); });
+    }
+
     // --- Drawing a box around people ------------------------------------------------------
     var content = document.querySelector(".content") || gallery.parentNode;
     var box = null, start = null, before = [], moved = false;

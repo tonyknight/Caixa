@@ -87,7 +87,7 @@ def _keep_names(box: Box) -> str | None:
     if not box.master_path.exists():
         return None
     with box.master() as master:
-        owner_file.apply(box, master)
+        owner_file.apply(box, master, force=True)
         owner_file.save(box, master)
         return next((p.name for p in master.people() if p.is_owner), None)
 
@@ -129,7 +129,7 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
     with box.master() as master:
         if owner:
             master.add_person(owner, is_owner=True)
-        owner_file.apply(box, master)  # they apply again when the people return
+        owner_file.apply(box, master, force=True)  # they apply again when the people return
         result.names_kept = len(owner_file.load(box)["names"])
         master.commit()
     return result

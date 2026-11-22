@@ -247,3 +247,31 @@ def test_mail_decisions_and_the_owners_addresses_are_kept(service: Service) -> N
     service.call("box.reset", {})
     assert owner.mail_owner(box, "Gmail") == ["maria.costa@example.com"]
     assert owner.load(box)["mail"]["chosen"] == ["carlos.mendes@example.net"]
+
+
+def test_a_version_caixa_wrote_itself_never_undoes_a_later_change(tmp_path: Path) -> None:
+    """A redraw re-reads the file while people are being sorted: if it reads the version from
+    before the latest change (Caixa's own), it must not put the old category back."""
+    from caixa.box import Box
+
+    box = Box.create(tmp_path / "Box", name="Box")
+    with box.master() as master:
+        pedro = master.add_person("Pedro Dias")
+        master.set_category([pedro], "business")
+        master.commit()
+        owner.save(box, master)
+        before = owner.path(box).read_bytes()  # (what a redraw has just read)
+        master.set_category([pedro], None)
+        master.commit()
+        owner.save(box, master)
+    owner.path(box).write_bytes(before)
+    with box.master() as master:
+        owner.apply(box, master)
+        assert master.category(pedro) is None
+    # a version typed by hand still applies
+    data = json.loads(before)
+    data["categories"] = {"Pedro Dias": "friends"}
+    owner.path(box).write_text(json.dumps(data), encoding="utf-8")
+    with box.master() as master:
+        owner.apply(box, master)
+        assert master.category(pedro) == "friends"

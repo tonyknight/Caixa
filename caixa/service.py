@@ -307,7 +307,7 @@ class Service:
         self.box = box
         if not self.read_only and box.master_path.exists():
             with box.master() as master:  # what was typed into the owner's file while closed
-                owner_file.apply(box, master)
+                owner_file.apply(box, master, force=True)
         if self.state is not None:
             self.state.remember_box(str(box.root), box.name)
         path = box.caixa_dir / "jobs.sqlite"
