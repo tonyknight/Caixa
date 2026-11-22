@@ -117,7 +117,7 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 {% endfor %}<li class="add" hidden><button type="button" class="add-sub" data-category="{{ c.key }}" data-parent="{{ s.id }}" aria-label="Add a subcategory to {{ s.name }}">+</button></li></ul></li>{% endfor %}
 <li class="add" hidden><button type="button" class="add-sub" data-category="{{ c.key }}" data-parent="" aria-label="Add a subcategory to {{ c.label }}">+</button></li></ul>
 {% else %}<a href="#{{ c.key }}" data-view="{{ c.key }}" data-category="{{ c.key }}"><span class="dot c-{{ c.key }}"></span>{{ c.label }} <span class="n">{{ counts[c.key] }}</span></a>
-{% endif %}{% endfor %}<a href="#unassigned" data-view="unassigned"><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
+{% endif %}{% endfor %}<a href="#unassigned" data-view="unassigned" data-category=""><span class="dot c-unassigned"></span>Unassigned <span class="n">{{ counts.unassigned }}</span></a>
 <div class="sep">Conversations</div>
 <a href="#groups" data-view="groups"><span class="dot c-groups"></span>Groups <span class="n">{{ groups | length }}</span></a>
 <a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>

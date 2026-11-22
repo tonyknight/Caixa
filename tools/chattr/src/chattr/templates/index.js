@@ -184,8 +184,7 @@
       tiles.forEach(function (t) {
         var pickable = choosable(t, name);
         // dragged onto a category or a subcategory: from Unassigned, or from within a category
-        t.draggable = (pickable && name === "unassigned") ||
-          (CAIXA && (ASSIGNED[name] || isSub(name)) && t.getAttribute("data-name") !== null);
+        t.draggable = CAIXA;  // onto a category, a subcategory, Unassigned or another person, from any view
         if (pickable) t.setAttribute("aria-pressed", "false"); else t.removeAttribute("aria-pressed");
       });
       update();
@@ -203,28 +202,54 @@
       }
       update();
     }
+    // Someone known only by a number or address is kept as a person, under that name, before they
+    // are sorted (as naming them does).
+    function keepAsPeople(chosen) {
+      var chain = Promise.resolve();
+      chosen.forEach(function (t) {
+        if (t.getAttribute("data-name") !== null) return;
+        var who = t.querySelector(".name").textContent.trim();
+        JSON.parse(t.getAttribute("data-handles") || "[]").forEach(function (h) {
+          chain = chain.then(function () { return rpc("people.link", { service: h.service, identifier: h.identifier, person: who }); });
+        });
+        chain = chain.then(function () {
+          t.setAttribute("data-name", who);
+          t.removeAttribute("data-handles");
+          var form = cell(t).querySelector(".naming");
+          if (form) form.parentNode.removeChild(form);
+          known.push({ name: who, detail: "" });
+        });
+      });
+      return chain;
+    }
     function categorize(chosen, category, done, sub) {
-      var names = chosen.map(function (t) { return t.getAttribute("data-name"); }).filter(function (n) { return n !== null; });
-      if (!names.length) return;
+      if (!chosen.length) return;
       if (!CAIXA) { say(NEEDS_CAIXA); return; }
       say("Saving…");
-      var params = { people: names, category: category };
-      if (sub) params.subcategory = Number(sub);
-      rpc("people.categorize", params).then(function () {
+      if (category === "unrecognized") chosen = chosen.filter(function (t) { return t.getAttribute("data-name") !== null; });
+      keepAsPeople(chosen).then(function () {
+        var names = chosen.map(function (t) { return t.getAttribute("data-name"); });
+        if (!names.length) return [];
+        var params = { people: names, category: category };
+        if (sub) params.subcategory = Number(sub);
+        return rpc("people.categorize", params).then(function () { return names; });
+      }).then(function (names) {
+        if (!names.length) return;
         chosen.forEach(function (t) {
           t.setAttribute("data-category", category || "");
           if (sub) t.setAttribute("data-sub", sub); else t.removeAttribute("data-sub");
-          unpick(t); t.draggable = false; t.removeAttribute("aria-pressed");
+          unpick(t); t.draggable = CAIXA; t.removeAttribute("aria-pressed");
         });
         anchor = null;
         say(done(names.length));
         update();
-      }, function (error) { say("Not saved: " + error.message); });
+      }).catch(function (error) { say("Not saved: " + error.message); });
     }
     function move(category, sub) {
-      var chosen = selected(), where = sub ? subName(subLink(sub)) : LABELS[category];
+      category = category || null;  // (Unassigned: no category)
+      var chosen = selected(), where = sub ? subName(subLink(sub)) : LABELS[category || "unassigned"];
       categorize(chosen, category, function (n) { return people(n) + " moved to " + where + "."; }, sub);
-      if (CAIXA && (ASSIGNED[view] || isSub(view))) setTimeout(function () { show(view); }, 0);
+      setTimeout(function () { show(view); }, 0);
     }
 
     // --- Removing people from the box ------------------------------------------------------
@@ -514,6 +539,7 @@
     });
     document.addEventListener("dragend", function () {
       app.classList.remove("dragging");
+      if (!selecting(view)) { clear(); update(); }
       Array.prototype.forEach.call(document.querySelectorAll(".drop"), function (el) { el.classList.remove("drop"); });
     });
     var sidebar = document.querySelector(".sidebar");

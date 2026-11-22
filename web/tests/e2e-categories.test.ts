@@ -421,4 +421,61 @@ run('sorting people on the index page, in a browser', () => {
       await offline.close()
     }
   }, 240_000)
+
+  // --- Dragging from anywhere, and merging by dropping one person onto another --------------------
+  const numbers = async () => {
+    const archive = join(mkdtempSync(join(tmpdir(), 'caixa-vm-')), 'Voicemail.zip')
+    const code = [
+      'import sys, zipfile',
+      'z = zipfile.ZipFile(sys.argv[1], "w")',
+      'for n, who in enumerate(["+15550000777", "+15550000888", "+15550000999"]): z.writestr(f"vm/(2020-03-0{n + 1}) 10 00 00 - {who}.amr", str(n))',
+      'z.close()',
+    ].join('\n')
+    execFileSync('python', ['-c', code, archive])
+    await imported('voicemail', archive)
+  }
+  const drag = async (index: any, from: any, onto: string) => {
+    await from.evaluate((tile: HTMLElement, selector: string) => {
+      const goal = document.querySelector(selector)!
+      const data = new DataTransfer()
+      tile.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
+      goal.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+      goal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+      tile.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: data }))
+    }, onto)
+  }
+  const openIndex = async (browser: any) => {
+    const page = await openCaixa(browser, running)
+    await page.getByRole('navigation').getByRole('button', { name: 'Browse' }).click()
+    const [index] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: "Open the box's index page" }).click()])
+    await index.setViewportSize({ width: 1280, height: 900 })
+    await index.getByRole('heading', { name: 'All people' }).waitFor({ timeout: 30_000 })
+    return index
+  }
+
+  it('drags anyone onto any category, from any view, Unrecognized and Unassigned included', async () => {
+    await numbers()
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const index = await openIndex(browser)
+      const tile = (name: string) => index.locator('#people .tile:visible', { hasText: name })
+      // from All: Pedro onto Business
+      await drag(index, tile('Pedro Dias'), '.sidebar a[data-view="business"]')
+      await index.getByText('1 person moved to Business.').waitFor({ timeout: 30_000 })
+      expect((await categories())['Pedro Dias']).toBe('business')
+      // from Unrecognized: a number onto Friends is kept as a person, under that number
+      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await drag(index, tile('+15550000777'), '.sidebar a[data-view="friends"]')
+      await index.getByText('1 person moved to Friends.').waitFor({ timeout: 30_000 })
+      expect((await categories())['+15550000777']).toBe('friends')
+      // onto Unassigned: back to no category
+      await index.locator('.sidebar a[data-view="business"]').click()
+      await drag(index, tile('Pedro Dias'), '.sidebar a[data-view="unassigned"]')
+      await index.getByText('1 person moved to Unassigned.').waitFor({ timeout: 30_000 })
+      expect((await categories())['Pedro Dias']).toBe(null)
+    } finally {
+      await browser.close()
+    }
+  }, 240_000)
+
 })
