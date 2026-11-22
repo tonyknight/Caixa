@@ -129,6 +129,7 @@ export function CleanMail() {
           <button type="button" className={`${css.pill} ${css.pillPrimary}`} disabled={writing !== undefined && !ended(job)}
                   onClick={() => setAsking(true)}>{t('mail.write')}</button>
           {writing !== undefined && !ended(job) && <InlineProgress label={t('mail.write.progress')} counting={false} job={job} startedAt={started} />}
+          {' '}<a className={css.pill} href={`/mail/sort?source=${source}`} title={t('mail.skip.help')}>{t('mail.skip')}</a>
         </>}
         quiet={looking !== undefined || asking}
       />

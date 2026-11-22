@@ -163,6 +163,12 @@ describe('the Clean mail window', () => {
     expect(within(done).getByRole('link', { name: 'Sort the cleaned mbox' }).getAttribute('href')).toBe('/mail/sort?source=12')
   })
 
+  it('can skip cleaning and go straight to sorting and importing the same mbox', async () => {
+    await opened()
+    const skip = within(screen.getByRole('contentinfo')).getByRole('link', { name: 'Skip cleaning: sort and import' })
+    expect(skip.getAttribute('href')).toBe('/mail/sort?source=1')
+  })
+
   it('shows a meter beside Write and keeps it disabled until the job ends', async () => {
     const view = await opened()
     view.api.generic['mail.clean.write'] = () => ok(job({ id: 9, kind: 'mail-clean', collector: null, status: 'queued', result: null }))
