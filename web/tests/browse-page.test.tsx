@@ -89,7 +89,9 @@ describe('the viewer', () => {
   it('opens a page in the box window, at its own address, and can show it again', async () => {
     const opens = windowOpens()
     await opened('(2024) Ana Costa.html')
-    expect(opens).toEqual([['/box/Messages/Ana%20Costa/(2024)%20Ana%20Costa.html', 'caixa-box']])
+    expect(opens).toHaveLength(1)
+    expect(opens[0]![0]).toMatch(/^\/box\/Messages\/Ana%20Costa\/\(2024\)%20Ana%20Costa\.html\?fresh=\d+$/)
+    expect(opens[0]![1]).toBe('caixa-box')
     expect(document.querySelector('iframe')).toBeNull()  // not squeezed into a frame
     expect(screen.getByRole('status').textContent).toContain('(2024) Ana Costa.html is open in its own window.')
     fireEvent.click(screen.getByRole('button', { name: 'Show it again' }))
@@ -100,7 +102,11 @@ describe('the viewer', () => {
     const opens = windowOpens()
     const view = await page()
     fireEvent.click(screen.getByRole('button', { name: "Open the box's index page" }))
-    expect(opens).toEqual([['/box/index.html', 'caixa-box']])
+    fireEvent.click(screen.getByRole('button', { name: "Open the box's index page" }))
+    // a fresh address each time, so the browser never shows a copy it kept of an older drawing
+    expect(opens.map(([url]) => url.replace(/\?.*/, ''))).toEqual(['/box/index.html', '/box/index.html'])
+    expect(opens.every(([url, name]) => /\?fresh=\d+$/.test(url) && name === 'caixa-box')).toBe(true)
+    expect(opens[0]![0]).not.toBe(opens[1]![0])
     await view.flush()
   })
 

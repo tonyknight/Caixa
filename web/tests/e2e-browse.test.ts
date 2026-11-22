@@ -55,6 +55,7 @@ run('Browse and Settings, in a browser', () => {
       // a page opens in the box window, beside Caixa's, not in a frame inside it
       const [frame] = await Promise.all([page.waitForEvent('popup'), page.getByRole('button', { name: 'Open Ana Costa.html' }).click()])
       expect(decodeURIComponent(new URL(frame.url()).pathname)).toBe('/box/People/Ana Costa/Ana Costa.html')
+      expect(new URL(frame.url()).search).toMatch(/^\?fresh=\d+$/)  // a fresh copy each time it is opened
       expect(await page.locator('iframe').count()).toBe(0)
       await page.getByText('Ana Costa.html is open in its own window.', { exact: false }).waitFor()
       await frame.getByText('Que lindo! Buy two.').waitFor({ timeout: 30_000 })

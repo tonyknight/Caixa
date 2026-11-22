@@ -28,10 +28,15 @@ function useSize() {
 /** The name of the browser window the box's pages open in: one window, reused, beside Caixa's. */
 export const BOX_WINDOW = 'caixa-box'
 
+let openings = 0
+
 /** Open one of the box's pages in its own window (the same one each time), where the index page's
- * sorting, naming and removing have the whole screen. */
+ * sorting, naming and removing have the whole screen. Each opening has an address of its own
+ * (`?fresh=…`, which the server ignores), so the reused window never shows a copy the browser kept
+ * of a page that has since been drawn again. */
 export function openBoxWindow(path: string, open: (url: string, name: string) => unknown = (url, name) => window.open(url, name)): void {
-  const opened = open(boxUrl(path), BOX_WINDOW) as Window | null
+  openings = (openings + 1) % 1000
+  const opened = open(`${boxUrl(path)}?fresh=${Date.now() * 1000 + openings}`, BOX_WINDOW) as Window | null
   opened?.focus?.()
 }
 
