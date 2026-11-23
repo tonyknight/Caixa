@@ -53,6 +53,8 @@ ALL_METHODS = {
     "people.link",
     "people.merge",
     "people.join",
+    "people.update",
+    "pages.pending",
     "people.rename",
     "browse.list",
     "browse.file",
@@ -312,7 +314,12 @@ def test_people_changes_go_over_the_wire(worker: Client, tmp_path: Path, fixture
         person="Ana (daughter)",
         move=True,
     )
-    worker.wait_notification("job.finished", job=linked["job"]["id"])
+    # Caixa's window: the change waits to be drawn with others, until Update
+    assert linked["job"] is None and linked["pending"] == {"changes": 1, "scope": "pages"}
+    assert worker.result("pages.pending") == {"changes": 1, "scope": "pages"}
+    update = worker.result("people.update")
+    worker.wait_notification("job.finished", job=update["job"]["id"])
+    assert worker.result("pages.pending") == {"changes": 0, "scope": None}
     assert worker.result("people.unresolved")["handles"] == []
     assert worker.result("browse.list", path="People/Ana (daughter)")["entries"]
 
@@ -467,7 +474,8 @@ def test_the_write_methods_are_exactly_the_ones_read_only_refuses() -> None:
         "people.link",
         "people.rename",
         "people.merge",
-    "people.join",
+        "people.join",
+        "people.update",
         "settings.set",
     }
 

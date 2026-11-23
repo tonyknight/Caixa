@@ -1155,6 +1155,25 @@ def _draw_in_workers(
         site.drawn = drawn
 
 
+def render_index(
+    renderer: Renderer,
+    out_root: PathLike,
+    attachment_roots: Sequence[PathLike] = (),
+    categories: Optional[Mapping[str, str]] = None,
+    title: str = "Chattr archive",
+    summaries: Optional[Mapping[str, tuple[str, str]]] = None,
+    subcategories: Optional[Mapping[str, Any]] = None,
+) -> Path:
+    """Write the index alone (who is in which category and subcategory changed, nothing else):
+    the same index `render_pages` writes, without touching any other page."""
+    site = _Site(renderer, Path(out_root), attachment_roots)
+    site.summaries = dict(summaries or {})
+    index = site.out_root / "index.html"
+    index.parent.mkdir(parents=True, exist_ok=True)
+    index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
+    return index
+
+
 def render_pages(
     renderer: Renderer,
     out_root: PathLike,

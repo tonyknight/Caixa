@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Union
 
 from chattr.config import Settings
-from chattr.pages import render_pages
+from chattr.pages import render_index, render_pages
 from chattr.people import Aliases, Contacts, PeopleResolver
 from chattr.render import Renderer
 from chattr.rebuild import RebuildError, RebuildResult, rebuild_database
@@ -522,6 +522,27 @@ def publish(
             stats=drawn,
         )  # fmt: skip
     return Published(folder / "index.html", pages, filed, drawn)
+
+
+def publish_index(
+    settings: Settings,
+    out: Optional[PathLike] = None,
+    attachments_dirs: Sequence[PathLike] = (),
+    categories: Optional[Mapping[str, str]] = None,
+    title: str = "Chattr archive",
+    summaries: Optional[Mapping[str, tuple[str, str]]] = None,
+    subcategories: Optional[Mapping[str, Any]] = None,
+) -> Optional[Path]:
+    """Draw the index alone (people sorted into other categories or subcategories): no filing,
+    no other page. None when the archive is empty."""
+    if not central_database(settings).exists():
+        return None
+    folder = Path(out) if out else output_folder(settings, "Chattr")
+    roots = attachment_roots(settings, attachments_dirs)
+    with DatabaseManager(central_database(settings)) as db:
+        return render_index(
+            Renderer(db), folder, roots, categories, title, summaries, subcategories
+        )
 
 
 def generate_html(

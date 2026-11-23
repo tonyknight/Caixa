@@ -49,6 +49,8 @@
     ".workbar .fill.unknown{width:30% !important;animation:workbar 1.4s ease-in-out infinite}",
     "@keyframes workbar{0%{margin-left:-30%}100%{margin-left:100%}}",
     ".workbar.nudge{animation:nudge .4s}@keyframes nudge{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}",
+    ".workbar.waiting{background:#88c0d0}.workbar .update{margin-left:auto;font:inherit;font-weight:600;padding:.3rem .9rem;border-radius:.5rem;border:1px solid #2e3440;background:#2e3440;color:#eceff4;cursor:pointer}",
+    ".workbar.waiting .paused,.workbar.waiting .track,.workbar:not(.waiting) .update{display:none}",
     ".app.locked .tile{cursor:progress}.app.locked .tile .tool,.app.locked .naming,.app.locked .sidebar .add-sub,.app.locked .sidebar .remove-sub,.app.locked #actions button{opacity:.45}"
   ].join("\n");
   function init() {
@@ -171,7 +173,7 @@
     function people(n) { return plural(n, "person").replace("persons", "people"); }
     function say(text) { footer.said.textContent = text || ""; }
     function rpc(method, params) {
-      var change = method !== "jobs.list" && method !== "people.list";  // (what changes the box)
+      var change = method !== "jobs.list" && method !== "people.list" && method !== "pages.pending";  // (what changes the box)
       if (change) { work.calls += 1; refresh(); }
       var done = function (result) {
         if (!change) return;
@@ -179,6 +181,7 @@
         work.changed += 1;  // (a look at the queue begun before this is out of date)
         var job = result && result.job;
         if (job && job.id) work.awaiting[job.id] = true;  // the redraw this change started
+        if (result && result.pending) work.pending = result.pending;  // (or, in Caixa, it waits)
         watch();
       };
       return fetch("/api/caixa/rpc", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
@@ -197,13 +200,15 @@
     var KINDS = { refresh: "Redrawing the pages", import: "Importing", "mail-import": "Importing mail",
       "mail-read": "Reading an mbox", "mail-clean": "Writing a cleaned mbox", "mail-reduce": "Writing a reduced mbox",
       "mail-summarize": "Writing summaries", undo: "Undoing an import" };
-    var work = { calls: 0, jobs: [], awaiting: {}, changed: 0, since: 0, polling: null, later: null };
+    var work = { calls: 0, jobs: [], awaiting: {}, changed: 0, since: 0, polling: null, later: null,
+      pending: { changes: 0, scope: null } };
     var bar = document.createElement("div");
     bar.className = "workbar";
     bar.setAttribute("role", "status");
     bar.setAttribute("aria-label", "Caixa is working");
     bar.hidden = true;
-    bar.innerHTML = '<div class="what"><strong></strong><span class="step"></span><span class="paused">Changes are paused until this is done.</span></div>' +
+    bar.innerHTML = '<div class="what"><strong></strong><span class="step"></span><span class="paused">Changes are paused until this is done.</span>' +
+      '<button type="button" class="update">Update the pages</button></div>' +
       '<div class="track"><div class="fill"></div></div>';
     document.body.insertBefore(bar, document.body.firstChild);  // (above the page: it covers nothing)
     function busy() { return work.calls > 0 || work.jobs.length > 0 || Object.keys(work.awaiting).length > 0; }
@@ -219,13 +224,28 @@
         Object.keys(work.awaiting).forEach(function (id) { if (!open[id]) delete work.awaiting[id]; });
       }, function () { work.jobs = []; work.awaiting = {}; }).then(function () {  // (Caixa gone: nothing to wait for)
         work.polling = null;
+        if (!busy()) learnPending();
         refresh();
         if (busy()) work.polling = setTimeout(function () { work.polling = null; watch(); }, asked !== work.changed ? 0 : 700);
       });
     }
+    function learnPending() {  // what waits to be drawn (in Caixa's window, changes wait for Update)
+      if (!CAIXA) return;
+      rpc("pages.pending", {}).then(function (waiting) { work.pending = waiting; refresh(); }, function () {});
+    }
     function refresh() {
       var on = busy();
       app.classList.toggle("locked", on);
+      bar.classList.toggle("waiting", !on && work.pending.changes > 0);
+      if (!on && work.pending.changes > 0) {  // changes saved, not yet on the pages: Update draws them
+        var n = work.pending.changes;
+        bar.querySelector("strong").textContent = n.toLocaleString() + " change" + (n === 1 ? "" : "s") + " not yet on the pages";
+        bar.querySelector(".step").textContent = work.pending.scope === "index" ? "Only the people page needs drawing." : "";
+        bar.setAttribute("aria-label", "Changes not yet on the pages");
+        bar.hidden = false; work.since = 0;
+        return;
+      }
+      bar.setAttribute("aria-label", "Caixa is working");
       if (!on) { bar.hidden = true; work.since = 0; return; }
       if (!work.since) {
         work.since = Date.now();
@@ -255,7 +275,14 @@
       bar.classList.remove("nudge"); void bar.offsetWidth; bar.classList.add("nudge");
       return true;
     }
-    if (CAIXA) watch();  // (a redraw may be running already: the one that opening the box starts)
+    bar.querySelector(".update").addEventListener("click", function () {
+      if (blocked()) return;
+      say("Updating the pages…");
+      rpc("people.update", {}).then(function (result) {
+        say(result.job ? "Drawing the changes on the pages." : "The pages are up to date.");
+      }, function (error) { say("Not updated: " + error.message); });
+    });
+    if (CAIXA) { watch(); learnPending(); }  // (a redraw may be running already: the one opening the box starts)
     function counts() {
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
         var name = link.getAttribute("data-view"), badge = link.querySelector(".n");
@@ -440,6 +467,16 @@
       .map(function (t) { return { name: t.getAttribute("data-name"), detail: "" }; }));
     if (CAIXA) {
       rpc("people.list", {}).then(function (result) {
+        // Who is in which category now (the page may have been drawn before the latest sorting)
+        var byName = {};
+        tiles.forEach(function (t) { var n = t.getAttribute("data-name"); if (n !== null) byName[n.toLowerCase()] = t; });
+        result.people.forEach(function (p) {
+          var t = byName[String(p.name).toLowerCase()];
+          if (!t || p.is_owner) return;
+          t.setAttribute("data-category", p.category || "");
+          if (p.subcategory) t.setAttribute("data-sub", String(p.subcategory)); else t.removeAttribute("data-sub");
+        });
+        update();
         learnKnown(result.people.filter(function (p) { return !p.is_owner; }).map(function (p) {
           return { name: p.name, detail: p.items ? plural(p.items, "item") : "" };
         }));

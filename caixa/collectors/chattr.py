@@ -688,23 +688,7 @@ class _Chattr:
 
         progress(Progress("filing", message="Filing photos, audio and other files"))
         filing_started = time.monotonic()
-        with box.master() as master:
-            categories = master.categories()
-            subcategories = {
-                "tree": master.subcategories(),
-                "placed": {
-                    p.name: sub
-                    for p in master.people()
-                    if (sub := master.subcategory(p.id)) is not None
-                },
-            }
-            summaries = {
-                str(thread): (str(text), str(model or ""))
-                for thread, text, model in master.connection.execute(
-                    "SELECT thread_key, summary, summary_model FROM mail_threads "
-                    "WHERE summary IS NOT NULL"
-                )
-            }
+        categories, subcategories, summaries = self._sorting(box)
         published = commands.publish(
             settings,
             out=box.root,
@@ -828,10 +812,58 @@ class _Chattr:
             for r in rows
         ]
 
-    def refresh(self, box: Box, progress: Callable[[Progress], None]) -> RunResult:
-        """Re-match people from the box's aliases and redraw what changed; no new import."""
+    @staticmethod
+    def _sorting(
+        box: Box,
+    ) -> tuple[dict[str, str], dict[str, Any], dict[str, tuple[str, str]]]:
+        """What the people page sorts by: categories, subcategories (and who is in each), and the
+        mail summaries."""
+        with box.master() as master:
+            categories = master.categories()
+            subcategories = {
+                "tree": master.subcategories(),
+                "placed": {
+                    p.name: sub
+                    for p in master.people()
+                    if (sub := master.subcategory(p.id)) is not None
+                },
+            }
+            summaries = {
+                str(thread): (str(text), str(model or ""))
+                for thread, text, model in master.connection.execute(
+                    "SELECT thread_key, summary, summary_model FROM mail_threads "
+                    "WHERE summary IS NOT NULL"
+                )
+            }
+        return categories, subcategories, summaries
+
+    def refresh(
+        self, box: Box, progress: Callable[[Progress], None], scope: str = "pages"
+    ) -> RunResult:
+        """Re-match people from the box's aliases and redraw what changed; no new import. With
+        `scope` "index" (only who is in which category or subcategory changed), the people page
+        alone is drawn: no matching, no filing, no other page."""
         root = box.work_dir("chattr")
         if not (root / "Database" / "chattr.sqlite").is_file():
+            return RunResult()
+        if scope == "index":
+            progress(Progress("rendering", message="Writing the people page"))
+            started = time.monotonic()
+            categories, subcategories, summaries = self._sorting(box)
+            commands.publish_index(
+                self._settings(root),
+                out=box.root,
+                attachments_dirs=[box.caixa_dir / INCOMING / stage for stage in STAGES],
+                categories=categories,
+                title=box.name,
+                summaries=summaries,
+                subcategories=subcategories,
+            )
+            progress(
+                Progress(
+                    "rendering", message=f"People page written · {_took(started)}", summary=True
+                )
+            )
             return RunResult()
         progress(Progress("preparing", message="Reading the box's people"))
         settings = self._settings(root)

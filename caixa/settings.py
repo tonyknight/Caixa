@@ -231,13 +231,7 @@ def save(box: Box, values: Mapping[str, Any]) -> dict[str, Any]:
         wrong.append(f"Contacts file: there is no file at {contacts_file}.")
     if wrong:
         raise OptionsError(wrong)
-    document = _read(box)
-    document["settings"] = merged
-    document["settings_version"] = VERSION
-    path = box.caixa_dir / "box.yaml"
-    temporary = path.with_name("box.yaml.part")
-    temporary.write_text(json.dumps(document, indent=2, ensure_ascii=False) + "\n", "utf-8")
-    os.replace(temporary, path)
+    box.update_state(lambda document: document.update(settings=merged, settings_version=VERSION))
     return merged
 
 

@@ -50,6 +50,9 @@ run('the People section, in a browser', () => {
       // own message first, then for the pages to be redrawn.
       const upToDate = async (message: string) => {
         await page.getByText(message, { exact: false }).waitFor({ timeout: 60_000 })
+        // the change waits to be drawn with others: Update draws it
+        await page.getByText('Changes not yet on the pages: 1.').waitFor({ timeout: 10_000 })
+        await page.getByRole('button', { name: 'Update the pages' }).click()
         await page.getByText('The pages are up to date.').waitFor({ timeout: 60_000 })
       }
 

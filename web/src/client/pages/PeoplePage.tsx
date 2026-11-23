@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import type { CaixaError, Handle, Job, Person, PersonChange } from '../api.ts'
+import type { Pending, CaixaError, Handle, Job, Person, PersonChange } from '../api.ts'
 import { useCaixa, useStore, useT } from '../hooks.tsx'
 import css from '../caixa.module.css'
 
@@ -14,6 +14,7 @@ export function PeoplePage() {
   const [handles, setHandles] = useState<Handle[]>([])
   const [loaded, setLoaded] = useState(false)
   const [outcome, setOutcome] = useState<Outcome | undefined>()
+  const [pending, setPending] = useState(0)  // changes saved, not yet on the pages
   const [failure, setFailure] = useState<string | undefined>()
   const [renaming, setRenaming] = useState<number | undefined>()
   const [merging, setMerging] = useState<number | undefined>()
@@ -25,10 +26,11 @@ export function PeoplePage() {
   useEffect(() => {
     let current = true
     if (!box) return
-    void Promise.all([store.api.people(), store.api.unresolved()]).then(([listed, unresolved]) => {
+    void Promise.all([store.api.people(), store.api.unresolved(), store.api.call<Pending>('pages.pending')]).then(([listed, unresolved, waiting]) => {
       if (!current) return
       if (listed.ok) setPeople(listed.result.people)
       if (unresolved.ok) setHandles(unresolved.result.handles)
+      if (waiting.ok) setPending(waiting.result.changes)
       setLoaded(true)
     })
     return () => { current = false }
@@ -44,11 +46,22 @@ export function PeoplePage() {
     const reply = await run()
     if (!reply.ok) { setFailure(reply.error.kind === 'conflict' ? reply.error.message.replace(/ Use move to give it to this person\.$/, '') : reply.error.message); return false }
     setOutcome({ message: message(reply.result.person), jobId: reply.result.job?.id ?? null })
+    setPending(reply.result.pending?.changes ?? 0)
     setRenaming(undefined)
     setMerging(undefined)
     void store.refreshJobs()
     store.touch()
     return true
+  }
+
+  /** Draw the changes waiting to be drawn, in one pass. */
+  const update = async () => {
+    setFailure(undefined)
+    const reply = await store.api.call<{ job: Job | null }>('people.update')
+    if (!reply.ok) { setFailure(reply.error.message); return }
+    setOutcome({ message: t('people.updating'), jobId: reply.result.job?.id ?? null })
+    setPending(0)
+    void store.refreshJobs()
   }
 
   const key = (handle: Handle) => `${handle.service}|${handle.identifier}`
@@ -66,6 +79,7 @@ export function PeoplePage() {
     if (!reply.ok) { setFailure(reply.error.message); return }
     setHandles(previous => previous.filter(handle => !chosen.has(key(handle))))
     setOutcome({ message: t('people.removed', { count: picked.length }), jobId: reply.result.job?.id ?? null })
+    setPending(reply.result.pending?.changes ?? 0)
     stopChoosing()
     void store.refreshJobs()
     store.touch()
@@ -76,10 +90,15 @@ export function PeoplePage() {
       <h2>{t('people.heading')}</h2>
       {readOnly && <p className={css.banner}>{t('people.readOnly')}</p>}
       {failure && <p className={css.error} role="alert">{failure}</p>}
-      {outcome && (
+      {(outcome || pending > 0) && (
         <div className={css.banner} role="status">
-          <p>{outcome.message}</p>
-          {outcome.jobId != null && (
+          {outcome && <p>{outcome.message}</p>}
+          {pending > 0 && (
+            <p>{t('people.waiting', { count: pending })}{' '}
+              <button type="button" className={css.button} disabled={readOnly} onClick={() => void update()}>{t('people.update')}</button>
+            </p>
+          )}
+          {outcome && outcome.jobId != null && (
             <p className={css.muted}>
               {!job || job.status === 'queued' || job.status === 'running' ? t('people.redrawing')
                 : job.status === 'done' ? t('people.redrawn') : t('people.redrawFailed', { error: job.error ?? '' })}

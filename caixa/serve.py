@@ -182,7 +182,7 @@ def run(options: Options, until: Callable[[], bool] = _never, out: Any = None) -
         return 0
 
     remembered = State(home)
-    service = Service(read_only=options.read_only, state=remembered)
+    service = Service(read_only=options.read_only, state=remembered, batch_pages=True)
     chosen = box or _last_box(remembered, say)
     if chosen:
         try:

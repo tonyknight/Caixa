@@ -230,16 +230,24 @@ export interface Handle {
 }
 
 /** What removing people returns: how many went, and the job that deletes their data and redraws. */
+/** Changes to people saved but not yet drawn on the pages (Caixa's window: they wait for Update). */
+export interface Pending {
+  readonly changes: number
+  readonly scope: 'index' | 'pages' | null
+}
+
 export interface Removal {
   readonly removed: number
   readonly remembered: number
   readonly job: Job | null
+  readonly pending?: Pending
 }
 
 /** What a change to people returns: the person as they now are, and the job that redraws pages. */
 export interface PersonChange {
   readonly person: Person
   readonly job: Job | null
+  readonly pending?: Pending
 }
 
 export interface WorkerInfo {

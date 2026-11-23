@@ -17,10 +17,11 @@ useful without Caixa.
 from __future__ import annotations
 
 import json
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Union
+from typing import Any, Callable, Union
 
 from caixa import __version__
 from caixa.master import Master
@@ -47,6 +48,13 @@ files that open without any special software.
 
 To add more, use Caixa. To read, just open a page in a web browser.
 """
+
+
+#: How much of the box a change to people needs drawn again, narrowest first.
+SCOPES = ("index", "pages")
+
+#: One change to `box.yaml` at a time, across the service's threads.
+STATE_LOCK = threading.RLock()
 
 
 class BoxError(Exception):
@@ -108,14 +116,60 @@ class Box:
         except (OSError, ValueError, TypeError):
             return 1
 
+    def update_state(self, change: Callable[[dict[str, Any]], Any]) -> Any:
+        """Change `box.yaml` in place: read, `change(data)`, write; one change at a time (the
+        service's job runner and its requests both write it). Returns what `change` returned."""
+        with STATE_LOCK:
+            data = self._settings()
+            result = change(data)
+            path = self.caixa_dir / "box.yaml"
+            part = path.with_name("box.yaml.part")
+            part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+            part.replace(path)
+            return result
+
     def mark_layout(self, layout: int) -> None:
         """Record that the box's files are now laid out as `layout`."""
-        data = self._settings()
-        data["layout"] = layout
-        path = self.caixa_dir / "box.yaml"
-        part = path.with_name("box.yaml.part")
-        part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
-        part.replace(path)
+        self.update_state(lambda data: data.__setitem__("layout", layout))
+
+    # --- Changes not yet drawn on the pages ----------------------------------------------
+
+    def pending(self) -> dict[str, Any]:
+        """The changes to people waiting to be drawn: `{"changes": n, "scope": "index" | "pages"}`
+        (`index`: only the people page needs drawing; `pages`: the person pages too)."""
+        try:
+            found = self._settings().get("pending") or {}
+        except (OSError, ValueError):
+            found = {}
+        changes = int(found.get("changes") or 0) if isinstance(found, dict) else 0
+        scope = found.get("scope") if isinstance(found, dict) else None
+        return {"changes": changes, "scope": scope if changes and scope in SCOPES else None}
+
+    def add_pending(self, scope: str) -> dict[str, Any]:
+        """One more change waiting to be drawn; returns what is waiting now."""
+
+        def add(data: dict[str, Any]) -> dict[str, Any]:
+            was = data.get("pending") if isinstance(data.get("pending"), dict) else {}
+            wider = max(scope, str(was.get("scope") or "index"), key=SCOPES.index)
+            data["pending"] = {"changes": int(was.get("changes") or 0) + 1, "scope": wider}
+            return dict(data["pending"])
+
+        return dict(self.update_state(add))
+
+    def take_pending(self, taken: dict[str, Any]) -> None:
+        """What a drawing that started with `taken` waiting has drawn comes off the count (changes
+        made while it ran stay waiting)."""
+
+        def take(data: dict[str, Any]) -> None:
+            was = data.get("pending") if isinstance(data.get("pending"), dict) else {}
+            left = int(was.get("changes") or 0) - int(taken.get("changes") or 0)
+            if left > 0:
+                data["pending"] = {"changes": left, "scope": was.get("scope") or "pages"}
+            else:
+                data.pop("pending", None)
+
+        if taken.get("changes"):
+            self.update_state(take)
 
     @property
     def pages(self) -> str:
@@ -127,14 +181,8 @@ class Box:
 
     def mark_pages(self, fingerprint: str) -> None:
         """Record what drew the box's pages."""
-        data = self._settings()
-        if data.get("pages") == fingerprint:
-            return
-        data["pages"] = fingerprint
-        path = self.caixa_dir / "box.yaml"
-        part = path.with_name("box.yaml.part")
-        part.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
-        part.replace(path)
+        if self.pages != fingerprint:
+            self.update_state(lambda data: data.__setitem__("pages", fingerprint))
 
     # --- Where things are ---------------------------------------------------------------
 

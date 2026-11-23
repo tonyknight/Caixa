@@ -172,7 +172,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     )
     args = parser.parse_args(argv)
     protocol, sys.stdout = sys.stdout, sys.stderr  # stdout belongs to the protocol alone
-    service = Service(read_only=args.read_only, roots=args.root, state=State.default())
+    service = Service(
+        read_only=args.read_only, roots=args.root, state=State.default(), batch_pages=True
+    )  # (the window: changes to people wait for Update)
     worker = Worker(service, protocol, inbox_poll=args.inbox_poll)
     if args.box:
         try:

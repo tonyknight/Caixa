@@ -214,8 +214,12 @@ class Service:
         registry: Optional[Registry] = None,
         roots: Optional[Sequence[PathLike]] = None,
         state: Optional[State] = None,
+        batch_pages: bool = False,
     ) -> None:
         self.state = state  # what to remember between runs; None keeps nothing
+        #: Changes to people wait for `people.update` instead of each starting a redraw (Caixa's
+        #: window: the owner sorts many people, then draws them all at once).
+        self.batch_pages = batch_pages
         self.read_only = read_only
         self.registry = registry or discover()
         self.roots = [Path(r).resolve() for r in (roots if roots is not None else [Path.home()])]
@@ -321,6 +325,9 @@ class Service:
                 self._move_files(box)
             elif box.pages != templates_fingerprint():
                 self._redraw_older(box)
+            elif box.pending()["changes"] and self._people_aware():
+                # changes made last time and never drawn: draw them now
+                self._refresh_job(str(box.pending()["scope"] or "pages"))
 
     def _redraw_older(self, box: Box) -> None:
         """Pages drawn by an older Caixa lack what this one draws (a page's script is brought up to
@@ -948,6 +955,17 @@ class Service:
     def _execute(
         self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
     ) -> dict[str, Any]:
+        if job["kind"] in ("import", "mail-import", "undo"):
+            # these draw every page: the changes waiting when they began are drawn with them
+            waiting = box.pending()
+            result = self._execute_job(box, job, progress)
+            box.take_pending(waiting)
+            return result
+        return self._execute_job(box, job, progress)
+
+    def _execute_job(
+        self, box: Box, job: dict[str, Any], progress: Callable[[Progress], None]
+    ) -> dict[str, Any]:
         if job["kind"] == "undo":
             return self._undo(box, int(job["options"]["job"]), progress)
         if job["kind"] == "mail-read":
@@ -963,10 +981,15 @@ class Service:
             undo.note_moves(box, imported.pop("moved", []))
             return imported
         if job["kind"] == "refresh":
-            moving = int((job.get("options") or {}).get("layout") or 0)
+            options = job.get("options") or {}
+            moving = int(options.get("layout") or 0)
             if moving:
                 progress(Progress("preparing", message="Moving files into Attachments folders"))
-            result = self._refresh_all(box, progress)
+            waiting = box.pending()  # what this drawing covers (changes made meanwhile wait on)
+            scope = str(options.get("scope") or "pages")
+            result = self._refresh_all(box, progress, scope)
+            if scope == "pages" or waiting["scope"] in (None, "index"):
+                box.take_pending(waiting)
             if moving:
                 box.mark_layout(moving)
         else:
@@ -1001,11 +1024,13 @@ class Service:
         store.update(target, result={**(before["result"] or {}), "undone": True})
         return {**result, **done, "undone_job": target, "inserted": 0, "updated": 0}
 
-    def _refresh_all(self, box: Box, progress: Callable[[Progress], None]) -> dict[str, Any]:
+    def _refresh_all(
+        self, box: Box, progress: Callable[[Progress], None], scope: str = "pages"
+    ) -> dict[str, Any]:
         """Redraw pages for every working folder that can (once each); the last result is kept."""
         result: dict[str, Any] = {}
         for aware in self._people_aware():
-            result = asdict(aware.refresh(box, progress))
+            result = asdict(aware.refresh(box, progress, scope))
         return result
 
     # --- Mail -------------------------------------------------------------------------------
@@ -1714,16 +1739,47 @@ class Service:
         master.commit()
         owner_file.save(self._require_box(), master)
         undo.note_people_change(self._require_box())  # undoing the newest import would undo this
-        return {"person": summary, "job": self._redraw()}
+        return {"person": summary, **self._redrawn("pages")}
 
-    def _redraw(self) -> Optional[dict[str, Any]]:
-        """The job that redraws the pages: one already waiting will draw this change too."""
+    def _redraw(self, scope: str = "pages") -> Optional[dict[str, Any]]:
+        """The job that redraws what a change to people needs drawn (`scope`: "index" for the
+        people page alone, "pages" for the person pages too): one already waiting that covers it
+        will draw this change too. In Caixa's window (`batch_pages`) the change waits instead, to be
+        drawn with the others when the owner asks (`people.update`): no job."""
         if not self._people_aware():
             return None
+        if self.batch_pages:
+            waiting = self._require_box().add_pending(scope)
+            self._announce("pages.pending", waiting)
+            return None
+        return self._refresh_job(scope)
+
+    def _refresh_job(self, scope: str) -> dict[str, Any]:
         for job in self._jobs().list(limit=50):
             if job["kind"] == "refresh" and job["status"] == "queued":
-                return dict(job)
-        return self._enqueue("refresh", None, None, {})
+                if (job.get("options") or {}).get("scope", "pages") == "pages" or scope == "index":
+                    return dict(job)
+        return self._enqueue("refresh", None, None, {"scope": scope} if scope != "pages" else {})
+
+    def _redrawn(self, scope: str) -> dict[str, Any]:
+        """A change's reply: the job drawing it (none while it waits), and what is waiting."""
+        job = self._redraw(scope)
+        return {"job": job, "pending": self._require_box().pending()}
+
+    @method("pages.pending")
+    def pages_pending(self) -> dict[str, Any]:
+        """The changes to people not yet drawn on the pages: `{"changes", "scope"}`."""
+        return self._require_box().pending()
+
+    @method("people.update", write=True)
+    def people_update(self) -> dict[str, Any]:
+        """Draw the changes waiting to be drawn, in one pass: the job (the one already queued, if
+        any), or none when nothing is waiting."""
+        box = self._require_box()
+        waiting = box.pending()
+        if not waiting["changes"] or not self._people_aware():
+            return {"job": None, "pending": waiting}
+        return {"job": self._refresh_job(str(waiting["scope"] or "pages")), "pending": waiting}
 
     @method("people.delete", write=True)
     def people_delete(
@@ -1758,14 +1814,22 @@ class Service:
                 ids.append(found)
             if not ids and not gone:
                 raise ServiceError("invalid_params", "Nobody was chosen to remove.")
+            chosen = len(gone) + len(dict.fromkeys(ids))  # (who was chosen, not what is recorded)
             for found in dict.fromkeys(ids):
                 gone.append({"person": known[found].name})
+                # and their numbers and addresses: a name given since the pages were last drawn is
+                # not in the archive yet (changes wait for Update), so the name alone could miss them
+                gone.extend(
+                    {"identifier": a.value, "service": a.service}
+                    for a in master.aliases()
+                    if a.person_id == found
+                )
                 master.delete_person(found)
             master.commit()
             added = owner_file.add_removed(box, gone)
             owner_file.save(box, master)
         undo.note_people_change(box)
-        return {"removed": len(gone), "remembered": added, "job": self._redraw()}
+        return {"removed": chosen, "remembered": added, **self._redrawn("pages")}
 
     @method("people.link", write=True)
     def people_link(
@@ -1832,7 +1896,7 @@ class Service:
             "changed": changed,
             "category": category,
             "subcategory": subcategory,
-            "job": self._redraw(),
+            **self._redrawn("index"),  # (who is in which category: the people page alone)
         }
 
     @method("people.join", write=True)
@@ -1922,7 +1986,7 @@ class Service:
                 raise ServiceError("invalid_params", str(error)) from None
             master.commit()
             owner_file.save(box, master)
-        return {**done, "job": self._redraw()}
+        return {**done, **self._redrawn("index")}
 
     @method("people.subcategory.add", write=True)
     def people_subcategory_add(

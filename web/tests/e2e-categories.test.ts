@@ -24,6 +24,15 @@ run('sorting people on the index page, in a browser', () => {
       await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
+  /** The changes waiting to be drawn are drawn (Update the pages), and Caixa is idle again. */
+  const drawn = async () => {
+    await running.rpc('people.update')
+    for (let i = 0; i < 300; i++) {
+      const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+      if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
+      await new Promise(resolve => setTimeout(resolve, 200))
+    }
+  }
   /** The page has done its last change: Caixa's queue is empty and the page takes changes again. */
   const unlocked = async (index: any) => {
     await index.waitForFunction(() => !document.querySelector('.app')!.classList.contains('locked'), null, { timeout: 60_000 })
@@ -96,6 +105,16 @@ run('sorting people on the index page, in a browser', () => {
         throw new Error(`footer said: ${await index.locator('#said').textContent()} / picked ${await index.locator('#picked').textContent()}\n${error.message}`)
       })
       expect(await index.locator('#people .tile:visible').count()).toBe(1)  // they left Unassigned
+      // saved, not yet drawn: the bar says so, and Update draws it
+      const waiting = index.getByRole('status', { name: 'Changes not yet on the pages' })
+      await waiting.waitFor({ timeout: 10_000 })
+      expect(await waiting.textContent()).toContain('1 change not yet on the pages')
+      expect(await waiting.textContent()).toContain('Only the people page needs drawing.')
+      await shot(index, 'changes-waiting')
+      await waiting.getByRole('button', { name: 'Update the pages' }).click()
+      await unlocked(index)
+      await expect.poll(async () => (await running.rpc('pages.pending')).result.changes).toBe(0)
+      await expect.poll(() => waiting.isVisible()).toBe(false)
       expect(await index.locator('.sidebar a[data-view="family"] .n').textContent()).toBe('2')
       const saved = await categories()
       expect(['Luisa Gomes', 'Pedro Dias'].map(name => saved[name])).toEqual(['family', 'family'])
@@ -213,6 +232,7 @@ run('sorting people on the index page, in a browser', () => {
       await browser.close()
     }
     // the index file itself is redrawn with the categories, for opening without Caixa
+    await drawn()
     for (let i = 0; i < 300; i++) {
       const jobs = (await running.rpc('jobs.list')).result as { kind: string; status: string }[]
       if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
@@ -227,11 +247,7 @@ run('sorting people on the index page, in a browser', () => {
 
   it('selects people within a category with Cmd-click, Shift-Cmd-click or a box, and moves them', async () => {
     const cousins = (await running.rpc('people.subcategory.add', { category: 'family', name: 'Cousins' })).result.id as number
-    for (let i = 0; i < 300; i++) {  // (the redraw that adding it started)
-      const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
-      if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
-      await new Promise(resolve => setTimeout(resolve, 200))
-    }
+    await drawn()  // (the people page, drawn with it)
     const browser = await playwright()!.chromium.launch()
     try {
       const page = await openCaixa(browser, running)
@@ -294,11 +310,7 @@ run('sorting people on the index page, in a browser', () => {
       await browser.close()
     }
     await running.rpc('people.subcategory.delete', { id: cousins })  // (as the next test expects)
-    for (let i = 0; i < 300; i++) {
-      const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
-      if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
-      await new Promise(resolve => setTimeout(resolve, 200))
-    }
+    await drawn()
   }, 240_000)
 
   it('makes subcategories, sorts someone into one, renames and deletes it; from disk they only show', async () => {
@@ -420,7 +432,7 @@ run('sorting people on the index page, in a browser', () => {
     // From disk: the subcategories show and filter, but cannot be changed
     const made = (await running.rpc('people.subcategory.add', { category: 'friends', name: 'Climbing' })).result
     await running.rpc('people.categorize', { people: ['Sara Lima'], category: 'friends', subcategory: made.id })
-    await idle()
+    await drawn()
     const offline = await playwright()!.chromium.launch()
     try {
       const disk = await offline.newPage({ viewport: { width: 1280, height: 900 } })
@@ -562,7 +574,8 @@ run('sorting people on the index page, in a browser', () => {
       await drag(index, tile('+15550000888'), '#people .tile[data-name="Luisa Gomes"]')
       await index.getByRole('dialog', { name: 'Merge +15550000888 into Luisa Gomes?' }).getByRole('button', { name: 'Merge' }).click()
       await index.getByText('+15550000888 merged into Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
-      const settled = async () => {  // (the redraw the change started brings the store up to date)
+      const settled = async () => {  // (drawing the change brings the store up to date)
+        await running.rpc('people.update')
         for (let i = 0; i < 300; i++) {
           const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
           if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
