@@ -91,6 +91,8 @@ def expand(document: dict[str, Any]) -> dict[str, Any]:
 MAIL_SERVICE = "Mail"
 PEOPLE = "People"
 GROUPS = "Groups"
+#: Under People: the mail of people removed from the box (kept, but nobody's page).
+REMOVED = "Removed"
 _CHAT_PREFIXES = ("WhatsApp Chat with ", "WhatsApp Chat - ")
 
 
@@ -113,8 +115,12 @@ class PageSpec:
     message_ids: list[str] = field(default_factory=list)
     #: A mail conversation's account (Caixa's mail workflow); None for mail drawn the Phase 1 way.
     account: Optional[str] = None
-    #: An account's mail conversation: the person it is filed with.
+    #: An account's mail conversation: the person it is filed with (None when everyone in it but
+    #: the owner was removed from the box: it is kept under People/Removed).
     home: Optional[str] = None
+    #: An account's mail conversation: who it is with, as the mail names them (shown in the Mail
+    #: list even when they were removed).
+    correspondent: Optional[str] = None
     #: A person's page: the account mail conversations they are in (an entry for each).
     mail: list["PageSpec"] = field(default_factory=list)
 
@@ -275,22 +281,37 @@ class Renderer:
                 people.append(row["person"])
         return people
 
-    def _mail_home(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> str:
+    def _mail_home(
+        self,
+        conversation: dict[str, Any],
+        messages: list[dict[str, Any]],
+        with_removed: bool = False,
+    ) -> Optional[str]:
         """The person a mail conversation is filed with: the non-owner who wrote most of it (the
-        first, on a tie); for mail only the owner wrote, the person it was written to."""
+        first, on a tie); for mail only the owner wrote, the person it was written to. Someone
+        removed from the box is passed by (unless `with_removed`): a thread they shared stays with
+        the others, and one with nobody else is filed with nobody (None)."""
+
+        def present(handle: Optional[int]) -> bool:
+            return (
+                bool(handle)
+                and handle not in self.owner_handles
+                and (with_removed or not self.handles[handle].get("removed"))
+            )
+
         counts: dict[str, int] = {}
         for message in messages:
             handle = message["sender_handle_id"]
-            if handle and handle not in self.owner_handles and not message["is_from_owner"]:
+            if present(handle) and not message["is_from_owner"]:
                 label = _handle_label(self.handles[handle])
                 counts[label] = counts.get(label, 0) + 1
         if counts:
             most = max(counts.values())
             return next(label for label, n in counts.items() if n == most)
         for handle in self.participants.get(conversation["id"], []):
-            if handle not in self.owner_handles:
+            if present(handle):
                 return _handle_label(self.handles[handle])
-        return "Unknown"
+        return None
 
     def _mail_page(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> PageSpec:
         first = messages[0]
@@ -306,7 +327,8 @@ class Renderer:
             subject = conversation["name"] or "(no subject)"
             date = first["local"]
             person = self._mail_home(conversation, messages)
-            home = safe_name(person, "Unknown")
+            shown = person or self._mail_home(conversation, messages, with_removed=True)
+            home = safe_name(person, "Unknown") if person else REMOVED
             return PageSpec(
                 "mail",
                 subject,
@@ -317,6 +339,7 @@ class Renderer:
                 [m["id"] for m in messages],
                 account=str(account),
                 home=person,
+                correspondent=shown or "Unknown",
             )
         sender_id = first["sender_handle_id"]
         sender = _handle_label(self.handles[sender_id]) if sender_id else "unknown sender"

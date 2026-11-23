@@ -297,7 +297,8 @@
       dialog.querySelector("button.danger").textContent = "Delete";
       dialog.querySelector("h2").textContent = "Delete " + people(n) + " from this box?";
       dialog.querySelector("p").textContent = (n === 1 ? "Their" : "Each one's") +
-        " conversations with you and the photos, recordings and files in them are deleted, and later imports leave them out. " +
+        " text conversations with you and the photos, recordings and files in them are deleted, and later imports leave them out. " +
+        "Their mail is kept, without a page of their own (in People/Removed). " +
         "What they wrote in group conversations stays. This can't be undone.";
       asking = function () { remove(chosen); };
       if (dialog.showModal) dialog.showModal(); else if (window.confirm(dialog.querySelector("h2").textContent)) remove(chosen);
