@@ -40,7 +40,16 @@
     "dialog.confirm h2{font-size:1.05rem;margin:0 0 .5rem}dialog.confirm p{font-size:.9rem;color:var(--muted);margin:0 0 1rem}",
     "dialog.confirm .buttons{display:flex;justify-content:flex-end;gap:.5rem}",
     "dialog.confirm button{font:inherit;font-size:.88rem;padding:.35rem .9rem;border-radius:.5rem;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}",
-    "dialog.confirm button.danger{background:#bf616a;border-color:#bf616a;color:#eceff4}"
+    "dialog.confirm button.danger{background:#bf616a;border-color:#bf616a;color:#eceff4}",
+    ".workbar{position:sticky;top:0;z-index:40;background:#ebcb8b;color:#2e3440;padding:.55rem 1.2rem .7rem;box-shadow:0 2px 10px rgba(46,52,64,.3);font-size:.92rem}",
+    ".workbar .what{display:flex;flex-wrap:wrap;gap:.2rem .8rem;align-items:baseline}",
+    ".workbar strong{font-size:1rem}.workbar .paused{margin-left:auto;font-weight:600}",
+    ".workbar .track{height:.4rem;margin-top:.4rem;border-radius:.2rem;background:rgba(46,52,64,.18);overflow:hidden}",
+    ".workbar .fill{height:100%;width:0;background:#2e3440;border-radius:.2rem;transition:width .3s}",
+    ".workbar .fill.unknown{width:30% !important;animation:workbar 1.4s ease-in-out infinite}",
+    "@keyframes workbar{0%{margin-left:-30%}100%{margin-left:100%}}",
+    ".workbar.nudge{animation:nudge .4s}@keyframes nudge{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}",
+    ".app.locked .tile{cursor:progress}.app.locked .tile .tool,.app.locked .naming,.app.locked .sidebar .add-sub,.app.locked .sidebar .remove-sub,.app.locked #actions button{opacity:.45}"
   ].join("\n");
   function init() {
     var app = document.querySelector(".app");
@@ -162,14 +171,91 @@
     function people(n) { return plural(n, "person").replace("persons", "people"); }
     function say(text) { footer.said.textContent = text || ""; }
     function rpc(method, params) {
+      var change = method !== "jobs.list" && method !== "people.list";  // (what changes the box)
+      if (change) { work.calls += 1; refresh(); }
+      var done = function (result) {
+        if (!change) return;
+        work.calls -= 1;
+        work.changed += 1;  // (a look at the queue begun before this is out of date)
+        var job = result && result.job;
+        if (job && job.id) work.awaiting[job.id] = true;  // the redraw this change started
+        watch();
+      };
       return fetch("/api/caixa/rpc", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
         body: JSON.stringify({ method: method, params: params }) })
         .then(function (response) { return response.json(); })
         .then(function (reply) {
           if (!reply.ok) throw new Error((reply.error && reply.error.message) || "Caixa refused.");
           return reply.result;
-        }, function () { throw new Error("Caixa could not be reached."); });
+        }, function () { throw new Error("Caixa could not be reached."); })
+        .then(function (result) { done(result); return result; }, function (error) { done(null); throw error; });
     }
+
+    // --- Work in progress: a bar across the top, and no new change until Caixa has done it ----
+    // Each change is saved at once, but redrawing the pages (and an import, or summaries) takes
+    // a while; the bar says so, and changes wait for the queue to be empty.
+    var KINDS = { refresh: "Redrawing the pages", import: "Importing", "mail-import": "Importing mail",
+      "mail-read": "Reading an mbox", "mail-clean": "Writing a cleaned mbox", "mail-reduce": "Writing a reduced mbox",
+      "mail-summarize": "Writing summaries", undo: "Undoing an import" };
+    var work = { calls: 0, jobs: [], awaiting: {}, changed: 0, since: 0, polling: null, later: null };
+    var bar = document.createElement("div");
+    bar.className = "workbar";
+    bar.setAttribute("role", "status");
+    bar.setAttribute("aria-label", "Caixa is working");
+    bar.hidden = true;
+    bar.innerHTML = '<div class="what"><strong></strong><span class="step"></span><span class="paused">Changes are paused until this is done.</span></div>' +
+      '<div class="track"><div class="fill"></div></div>';
+    document.body.insertBefore(bar, document.body.firstChild);  // (above the page: it covers nothing)
+    function busy() { return work.calls > 0 || work.jobs.length > 0 || Object.keys(work.awaiting).length > 0; }
+    function watch() {  // ask Caixa what it is doing, until it is done
+      if (work.polling !== null || !CAIXA) return;
+      work.polling = 0;
+      var asked = work.changed;
+      rpc("jobs.list", { limit: 50 }).then(function (jobs) {
+        if (asked !== work.changed) return;  // a change ended meanwhile: look again
+        work.jobs = jobs.filter(function (j) { return j.status === "queued" || j.status === "running"; });
+        var open = {};
+        work.jobs.forEach(function (j) { open[j.id] = true; });
+        Object.keys(work.awaiting).forEach(function (id) { if (!open[id]) delete work.awaiting[id]; });
+      }, function () { work.jobs = []; work.awaiting = {}; }).then(function () {  // (Caixa gone: nothing to wait for)
+        work.polling = null;
+        refresh();
+        if (busy()) work.polling = setTimeout(function () { work.polling = null; watch(); }, asked !== work.changed ? 0 : 700);
+      });
+    }
+    function refresh() {
+      var on = busy();
+      app.classList.toggle("locked", on);
+      if (!on) { bar.hidden = true; work.since = 0; return; }
+      if (!work.since) {
+        work.since = Date.now();
+        clearTimeout(work.later);
+        work.later = setTimeout(refresh, 650);  // a quick save shows no bar
+      }
+      var job = work.jobs.filter(function (j) { return j.status === "running"; })[0] || work.jobs[0];
+      bar.querySelector("strong").textContent = job ? (KINDS[job.kind] || "Caixa is working") : "Saving your changes";
+      var waiting = work.jobs.length - (job ? 1 : 0);
+      var step = job ? (job.status === "queued" ? "Waiting to start" : (job.message || job.stage || "Starting")) : "";
+      bar.querySelector(".step").textContent = step + (waiting > 0 ? (step ? " · " : "") + waiting + " more waiting" : "");
+      var fill = bar.querySelector(".fill"), known = job && job.total > 0 && job.current >= 0;
+      fill.classList.toggle("unknown", !known);
+      fill.style.width = known ? Math.min(100, Math.round(100 * job.current / job.total)) + "%" : "";
+      if (job || Date.now() - work.since >= 600) bar.hidden = false;  // (a quick save shows no bar)
+    }
+    function hold() {  // a change of several steps: busy from its first step to its last
+      work.calls += 1; refresh();
+      var held = true;
+      return function () { if (held) { held = false; work.calls -= 1; watch(); } };
+    }
+    function blocked() {  // a new change, while Caixa is still busy with the last: refused
+      if (!busy()) return false;
+      say("Wait until Caixa has finished: the bar at the top says what it is doing.");
+      refresh();
+      bar.hidden = false;
+      bar.classList.remove("nudge"); void bar.offsetWidth; bar.classList.add("nudge");
+      return true;
+    }
+    if (CAIXA) watch();  // (a redraw may be running already: the one that opening the box starts)
     function counts() {
       Array.prototype.forEach.call(document.querySelectorAll(".sidebar [data-view]"), function (link) {
         var name = link.getAttribute("data-view"), badge = link.querySelector(".n");
@@ -249,6 +335,8 @@
     function categorize(chosen, category, done, sub) {
       if (!chosen.length) return;
       if (!CAIXA) { say(NEEDS_CAIXA); return; }
+      if (blocked()) return;
+      var release = hold();
       say("Saving…");
       if (category === "unrecognized") chosen = chosen.filter(function (t) { return t.getAttribute("data-name") !== null; });
       keepAsPeople(chosen).then(function () {
@@ -267,7 +355,7 @@
         anchor = null;
         say(done(names.length));
         update();
-      }).catch(function (error) { say("Not saved: " + error.message); });
+      }).catch(function (error) { say("Not saved: " + error.message); }).then(release);
     }
     function move(category, sub) {
       category = category || null;  // (Unassigned: no category)
@@ -306,6 +394,7 @@
       if (dialog.showModal) { if (!dialog.open) dialog.showModal(); } else window.alert(title + "\n\n" + text);
     }
     function confirmRemoval(chosen) {
+      if (blocked()) return;
       var n = chosen.length;
       prepare("Delete");
       dialog.querySelector("h2").textContent = "Delete " + people(n) + " from this box?";
@@ -374,9 +463,10 @@
     }
     function name(tile, typed) {
       var handles = JSON.parse(tile.getAttribute("data-handles") || "[]");
-      if (!handles.length) return;
+      if (!handles.length || blocked()) return;
       var joins = existing(typed);
       if (joins) typed = joins;
+      var release = hold();
       say("Saving…");
       var chain = Promise.resolve();
       handles.forEach(function (h) {
@@ -404,7 +494,7 @@
         known.push({ name: typed, detail: "" });
         say(typed + " is kept as a person, in Unassigned.");
         update();
-      }, function (error) { say("Not saved: " + error.message); });
+      }, function (error) { say("Not saved: " + error.message); }).then(release);
     }
 
     // --- Each tile in a cell, with its tools -----------------------------------------------
@@ -571,6 +661,7 @@
     document.addEventListener("dragstart", function (event) {
       var tile = event.target.closest && event.target.closest(".tile");
       if (!tile || !tile.draggable) return;
+      if (blocked()) { event.preventDefault(); return; }
       if (!tile.classList.contains("selected")) { clear(); pick(tile, false); }
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", selected().length + " people");
@@ -663,6 +754,7 @@
       var add = event.target.closest(".add-sub");
       if (add && CAIXA) {
         event.preventDefault();
+        if (blocked()) return;
         var li = add.parentNode, category = add.getAttribute("data-category"), parent = add.getAttribute("data-parent");
         var above = parent ? subName(subLink(parent)) : LABELS[category];
         var field = editor("New subcategory of " + above, "", function (typed) {
@@ -690,6 +782,7 @@
       var link = event.target.closest && event.target.closest("a[data-sub]");
       if (!link || !CAIXA) return;
       event.preventDefault();
+      if (blocked()) return;
       var row = link.parentNode, old = subName(link), id = link.getAttribute("data-sub");
       var field = editor("Rename " + old, old, function (typed) {
         say("Saving…");
@@ -707,6 +800,7 @@
       field.select();
     });
     function confirmDeleteSub(link) {
+      if (blocked()) return;
       var name = subName(link), id = link.getAttribute("data-sub"), parent = link.getAttribute("data-parent");
       var category = link.getAttribute("data-category");
       var up = parent ? subName(subLink(parent)) : LABELS[category];
@@ -778,6 +872,7 @@
       return plan;
     }
     function confirmMerge(chosen, target) {
+      if (blocked()) return;
       var plan = joining(chosen, target);
       var others = [target].concat(chosen).filter(function (t) { return tileName(t) !== plan.into; });
       var what = others.length === 1 ? tileName(others[0]) : people(others.length);

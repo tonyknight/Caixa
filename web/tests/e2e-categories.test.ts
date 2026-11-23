@@ -24,6 +24,10 @@ run('sorting people on the index page, in a browser', () => {
       await new Promise(resolve => setTimeout(resolve, 200))
     }
   }
+  /** The page has done its last change: Caixa's queue is empty and the page takes changes again. */
+  const unlocked = async (index: any) => {
+    await index.waitForFunction(() => !document.querySelector('.app')!.classList.contains('locked'), null, { timeout: 60_000 })
+  }
   const categories = async () => Object.fromEntries(
     ((await running.rpc('people.list')).result.people as { name: string; category: string | null }[]).map(p => [p.name, p.category]))
 
@@ -98,6 +102,7 @@ run('sorting people on the index page, in a browser', () => {
 
       // the last one with the footer's buttons
       await index.locator('#people .tile:visible').first().click()
+      await unlocked(index)
       await index.locator('#actions').getByRole('button', { name: 'Friends' }).click()
       await index.getByText('1 person moved to Friends.').waitFor({ timeout: 30_000 })
       expect((await categories())['Sara Lima']).toBe('friends')
@@ -115,6 +120,7 @@ run('sorting people on the index page, in a browser', () => {
       const corner = await close.boundingBox(), tileBox = await sara.locator('.tile').boundingBox()
       expect(corner!.x + corner!.width).toBeGreaterThan(tileBox!.x + tileBox!.width - 30)  // the upper right
       expect(corner!.y).toBeLessThan(tileBox!.y + 30)
+      await unlocked(index)
       await sara.getByRole('button', { name: 'Move Sara Lima back to Unassigned' }).click()
       await index.getByText('Sara Lima moved back to Unassigned.').waitFor({ timeout: 30_000 })
       expect((await categories())['Sara Lima']).toBe(null)
@@ -144,6 +150,7 @@ run('sorting people on the index page, in a browser', () => {
       // a name nobody has: a new person
       await field.fill('Tio Rui')
       expect(await unknown.getByRole('option').count()).toBe(0)
+      await unlocked(index)
       await unknown.getByRole('button', { name: 'Apply' }).click()
       await index.getByText('Tio Rui is kept as a person, in Unassigned.').waitFor({ timeout: 30_000 }).catch(async (error: Error) => {
         throw new Error(`footer said: ${await index.locator('#said').textContent()} / ${await unknown.locator('.tile').getAttribute('data-handles')}\n${error.message}`)
@@ -157,6 +164,7 @@ run('sorting people on the index page, in a browser', () => {
       await otherField.fill('sara')
       await other.getByRole('option', { name: /Sara Lima/ }).click()
       expect(await otherField.inputValue()).toBe('Sara Lima')
+      await unlocked(index)
       await otherField.press('Enter')
       await index.getByText('Linked to Sara Lima.', { exact: false }).waitFor({ timeout: 30_000 })
       expect(await index.locator('#people .tile:visible').count()).toBe(0)  // its tile joined hers
@@ -180,6 +188,7 @@ run('sorting people on the index page, in a browser', () => {
       expect(decodeURIComponent(opened.url())).toContain('People/')  // (the page from before the redraw)
       await opened.close()
       expect(await index.locator('#picked').textContent()).toBe('1 selected')
+      await unlocked(index)
       await rui.locator('.tile').press('Delete')
       const ask = index.getByRole('dialog', { name: 'Delete 1 person from this box?' })
       await ask.waitFor()
@@ -311,6 +320,7 @@ run('sorting people on the index page, in a browser', () => {
       // Sara into Friends first
       await index.locator('.sidebar a[data-view="unassigned"]').click()
       await index.locator('#people .tile:visible', { hasText: 'Sara Lima' }).click()
+      await unlocked(index)
       await index.locator('#actions').getByRole('button', { name: 'Friends' }).click()
       await index.getByText('1 person moved to Friends.').waitFor({ timeout: 30_000 })
 
@@ -320,6 +330,7 @@ run('sorting people on the index page, in a browser', () => {
       expect(await index.locator('.subs[data-for="friends"]').isVisible()).toBe(false)
       await fold.click()
       expect(await fold.getAttribute('aria-expanded')).toBe('true')
+      await unlocked(index)
       await index.getByRole('button', { name: 'Add a subcategory to Friends' }).click()
       await index.getByRole('textbox', { name: 'New subcategory of Friends' }).fill('School')
       await index.getByRole('textbox', { name: 'New subcategory of Friends' }).press('Enter')
@@ -327,6 +338,7 @@ run('sorting people on the index page, in a browser', () => {
       await school.waitFor({ timeout: 30_000 })
       // and one under it, which cannot have its own
       await index.getByRole('button', { name: 'Subcategories of School' }).click()
+      await unlocked(index)
       await index.getByRole('button', { name: 'Add a subcategory to School' }).click()
       await index.getByRole('textbox', { name: 'New subcategory of School' }).fill('Class of 98')
       await index.getByRole('textbox', { name: 'New subcategory of School' }).press('Enter')
@@ -335,6 +347,7 @@ run('sorting people on the index page, in a browser', () => {
       expect(await index.getByRole('button', { name: 'Add a subcategory to Class of 98' }).count()).toBe(0)
       await shot(index, 'subcategories')
       // a double click renames it
+      await unlocked(index)
       await year.dblclick()
       const rename = index.getByRole('textbox', { name: 'Rename Class of 98' })
       await rename.fill("Class of '98")
@@ -345,6 +358,7 @@ run('sorting people on the index page, in a browser', () => {
       // Sara, dragged from Friends onto it
       await index.locator('.sidebar a[data-view="friends"]').click()
       const target = await index.locator('.sidebar a[data-sub]', { hasText: "Class of '98" }).getAttribute('data-sub')
+      await unlocked(index)
       await index.locator('#people .tile:visible', { hasText: 'Sara Lima' }).evaluate((tile: HTMLElement, id: string) => {
         const goal = document.querySelector(`.sidebar a[data-sub="${id}"]`)!
         const data = new DataTransfer()
@@ -389,6 +403,7 @@ run('sorting people on the index page, in a browser', () => {
 
       // deleting School asks, then takes its own with it; Sara stays in Friends
       await school.hover()
+      await unlocked(index)
       await index.getByRole('button', { name: 'Delete School' }).click()
       const ask = index.getByRole('dialog', { name: 'Delete the subcategory School?' })
       await ask.waitFor()
@@ -435,6 +450,7 @@ run('sorting people on the index page, in a browser', () => {
     await imported('voicemail', archive)
   }
   const drag = async (index: any, from: any, onto: string) => {
+    await unlocked(index)
     await from.evaluate((tile: HTMLElement, selector: string) => {
       const goal = document.querySelector(selector)!
       const data = new DataTransfer()
@@ -473,6 +489,51 @@ run('sorting people on the index page, in a browser', () => {
       await drag(index, tile('Pedro Dias'), '.sidebar a[data-view="unassigned"]')
       await index.getByText('1 person moved to Unassigned.').waitFor({ timeout: 30_000 })
       expect((await categories())['Pedro Dias']).toBe(null)
+    } finally {
+      await browser.close()
+    }
+  }, 240_000)
+
+  it('pauses changes while Caixa is still working, with a bar that says what it is doing', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const index = await openIndex(browser)
+      const tile = (name: string) => index.locator('#people .tile:visible', { hasText: name })
+      const raw = (from: any, onto: string) => from.evaluate((t: HTMLElement, selector: string) => {  // (no waiting)
+        const goal = document.querySelector(selector)!
+        const data = new DataTransfer()
+        t.dispatchEvent(new DragEvent('dragstart', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }))
+        goal.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }))
+        t.dispatchEvent(new DragEvent('dragend', { bubbles: true, cancelable: true, dataTransfer: data }))
+      }, onto)
+      await index.locator('.sidebar a[data-view="all"]').click()
+      await unlocked(index)
+      const said = await index.evaluate(() => {  // Luisa onto Friends, then Sara onto Business at once
+        const drag = (t: Element, goal: Element) => {
+          const data = new DataTransfer()
+          for (const [target, kind] of [[t, 'dragstart'], [goal, 'dragover'], [goal, 'drop'], [t, 'dragend']] as const) {
+            target.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: data }))
+          }
+        }
+        const tileOf = (name: string) => [...document.querySelectorAll('#people .tile')].find(t => t.textContent!.includes(name))!
+        drag(tileOf('Luisa Gomes'), document.querySelector('.sidebar a[data-view="friends"]')!)
+        drag(tileOf('Sara Lima'), document.querySelector('.sidebar a[data-view="business"]')!)
+        return document.getElementById('said')!.textContent
+      })
+      expect(said).toContain('Wait until Caixa has finished')
+      const bar = index.getByRole('status', { name: 'Caixa is working' })
+      await bar.waitFor({ timeout: 10_000 })
+      expect(await bar.textContent()).toContain('Changes are paused until this is done.')
+      await shot(index, 'work-bar')
+      await unlocked(index)
+      expect(await bar.isVisible()).toBe(false)
+      expect((await categories())['Luisa Gomes']).toBe('friends')
+      expect((await categories())['Sara Lima']).not.toBe('business')  // the refused one never went
+      await raw(tile('Sara Lima'), '.sidebar a[data-view="business"]')  // and now it does
+      await index.getByText('1 person moved to Business.').waitFor({ timeout: 30_000 })
+      await unlocked(index)
+      expect((await categories())['Sara Lima']).toBe('business')
     } finally {
       await browser.close()
     }
