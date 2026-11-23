@@ -286,9 +286,15 @@ def _convert_batches(
     try:
         batches = parser.parse(export)
     except FileNotFoundError as error:
+        if key == "voicemail" and error.filename in (None, str(export), export):
+            raise CommandError(
+                f"No {VOICEMAIL_DATABASE} and no voicemail audio files named like "
+                f"'(2018-12-21) 15 02 31 - Jane Smith.amr' were found in {export}"
+            ) from error
+        # (any other file that went missing while reading: say which, not blame voicemail)
         raise CommandError(
-            f"No {VOICEMAIL_DATABASE} and no voicemail audio files named like "
-            f"'(2018-12-21) 15 02 31 - Jane Smith.amr' were found in {export}"
+            f"A file went missing while reading {export}: {error.filename or error}. Nothing from "
+            "it was imported; try again."
         ) from error
     except sqlite3.DatabaseError as error:
         raise CommandError(f"Can't read the {name} database in {export}: {error}") from error

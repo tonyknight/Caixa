@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import hashlib
 import os
-import shutil
 import re
+import secrets
+import shutil
 from pathlib import Path
-from typing import Union
+from typing import Callable, Union
 
 
 def store_by_hash(root: Union[str, Path], data: bytes, suffix: str = "") -> tuple[str, str]:
@@ -26,11 +27,23 @@ def store_by_hash(root: Union[str, Path], data: bytes, suffix: str = "") -> tupl
     relative = f"{digest[:2]}/{digest}" + (f".{extension}" if extension else "")
     target = Path(root) / relative
     if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(target.name + ".part")
-        temporary.write_bytes(data)
-        os.replace(temporary, target)  # never leave a half-written file under its final name
+        _place(target, lambda temporary: temporary.write_bytes(data))
     return digest, relative
+
+
+def _place(target: Path, write: Callable[[Path], object]) -> None:
+    """Write a file through a temporary file of this writer's own, then move it into place.
+
+    Never a half-written file under its final name. Several writers may store the same file at
+    once (a mail import's worker processes): each has its own temporary file, so none moves
+    another's away, and the last move leaves the same bytes."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(f"{target.name}.{os.getpid()}-{secrets.token_hex(4)}.part")
+    try:
+        write(temporary)
+        os.replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def store_file_by_hash(root: Union[str, Path], source: Union[str, Path], digest: str) -> str:
@@ -40,8 +53,5 @@ def store_file_by_hash(root: Union[str, Path], source: Union[str, Path], digest:
     relative = f"{digest[:2]}/{digest}" + (f".{extension}" if extension else "")
     target = Path(root) / relative
     if not target.exists():
-        target.parent.mkdir(parents=True, exist_ok=True)
-        temporary = target.with_name(target.name + ".part")
-        shutil.copyfile(source, temporary)
-        os.replace(temporary, target)
+        _place(target, lambda temporary: shutil.copyfile(source, temporary))
     return relative
