@@ -52,6 +52,7 @@ ALL_METHODS = {
     "people.unresolved",
     "people.link",
     "people.merge",
+    "people.join",
     "people.rename",
     "browse.list",
     "browse.file",
@@ -428,6 +429,7 @@ def test_read_only_reads_everything(viewer: Client) -> None:
         ("people.link", {"service": "WhatsApp", "identifier": "x", "person": "Someone"}),
         ("people.rename", {"person": 1, "name": "New"}),
         ("people.merge", {"source": 1, "target": 2}),
+        ("people.join", {"target": 1, "people": [2]}),
         ("settings.set", {"values": {"privacy.default": "public"}}),
         ("import.start", {}),  # refused even before its parameters are looked at
     ],
@@ -465,6 +467,7 @@ def test_the_write_methods_are_exactly_the_ones_read_only_refuses() -> None:
         "people.link",
         "people.rename",
         "people.merge",
+    "people.join",
         "settings.set",
     }
 

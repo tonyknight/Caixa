@@ -1835,6 +1835,77 @@ class Service:
             "job": self._redraw(),
         }
 
+    @method("people.join", write=True)
+    def people_join(
+        self,
+        target: Union[int, str, None] = None,
+        people: Optional[list[Union[int, str]]] = None,
+        handles: Optional[list[dict[str, str]]] = None,
+        name: Optional[str] = None,
+        target_handles: Optional[list[dict[str, str]]] = None,
+    ) -> dict[str, Any]:
+        """People dropped on someone on the people page join them, keeping that one's name.
+
+        The one dropped on is `target` (a person, by id or name) or, for a tile with no name,
+        its `target_handles` and the `name` it shows (they become that person, a new one or the
+        one already called so). Those dropped are `people` (by id or name: merged in, as
+        `people.merge` does) and `handles` (numbers and addresses nobody is named for: given to
+        them). All of it or nothing."""
+        box = self._require_box()
+
+        def checked(given: Optional[list[dict[str, str]]]) -> list[tuple[str, str]]:
+            found = []
+            for handle in given or []:
+                identifier = str((handle or {}).get("identifier") or "").strip()
+                if not isinstance(handle, dict) or not identifier:
+                    raise ServiceError(
+                        "invalid_params", "A handle needs a service and an identifier."
+                    )
+                found.append((str(handle.get("service") or ""), identifier))
+            return found
+
+        incoming, theirs = checked(handles), checked(target_handles)
+        if target is None and not (name and name.strip() and theirs):
+            raise ServiceError(
+                "invalid_params",
+                "Say who they join: a person, or a tile's numbers or addresses and its name.",
+            )
+        if not (people or incoming):
+            raise ServiceError("invalid_params", "Nobody was dropped to join them.")
+        with box.master() as master:
+            known = {p.id: p for p in master.people()}
+
+            def existing(who: Union[int, str]) -> int:
+                found = who if isinstance(who, int) else master.person_id(str(who))
+                if found is None or found not in known:
+                    raise ServiceError("not_found", f"There is no person '{who}' in this box.")
+                return int(found)
+
+            joining = [existing(who) for who in people or []]
+            if any(known[who].is_owner for who in joining):
+                raise ServiceError(
+                    "conflict",
+                    "The owner can't be merged into someone else; drop the other person on the "
+                    "owner instead.",
+                )
+            try:
+                if target is not None:
+                    into = existing(target)
+                else:
+                    into = int(master.add_person(str(name).strip()))  # (or the one so named)
+                for service, identifier in [*theirs, *incoming]:
+                    kind, scope = alias_kind(service, identifier)
+                    master.add_alias(into, identifier, kind, service=scope, move=True)
+                for who in dict.fromkeys(joining):
+                    if who != into:
+                        master.merge_people(who, into)
+            except (KeyError, ValueError) as error:
+                master.connection.rollback()
+                raise ServiceError("conflict", str(error)) from None
+            master.mark_by_hand(into)
+            done = self._after_people_change(master, into)
+        return {**done, "joined": len(set(joining) - {into}) + len(incoming)}
+
     @method("people.subcategories")
     def people_subcategories(self) -> dict[str, Any]:
         """Every subcategory, each category's in order, with how many people are in it."""

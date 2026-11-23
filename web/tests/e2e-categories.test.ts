@@ -428,7 +428,7 @@ run('sorting people on the index page, in a browser', () => {
     const code = [
       'import sys, zipfile',
       'z = zipfile.ZipFile(sys.argv[1], "w")',
-      'for n, who in enumerate(["+15550000777", "+15550000888", "+15550000999"]): z.writestr(f"vm/(2020-03-0{n + 1}) 10 00 00 - {who}.amr", str(n))',
+      'for n, who in enumerate(["+15550000777", "+15550000888", "+15550000999", "+15550000555", "+15550000666"]): z.writestr(f"vm/(2020-03-0{n + 1}) 10 00 00 - {who}.amr", str(n))',
       'z.close()',
     ].join('\n')
     execFileSync('python', ['-c', code, archive])
@@ -499,22 +499,33 @@ run('sorting people on the index page, in a browser', () => {
       // a number onto a person joins them
       await index.locator('.sidebar a[data-view="unrecognized"]').click()
       await drag(index, tile('+15550000888'), '#people .tile[data-name="Luisa Gomes"]')
-      await index.getByRole('dialog', { name: 'Add +15550000888 to Luisa Gomes?' }).getByRole('button', { name: 'Merge' }).click()
-      await index.getByText('+15550000888 added to Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
-      for (let i = 0; i < 300; i++) {  // (the redraw the change started brings the store up to date)
-        const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
-        if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
-        await new Promise(resolve => setTimeout(resolve, 200))
+      await index.getByRole('dialog', { name: 'Merge +15550000888 into Luisa Gomes?' }).getByRole('button', { name: 'Merge' }).click()
+      await index.getByText('+15550000888 merged into Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
+      const settled = async () => {  // (the redraw the change started brings the store up to date)
+        for (let i = 0; i < 300; i++) {
+          const jobs = (await running.rpc('jobs.list')).result as { status: string }[]
+          if (!jobs.some(j => ['queued', 'running'].includes(j.status))) break
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
       }
-      const listed = (await running.rpc('people.unresolved')).result
-      expect(JSON.stringify(listed)).not.toContain('+15550000888')
-      // dropping onto someone with no name is refused
-      await index.locator('.sidebar a[data-view="all"]').click()
-      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await settled()
+      expect(JSON.stringify((await running.rpc('people.unresolved')).result)).not.toContain('+15550000888')
+      // a person dropped on a tile that shows only its number: the number joins them
       await index.locator('.sidebar a[data-view="all"]').click()
       await drag(index, tile('Luisa Gomes'), '#people .tile[data-handles*="+15550000999"]')
-      await index.getByText('Name +15550000999 first', { exact: false }).waitFor({ timeout: 10_000 })
+      await index.getByRole('dialog', { name: 'Merge +15550000999 into Luisa Gomes?' }).getByRole('button', { name: 'Merge' }).click()
+      await index.getByText('+15550000999 merged into Luisa Gomes.', { exact: false }).waitFor({ timeout: 30_000 })
       expect(await names()).toContain('Luisa Gomes')
+      expect(await index.locator('#people .tile[data-handles*="+15550000999"]').count()).toBe(0)
+      await settled()
+      expect(JSON.stringify((await running.rpc('people.unresolved')).result)).not.toContain('+15550000999')
+      // in Unrecognized, one tile onto another: it becomes a person under the name it shows
+      await index.locator('.sidebar a[data-view="unrecognized"]').click()
+      await drag(index, tile('+15550000666'), '#people .tile[data-handles*="+15550000555"]')
+      await index.getByRole('dialog', { name: 'Merge +15550000666 into +15550000555?' }).getByRole('button', { name: 'Merge' }).click()
+      await index.getByText('+15550000666 merged into +15550000555.', { exact: false }).waitFor({ timeout: 30_000 })
+      expect(await names()).toContain('+15550000555')
+      expect(await index.locator('#people .tile[data-name="+15550000555"]').count()).toBe(1)
     } finally {
       await browser.close()
     }

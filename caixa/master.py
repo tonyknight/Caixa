@@ -412,6 +412,10 @@ class Master:
             (target_id, source_id),
         )
         self._db.execute("DELETE FROM item_people WHERE person_id = ?", (source_id,))
+        self._db.execute(  # their mail conversations are filed with the one who stays
+            "UPDATE mail_threads SET home_person_id = ? WHERE home_person_id = ?",
+            (target_id, source_id),
+        )
         if source["category"]:  # the one who stays keeps theirs, or takes the other's
             self._db.execute(
                 "UPDATE people SET category = ?, subcategory_id = ? WHERE id = ? AND category IS NULL",
@@ -454,6 +458,9 @@ class Master:
             raise ValueError("The owner of the box can't be removed from it.")
         self._db.execute("DELETE FROM aliases WHERE person_id = ?", (person_id,))
         self._db.execute("DELETE FROM item_people WHERE person_id = ?", (person_id,))
+        self._db.execute(  # (their mail stays; the next redraw files it again)
+            "UPDATE mail_threads SET home_person_id = NULL WHERE home_person_id = ?", (person_id,)
+        )
         self._db.execute("DELETE FROM people WHERE id = ?", (person_id,))
 
     def mark_by_hand(self, person_id: int) -> None:
