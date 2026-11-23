@@ -87,7 +87,7 @@ export function SortMail() {
   if (source === undefined || !reply) {
     return (
       <>
-        <Sources title={t('mail.sort.title')} lead={t('mail.sort.lead')} verb={(name) => t('mail.sources.sort', { name })} onChoose={(id) => void open(id)} />
+        <Sources title={t('mail.sort.title')} lead={t('mail.sort.lead')} verb={(name) => t('mail.sources.sort', { name })} which={t('mail.read.whichSort')} onChoose={(id) => void open(id)} />
         {failure && <p className={css.problem} role="alert">{t('mail.failed', { message: failure })}</p>}
       </>
     )

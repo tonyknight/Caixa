@@ -11,11 +11,13 @@ import css from './mail.module.css'
  * with the account it comes from. Reading runs as a job; when it is done the mbox it read is chosen
  * (or, for a zip of several, the one picked from the list).
  */
-export function Sources({ title, lead, verb, onChoose }: {
+export function Sources({ title, lead, verb, which, onChoose }: {
   title: string
   lead: string
   /** The words on a source's button ("Clean {name}"). */
   verb: (name: string) => string
+  /** The question when what was read held several mboxes ("Which one do you want to clean?"). */
+  which: string
   onChoose: (source: number) => void
 }) {
   const store = useStore()
@@ -67,7 +69,7 @@ export function Sources({ title, lead, verb, onChoose }: {
       <p className={css.lead}>{lead}</p>
       {choices ? (
         <section className={css.panel}>
-          <p>{t('mail.read.which')}</p>
+          <p>{which}</p>
           <ul className={css.sourceList}>
             {choices.map(choice => (
               <li key={choice.source_id}>

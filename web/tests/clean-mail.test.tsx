@@ -191,4 +191,19 @@ describe('the Clean mail window', () => {
     await view.flush()
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Lists and newsletters')
   })
+
+  it('asks which mbox to clean when a folder held more than one', async () => {
+    const view = await renderWith(<CleanMail />, api => scripted(api))
+    fireEvent.change(screen.getByLabelText('The mbox'), { target: { value: '/exports/Work mail' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Read it' }))
+    await view.flush()
+    const two = [
+      { source_id: 5, path: '/exports/Work mail/Inbox.mbox', member: '', account: 'Work', mails: 40, reused: false },
+      { source_id: 6, path: '/exports/Work mail/Sent.mbox', member: '', account: 'Work', mails: 12, reused: false },
+    ]
+    await view.emit('job.finished', { ...job({ id: 8, kind: 'mail-read', collector: null, status: 'done', result: { mails: 52, sources: two } as never }), job: 8 })
+    await view.flush()
+    expect(screen.getByText('This held more than one mbox. Which one do you want to clean?')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Clean Inbox.mbox' })).toBeTruthy()
+  })
 })

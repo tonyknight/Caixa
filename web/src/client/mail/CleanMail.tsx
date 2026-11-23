@@ -62,7 +62,7 @@ export function CleanMail() {
   if (source === undefined || !reply) {
     return (
       <>
-        <Sources title={t('mail.clean.title')} lead={t('mail.clean.lead')} verb={(name) => t('mail.sources.clean', { name })} onChoose={(id) => void open(id)} />
+        <Sources title={t('mail.clean.title')} lead={t('mail.clean.lead')} verb={(name) => t('mail.sources.clean', { name })} which={t('mail.read.which')} onChoose={(id) => void open(id)} />
         {failure && <p className={css.problem} role="alert">{t('mail.failed', { message: failure })}</p>}
       </>
     )

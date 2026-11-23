@@ -66,6 +66,26 @@ const sidebar = () => screen.getByRole('navigation', { name: 'Groups' })
 const go = (label: RegExp) => fireEvent.click(within(sidebar()).getByRole('link', { name: label }))
 
 describe('the Sort mail window', () => {
+  it('asks which mbox to sort when a folder held more than one', async () => {
+    const view = await renderWith(<SortMail />, api => {
+      scripted(api)
+      api.generic['mail.read'] = () => ok(job({ id: 8, kind: 'mail-read', collector: null, status: 'queued', result: null }))
+    })
+    fireEvent.change(screen.getByLabelText('The mbox'), { target: { value: '/exports/Work mail' } })
+    fireEvent.change(screen.getByLabelText('Account'), { target: { value: 'Work' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Read it' }))
+    await view.flush()
+    const two = [
+      { source_id: 5, path: '/exports/Work mail/Inbox.mbox', member: '', account: 'Work', mails: 40, reused: false },
+      { source_id: 6, path: '/exports/Work mail/Sent.mbox', member: '', account: 'Work', mails: 12, reused: false },
+    ]
+    await view.emit('job.finished', { ...job({ id: 8, kind: 'mail-read', collector: null, status: 'done', result: { mails: 52, sources: two } as never }), job: 8 })
+    await view.flush()
+    expect(screen.getByText('This held more than one mbox. Which one do you want to sort?')).toBeTruthy()
+    expect(screen.queryByText(/want to clean/)).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sort Sent.mbox' })).toBeTruthy()
+  })
+
   it('shows the categories with their counts, Known first, with notes under the names', async () => {
     await opened()
     expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Known')
