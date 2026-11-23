@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 import re
+import time
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -1167,6 +1168,7 @@ def render_pages(
     database: Optional[PathLike] = None,
     progress: Optional[Callable[[int, int], None]] = None,
     parallel_from: int = PARALLEL_FROM,
+    stats: Optional[dict[str, Any]] = None,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
@@ -1182,6 +1184,7 @@ def render_pages(
     what each page was drawn from is kept beside it, and a page drawn from the same data and
     templates as last time (its file untouched since) is not written again.
     """
+    started = time.monotonic()
     site = _Site(renderer, Path(out_root), attachment_roots)
     site.summaries = dict(summaries or {})
     record = Path(pages_list) if pages_list else site.out_root / PAGES_LIST
@@ -1213,4 +1216,9 @@ def render_pages(
     _forget_old_pages(site.out_root, record, written)
     if pages_list:
         _keep_known(record, site.drawn)
+    if stats is not None:  # (what was done, for whoever reports it)
+        rewritten = sum(1 for page, was in site.drawn.items() if site.known.get(page) != was)
+        stats.update(pages=total, written=rewritten if site.known else total,
+                     unchanged=total - (rewritten if site.known else total),
+                     workers=workers if shared else 1, seconds=time.monotonic() - started)  # fmt: skip
     return written

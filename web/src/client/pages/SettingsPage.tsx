@@ -12,7 +12,9 @@ const MAC_PROBLEMS: Readonly<Record<string, CaixaKey>> = {
   no_access: 'contacts.mac.no_access', empty: 'contacts.mac.empty', not_a_mac: 'contacts.mac.not_a_mac',
 }
 
-const GROUPS = ['privacy', 'contacts', 'translation', 'summaries', 'speech']
+const GROUPS = ['privacy', 'contacts', 'translation', 'summaries', 'speech', 'performance']
+/** A setting with no group in its name (`workers`) goes under Performance. */
+const inGroup = (name: string, group: string) => group === 'performance' ? !name.includes('.') : name.startsWith(`${group}.`)
 
 /** The box's location, and its settings as a form drawn from the schema the worker publishes. */
 export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
@@ -145,7 +147,7 @@ export function SettingsPage({ onChangeBox }: { onChangeBox: () => void }) {
       {loaded && (
         <form onSubmit={(event) => { event.preventDefault(); void save() }}>
           {GROUPS.map((group) => {
-            const members = fields.filter(f => f.name.startsWith(`${group}.`))
+            const members = fields.filter(f => inGroup(f.name, group))
             if (members.length === 0) return null
             return (
               <fieldset key={group} className={css.group} disabled={readOnly}>

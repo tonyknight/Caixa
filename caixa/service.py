@@ -187,7 +187,7 @@ class _Terminal:
 
     def __call__(self, step: Progress) -> None:
         now = time.monotonic()
-        each = step.stage == "transcribing" and step.message != self.message
+        each = (step.stage == "transcribing" and step.message != self.message) or step.summary
         if step.stage == self.stage and not each and now - self.sent < self.interval:
             return
         self.stage, self.message, self.sent = step.stage, step.message, now

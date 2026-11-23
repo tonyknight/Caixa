@@ -465,6 +465,9 @@ class Published:
     index: Path
     pages: list[Path]
     filed: Filed
+    drawn: dict[str, Any] = field(
+        default_factory=dict
+    )  # pages, written, unchanged, workers, seconds
 
 
 def publish(
@@ -482,6 +485,7 @@ def publish(
     subcategories: Optional[Mapping[str, Any]] = None,
     workers: int = 1,
     page_progress: Optional[Callable[[int, int], None]] = None,
+    on_filed: Optional[Callable[[Filed], None]] = None,
 ) -> Optional[Published]:
     """File every attachment beside the person it came from, then draw every page (with several
     `workers`, shared out among worker processes; `page_progress(done, total)` follows them).
@@ -506,14 +510,18 @@ def publish(
         filed = file_attachments(
             db, renderer, folder, roots, make_playable, progress, convert_images
         )
+        if on_filed:
+            on_filed(filed)  # what filing did, before the pages
         if before_pages:
             before_pages()  # filing is done; the pages come next
         db.commit()  # (workers read what filing recorded)
+        drawn: dict[str, Any] = {}
         pages = render_pages(
             renderer, folder, roots, pages_list, categories, title, summaries, subcategories,
             workers=workers, database=central_database(settings), progress=page_progress,
+            stats=drawn,
         )  # fmt: skip
-    return Published(folder / "index.html", pages, filed)
+    return Published(folder / "index.html", pages, filed, drawn)
 
 
 def generate_html(

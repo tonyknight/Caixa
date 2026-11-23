@@ -21,6 +21,17 @@ describe('the settings form', () => {
     }
   })
 
+  it('shows Workers, a setting of no group, under Performance, and saves it', async () => {
+    const view = await page()
+    const group = screen.getByRole('group', { name: 'Performance' })
+    const workers = within(group).getByLabelText('Workers') as HTMLInputElement
+    expect(workers.value).toBe(String(SETTINGS.values.workers ?? 4))
+    fireEvent.change(workers, { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save settings' }))
+    await view.flush()
+    expect(view.api.calls.some(c => c[0] === 'saveSettings' && JSON.stringify(c[1]).includes('"workers":6'))).toBe(true)
+  })
+
   it('draws every field from the schema with its saved value', async () => {
     await page(vi.fn(), (api) => {
       api.settingsReply = ok({ ...SETTINGS, values: { ...SETTINGS.values, 'privacy.default': 'family', 'translation.enabled': true, 'translation.endpoint': 'http://localhost:11434/v1' } })
@@ -170,7 +181,7 @@ describe('translation: the key and the test', () => {
     expect(result.textContent).toContain('It works')
     expect(result.textContent).toContain('Bom dia!')
     expect(result.textContent).toContain('Good morning!')
-    expect(view.api.tests).toEqual([[{ 'translation.provider': 'auto', 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1' }, 'sk-typed']])
+    expect(view.api.tests).toEqual([[{ 'translation.provider': 'auto', 'translation.endpoint': 'http://localhost:11434/v1', 'translation.model': 'llama3.1', workers: 4 }, 'sk-typed']])
     expect(view.api.savedSettings).toEqual([])  // testing saves nothing
   })
 
@@ -197,7 +208,7 @@ describe('summaries', () => {
     expect(result.textContent).toContain('It works')
     expect(result.textContent).toContain(summary)
     expect(result.textContent).toContain('36 words')
-    expect(view.api.calls).toContainEqual(['call', 'summaries.test', { values: { 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': 'qwen2.5', 'translation.endpoint': '', 'translation.model': '' }, key: '' }])
+    expect(view.api.calls).toContainEqual(['call', 'summaries.test', { values: { 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': 'qwen2.5', 'translation.endpoint': '', 'translation.model': '', workers: 4 }, key: '' }])
   })
 
   it('offers Apple Intelligence in words, and Test sends the choice', async () => {

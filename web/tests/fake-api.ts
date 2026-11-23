@@ -184,8 +184,9 @@ export const HANDLES: Handle[] = [
 ]
 
 export const SETTINGS: SettingsReply = {
-  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'summaries.enabled': false, 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': '', 'speech.model': '', 'speech.language': '' },
+  values: { 'privacy.default': 'private', 'contacts.mac': true, 'contacts.file': '', 'translation.enabled': false, 'translation.endpoint': '', 'translation.model': '', 'summaries.enabled': false, 'summaries.provider': 'endpoint', 'summaries.endpoint': '', 'summaries.model': '', 'speech.model': '', 'speech.language': '', workers: 4 },
   schema: { type: 'object', properties: {
+    workers: { type: 'integer', default: 4, minimum: 1, maximum: 12, title: 'Workers', description: 'How many processes work at once.' },
     'privacy.default': { type: 'string', default: 'private', enum: ['private', 'family', 'public'], title: 'Who can see new items', description: 'Privacy given to items when first imported.' },
     'contacts.mac': { type: 'boolean', default: true, title: 'Use this Mac\u2019s Contacts' },
     'contacts.file': { type: 'string', default: '', title: 'Contacts file (.vcf)', 'x-picker': 'file' },

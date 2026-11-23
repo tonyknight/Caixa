@@ -60,6 +60,7 @@ class Progress:
     current: int = 0
     total: Optional[int] = None
     message: str = ""
+    summary: bool = False  # a step's closing line: what it did, how long it took (always told)
 
 
 @dataclass

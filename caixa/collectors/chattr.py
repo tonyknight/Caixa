@@ -670,10 +670,24 @@ class _Chattr:
         before = self._page_files(box)
         incoming = box.caixa_dir / INCOMING
 
+        workers = int(box_settings.load(box).get("workers") or 1)
+        files = {"total": 0}
+
         def filing(done: int, total: int) -> None:
+            files["total"] = total
             progress(Progress("filing", done, total, "Filing photos, audio and other files"))
 
+        def filed(what: commands.Filed) -> None:  # filing's closing line
+            count = files["total"]
+            progress(Progress(
+                "filing", count, count or None,
+                f"{count:,} files: {len(what.created):,} new, {len(what.moved):,} moved · "
+                f"{_took(filing_started)}",
+                summary=True,
+            ))  # fmt: skip
+
         progress(Progress("filing", message="Filing photos, audio and other files"))
+        filing_started = time.monotonic()
         with box.master() as master:
             categories = master.categories()
             subcategories = {
@@ -697,16 +711,27 @@ class _Chattr:
             attachments_dirs=[incoming / stage for stage in STAGES],
             pages_list=box.caixa_dir / "pages.json",
             progress=filing,
-            before_pages=lambda: progress(Progress("rendering", message="Writing the pages")),
+            on_filed=filed,
+            before_pages=lambda: progress(
+                Progress("rendering", message=f"Writing the pages ({_workers(workers)})")
+            ),
             categories=categories,
             title=box.name,
             summaries=summaries,
             subcategories=subcategories,
-            workers=int(box_settings.load(box).get("workers") or 1),
+            workers=workers,
             page_progress=lambda done, total: progress(
-                Progress("rendering", done, total, "Writing the pages")
+                Progress("rendering", done, total, f"Writing the pages ({_workers(workers)})")
             ),
         )
+        if published and published.drawn:
+            d = published.drawn
+            progress(Progress(
+                "rendering", d["pages"], d["pages"],
+                f"{d['pages']:,} pages: {d['written']:,} written, {d['unchanged']:,} unchanged · "
+                f"{_workers(d['workers'])} · {_took(seconds=d['seconds'])}",
+                summary=True,
+            ))  # fmt: skip
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         box.mark_pages(templates_fingerprint())  # what drew them (redrawn when Caixa changes)
         with DatabaseManager(commands.central_database(settings)) as db:
@@ -715,9 +740,11 @@ class _Chattr:
             page_count = len(renderer.pages)
 
         progress(Progress("syncing", message="Updating the box"))
+        started = time.monotonic()
         with box.master() as master:
             synced = sync_chattr(master, commands.central_database(settings), pages)
         self._remove_stale(box, before - self._page_files(box))
+        progress(Progress("syncing", message=f"Box updated · {_took(started)}", summary=True))
         unresolved = [f"{h.service}: {h.identifier}" for h in synced.unresolved]
         progress(Progress("done", synced.inserted + synced.updated + synced.unchanged))
         return RunResult(
@@ -810,7 +837,9 @@ class _Chattr:
         settings = self._settings(root)
         aliases = self._aliases(box, root / "aliases.json")
         progress(Progress("linking", message="Matching people"))
+        started = time.monotonic()
         self._name_people(settings, self._options({}, box), self._owner({}, box), aliases)
+        progress(Progress("linking", message=f"People matched · {_took(started)}", summary=True))
         return self._publish(box, settings, progress)
 
 
@@ -1228,6 +1257,20 @@ class GoogleVoice(_Chattr):
             contacts=options.get("contacts") or None,
             resolve=False,
         )
+
+
+def _took(since: float = 0.0, seconds: Optional[float] = None) -> str:
+    """How long a step took, as a person reads it: "0.4 s", "41 s", "2 min 5 s"."""
+    spent = seconds if seconds is not None else time.monotonic() - since
+    if spent < 10:
+        return f"{spent:.1f} s"
+    if spent < 60:
+        return f"{spent:.0f} s"
+    return f"{int(spent // 60)} min {int(spent % 60)} s"
+
+
+def _workers(count: int) -> str:
+    return f"{count} worker{'s' if count != 1 else ''}"
 
 
 VOICEMAIL_EXPECTS = (
