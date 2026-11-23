@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable, Optional, Union
 
+from chattr import blobs
 from chattr.attachment_manager import safe_name
 from chattr.database_manager import DatabaseManager
 from chattr.render import MAIL_SERVICE, PageSpec, Renderer
@@ -102,15 +103,20 @@ def playable_copy(original: Path) -> Optional[Path]:
     return original.with_suffix(PLAYABLE) if original.suffix.lower() in UNPLAYABLE else None
 
 
+#: Finds stored files, each folder resolved once; a new one for each run of `file_attachments`.
+_finder = blobs.Finder()
+
+
+def _inside(file: Path, out: Path) -> str:
+    """`file.relative_to(out).as_posix()` for a file known to be under `out` (strings: faster)."""
+    return os.path.relpath(file, out).replace(os.sep, "/")
+
+
 def _locate(storage_path: Optional[str], roots: list[Path]) -> Optional[tuple[Path, Path]]:
     """The file a stored path means and the root it is under; None when it is not there."""
     if not storage_path:
         return None
-    for root in roots:
-        candidate = (root / storage_path).resolve()
-        if candidate.is_file() and candidate.is_relative_to(root):
-            return candidate, root
-    return None
+    return _finder.find(storage_path, roots)
 
 
 def _stem(renderer: Renderer, spec: PageSpec, message: dict[str, Any], row: dict[str, Any],
@@ -156,7 +162,7 @@ def _recover(
         rest = file.stem[len(stem) :]
         if rest and not re.fullmatch(r" \(\d+\)", rest):
             continue
-        if file.relative_to(out).as_posix() in taken:
+        if _inside(file, out) in taken:
             continue
         if converted or _holds(file, row["sha256"]):
             return file, out
@@ -305,7 +311,7 @@ def _transcode(original: Path, copy: Path) -> bool:
 
 def _same_file(file: Path, sha256: str, out: Path, taken: dict[str, str]) -> bool:
     """Whether the filed `file` is this attachment's content, unconverted (an earlier try)."""
-    return taken.get(file.relative_to(out).as_posix()) in (None, sha256) and _holds(file, sha256)
+    return taken.get(_inside(file, out)) in (None, sha256) and _holds(file, sha256)
 
 
 def file_attachments(
@@ -322,6 +328,8 @@ def file_attachments(
     `roots` are the folders importers staged files in. A staged file whose content is already
     filed is dropped. The renderer's own rows are updated, so pages drawn next link the new places.
     """
+    global _finder
+    _finder = blobs.Finder()  # (folders resolved in an earlier run may have moved since)
     out = Path(out_root).resolve()
     out.mkdir(parents=True, exist_ok=True)
     have_ffmpeg = shutil.which("ffmpeg") is not None
@@ -351,7 +359,7 @@ def file_attachments(
             key = (row["sha256"], spec.kind == "mail")
             there = _locate(row["storage_path"], [out])
             if there:
-                taken[there[0].relative_to(out).as_posix()] = row["sha256"]
+                taken[_inside(there[0], out)] = row["sha256"]
             if there and not row["_info"].get("shared"):
                 rank = 0
             elif there:
@@ -404,7 +412,7 @@ def file_attachments(
                 spare = current.with_name(f"{current.stem}.spare{current.suffix}")
                 shutil.copyfile(current, spare)
                 current = spare
-            current_rel = current.relative_to(out).as_posix() if inside else None
+            current_rel = _inside(current, out) if inside else None
             was_rel = current_rel
             extension = current.suffix.lower()
             was: Optional[str] = None
@@ -425,7 +433,7 @@ def file_attachments(
             elif make_playable and not mail and (extension in UNPLAYABLE or extension in ALSO_M4A):
                 older = current.with_suffix(PLAYABLE)  # a copy an earlier version made beside it
                 made = current.with_name(current.stem + ".converted" + PLAYABLE)
-                if inside and older.is_file() and older.relative_to(out).as_posix() not in taken:
+                if inside and older.is_file() and _inside(older, out) not in taken:
                     os.replace(older, made)
                 if made.is_file() or _transcode(current, made):
                     current.unlink()
@@ -493,7 +501,7 @@ def file_attachments(
             continue
         own = _locate(row["storage_path"], everywhere) or _staged(row["sha256"], staging)
         if own and own[0] != (out / home["storage_path"]).resolve():
-            relative = own[0].relative_to(out).as_posix() if own[1] == out else None
+            relative = _inside(own[0], out) if own[1] == out else None
             if relative is None or taken.get(relative) == row["sha256"]:
                 copy = playable_copy(own[0]) if relative else None
                 own[0].unlink()  # a second copy of the same thing

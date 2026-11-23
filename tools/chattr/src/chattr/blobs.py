@@ -13,7 +13,7 @@ import re
 import secrets
 import shutil
 from pathlib import Path
-from typing import Callable, Union
+from typing import Callable, Optional, Union
 
 
 def store_by_hash(root: Union[str, Path], data: bytes, suffix: str = "") -> tuple[str, str]:
@@ -55,3 +55,30 @@ def store_file_by_hash(root: Union[str, Path], source: Union[str, Path], digest:
     if not target.exists():
         _place(target, lambda temporary: shutil.copyfile(source, temporary))
     return relative
+
+
+class Finder:
+    """Find the file a stored path means under one of several roots.
+
+    As `(root / path).resolve()` kept only when it is a file inside `root`: a symlink or `..`
+    leading out of the root is refused. Each folder is resolved once (a redraw looks up tens of
+    thousands of files in a few hundred folders), so use one finder for one run: a folder that is
+    moved or replaced by a link meanwhile is not seen again.
+    """
+
+    def __init__(self) -> None:
+        self._folders: dict[str, str] = {}
+
+    def find(self, storage_path: str, roots: list[Path]) -> Optional[tuple[Path, Path]]:
+        for root in roots:
+            folder, name = os.path.split(os.path.join(root, storage_path))
+            real = self._folders.get(folder)
+            if real is None:
+                real = self._folders[folder] = os.path.realpath(folder)
+            candidate = os.path.join(real, name)
+            if os.path.islink(candidate) or name in ("", ".", ".."):
+                candidate = os.path.realpath(candidate)
+            inside = candidate.startswith(str(root).rstrip(os.sep) + os.sep)
+            if inside and os.path.isfile(candidate):
+                return Path(candidate), root
+        return None

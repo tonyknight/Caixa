@@ -35,7 +35,7 @@ from urllib.parse import quote, urlparse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
-from chattr import mail_html
+from chattr import blobs, mail_html
 from chattr.filing import playable_copy
 from chattr.render import GROUPS, PEOPLE, PageSpec, Renderer, compact
 
@@ -49,6 +49,7 @@ _ISLAND_ESCAPES = {
     " ": "\\u2028",
     " ": "\\u2029",
 }
+_ISLAND_TABLE = str.maketrans(_ISLAND_ESCAPES)
 
 
 def _nl2br(value: Optional[str]) -> Markup:
@@ -82,7 +83,7 @@ def _environment() -> Environment:
 def island_json(document: dict[str, Any]) -> str:
     """The data island's JSON, safe to place inside a `<script>` element."""
     text = json.dumps(document, ensure_ascii=False, separators=(",", ":"))
-    return "".join(_ISLAND_ESCAPES.get(ch, ch) for ch in text)
+    return text.translate(_ISLAND_TABLE)  # (one pass: a page's data can run to megabytes)
 
 
 def _slug(name: str) -> str:
@@ -140,19 +141,20 @@ class _Site:
         self.env = _environment()
         #: Mail conversations' summaries: {thread (its conversation's source id): (text, model)}.
         self.summaries: dict[str, tuple[str, str]] = {}
+        self._finder = blobs.Finder()
+        self._page_dirs: dict[Path, str] = {}
 
     def _file(self, storage_path: Optional[str]) -> Optional[Path]:
         if not storage_path:
             return None
-        for root in self.roots:
-            candidate = (root / storage_path).resolve()
-            if candidate.is_file() and candidate.is_relative_to(root):
-                return candidate
-        return None
+        found = self._finder.find(storage_path, self.roots)
+        return found[0] if found else None
 
-    @staticmethod
-    def _link(file: Path, page_dir: Path) -> str:
-        relative = os.path.relpath(file, page_dir.resolve()).replace(os.sep, "/")
+    def _link(self, file: Path, page_dir: Path) -> str:
+        real = self._page_dirs.get(page_dir)
+        if real is None:
+            real = self._page_dirs[page_dir] = str(page_dir.resolve())
+        relative = os.path.relpath(file, real).replace(os.sep, "/")
         return quote(relative, safe="/()")
 
     def playable(self, storage_path: Optional[str], page_dir: Path) -> Optional[str]:
