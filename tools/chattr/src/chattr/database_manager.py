@@ -355,9 +355,8 @@ class DatabaseManager:
         handles; the owner's own are never taken, and a handle removed before stays removed
         (what was imported for it since goes too).
 
-        Every conversation that is not a group, and is with nobody but them, is deleted, messages
-        and all; a mail thread goes when nobody but them is in it besides the owner (a list or a
-        thread with someone else stays). The handles are marked removed: never named, never listed to
+        Every conversation that is not a group and not mail, and is with nobody but them, is
+        deleted, messages and all. The handles are marked removed: never named, never listed to
         be named. What they wrote in a group stays in the group. Returns what went, with the
         files (`storage_path`) that no remaining message shows. Safe to repeat.
         """
@@ -386,10 +385,10 @@ class DatabaseManager:
         for conversation_id, handle_id in db.execute(
             "SELECT p.conversation_id, p.handle_id FROM participants p "
             "JOIN conversations c ON c.id = p.conversation_id "
-            "WHERE (c.type != 'group' OR c.service = 'Mail') AND p.role != 'owner' "
+            "WHERE c.type != 'group' AND c.service != 'Mail' AND p.role != 'owner' "
             "UNION SELECT m.conversation_id, m.sender_handle_id FROM messages m "
             "JOIN conversations c ON c.id = m.conversation_id "
-            "WHERE (c.type != 'group' OR c.service = 'Mail') AND m.is_from_owner = 0 "
+            "WHERE c.type != 'group' AND c.service != 'Mail' AND m.is_from_owner = 0 "
             "AND m.sender_handle_id IS NOT NULL"
         ):
             with_whom.setdefault(conversation_id, set()).add(handle_id)

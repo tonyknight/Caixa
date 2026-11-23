@@ -105,9 +105,7 @@ def test_removing_is_repeatable_and_leaves_everyone_else(tmp_path: Path) -> None
         )
 
 
-def test_everyone_removed_takes_their_mail_but_never_a_group(tmp_path: Path) -> None:
-    """Mail went untouched in Phase 1 (an archive by year, nobody's page); since mail is filed with
-    its people, a removed person's mail goes with them."""
+def test_mail_and_the_owner_are_never_removed(tmp_path: Path) -> None:
     path = _archive(tmp_path)
     with DatabaseManager(path) as db:
         db.upsert(
@@ -121,41 +119,6 @@ def test_everyone_removed_takes_their_mail_but_never_a_group(tmp_path: Path) -> 
             db.connection.execute(
                 "SELECT COUNT(*) FROM messages WHERE content_type = 'email'"
             ).fetchone()[0]
-            == 0
+            == 1
         )
-        assert removed.conversations == 3  # the two one-to-one chats and the mail, not the group
-        names = [r[0] for r in db.connection.execute("SELECT name FROM conversations")]
-        assert names == ["Family"]
-
-
-def _mail(day: int, sender: str | None, text: str) -> MessageRecord:
-    mine = sender is None
-    return MessageRecord(
-        timestamp=_at(day), sender=sender or "maria@example.com", body=text,
-        content_type="email", is_from_owner=mine, source_id=f"m{day}@example.com",
-    )  # fmt: skip
-
-
-def test_mail_with_nobody_left_but_the_owner_goes_and_a_shared_thread_stays(
-    tmp_path: Path,
-) -> None:
-    bea, pedro, sofia = "bea@example.net", "pedro@example.net", "sofia@example.net"
-    with DatabaseManager(tmp_path / "chattr.sqlite") as db:
-        db.upsert(
-            ConversationRecord("Mail", "msgid:book", name="Book club", participants=(bea,)),
-            [_mail(1, bea, "We meet on the 9th"), _mail(2, None, "I'll bring cake")],
-        )  # fmt: skip
-        db.upsert(
-            ConversationRecord("Mail", "msgid:walk", type="group", name="Walk",
-                               participants=(pedro, sofia)),
-            [_mail(3, pedro, "Saturday?"), _mail(4, sofia, "Yes")],
-        )  # fmt: skip
-        db.upsert(
-            ConversationRecord("Mail", "msgid:pair", type="group", name="Two of them",
-                               participants=(bea, pedro)),
-            [_mail(5, bea, "Hello both"), _mail(6, pedro, "Hi")],
-        )  # fmt: skip
-        removed = db.remove_people(_only(bea, pedro))
-        names = {r[0] for r in db.connection.execute("SELECT name FROM conversations")}
-        assert names == {"Walk"}  # Sofia is still in it
-        assert (removed.conversations, removed.messages) == (2, 4)
+        assert removed.conversations == 2  # the two one-to-one chats, not mail, not the group

@@ -277,27 +277,18 @@ class Renderer:
 
     def _mail_home(self, conversation: dict[str, Any], messages: list[dict[str, Any]]) -> str:
         """The person a mail conversation is filed with: the non-owner who wrote most of it (the
-        first, on a tie); for mail only the owner wrote, the person it was written to. Someone
-        removed from the box is passed by (a thread they shared stays with the others)."""
-
-        def present(handle: Optional[int]) -> bool:
-            return (
-                bool(handle)
-                and handle not in self.owner_handles
-                and not self.handles[handle].get("removed")
-            )
-
+        first, on a tie); for mail only the owner wrote, the person it was written to."""
         counts: dict[str, int] = {}
         for message in messages:
             handle = message["sender_handle_id"]
-            if present(handle) and not message["is_from_owner"]:
+            if handle and handle not in self.owner_handles and not message["is_from_owner"]:
                 label = _handle_label(self.handles[handle])
                 counts[label] = counts.get(label, 0) + 1
         if counts:
             most = max(counts.values())
             return next(label for label, n in counts.items() if n == most)
         for handle in self.participants.get(conversation["id"], []):
-            if present(handle):
+            if handle not in self.owner_handles:
                 return _handle_label(self.handles[handle])
         return "Unknown"
 
