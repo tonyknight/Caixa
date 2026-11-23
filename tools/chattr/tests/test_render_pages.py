@@ -46,10 +46,12 @@ def _page(site, kind: str, title: str, year: int | None = None) -> tuple[Path, s
     text = path.read_text(encoding="utf-8")
     if year is None:
         return path, text
-    head = text[: text.index("<main>")]
+    head = text[: text.index('<section class="calendars"')]
+    calendar = text[text.index(f'<details class="calendar" id="cal-{year}"') :]
+    calendar = calendar[: calendar.index("</details>")]
     block = text[text.index(f'<section class="year-block" id="y-{year}"') :]
     block = block[: block.index("</section>")]
-    return path, head + block
+    return path, head + calendar + block
 
 
 def test_every_person_and_group_page_is_written_at_its_planned_path(site) -> None:
@@ -176,10 +178,20 @@ def test_the_year_bar_goes_to_each_year_on_the_page(site) -> None:
     for year, _ in links:
         assert f'<section class="year-block" id="y-{year}"' in text
     assert 'href="#end">Latest</a>' in text and 'id="end"' in text
-    # each year begins with its own calendar
-    for year, _ in links:
-        section = text[text.index(f'id="y-{year}"') :]
-        assert section.index(f'id="cal-{year}"') < section.index('class="day"')
+
+
+
+def test_the_calendar_is_at_the_top_not_between_the_messages(site) -> None:
+    """One calendar block under the year bar, a fold for each year (the newest open); none among
+    the messages."""
+    _, text = _page(site, "person", family.ANA.name)
+    top, main = text[: text.index("<main>")], text[text.index("<main>") :]
+    assert 'class="calendar' not in main and 'class="month"' not in main
+    folds = re.findall(r'<details class="calendar" id="cal-(\d{4})"( open)?>', top)
+    assert [y for y, _ in folds] == ["2025", "2024", "2023", "2022", "2018", "2016"]  # newest first
+    assert [bool(o) for _, o in folds] == [True, False, False, False, False, False]
+    assert top.index('<nav class="years"') < top.index('<section class="calendars"')
+    assert re.search(r'<summary>2024 <span class="count">[^<]+</span></summary>', top)
 
 
 def test_system_notices_and_owner_messages_are_styled_apart(site) -> None:

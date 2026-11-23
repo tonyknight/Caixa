@@ -12,10 +12,12 @@
 <ul>{% for m in mail %}<li><a href="{{ m.href }}">{{ m.title }}</a></li>{% endfor %}</ul></details>
 {% endif %}</header>
 <nav class="years" aria-label="Years">{% for y in years %}<a class="year" href="#y-{{ y.year }}">{{ y.year }}</a>{% endfor %}<a class="year latest" href="#end">Latest</a></nav>
+<section class="calendars" aria-label="Calendar">
+{% for y in years | reverse %}<details class="calendar" id="cal-{{ y.year }}"{% if loop.first %} open{% endif %}><summary>{{ y.year }} <span class="count">{{ y.count }}</span></summary><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="#date-{{ cell.date }}" class="d l{{ cell.level }}" title="{{ cell.count }} message{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></details>
+{% endfor %}</section>
 <main>
 {% for y in years %}<section class="year-block" id="y-{{ y.year }}" data-year="{{ y.year }}">
 <h2 class="year-title">{{ y.year }} <span class="count">{{ y.count }}</span></h2>
-<div class="calendar" id="cal-{{ y.year }}"><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="#date-{{ cell.date }}" class="d l{{ cell.level }}" title="{{ cell.count }} message{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></div>
 {% for day in y.days %}<div class="day">
 <h3 class="date-separator" id="date-{{ day.date }}"><a href="#top" title="Back to the top">{{ day.label }}</a></h3>
 {% for e in day.entries %}{% if e.kind == 'conversation' %}<article class="entry {{ e.direction }} k-conversation" id="c-{{ e.id }}">
