@@ -56,10 +56,16 @@ def _nl2br(value: Optional[str]) -> Markup:
     return Markup("<br>\n").join(escape(line) for line in (value or "").split("\n"))
 
 
+#: Raised when what the pages hold changes outside the templates (who a mail is filed with, what
+#: removing someone takes away), so that boxes drawn before are redrawn when they are opened.
+#: 2: a removed person's mail goes with them.
+DRAWING = 2
+
+
 def templates_fingerprint() -> str:
-    """A short hash of every page template, script and style Chattr draws with: pages drawn with a
-    different one were drawn by another version and lack what this one draws."""
-    digest = hashlib.sha256()
+    """A short hash of every page template, script and style Chattr draws with (and of `DRAWING`):
+    pages drawn with a different one were drawn by another version and lack what this one draws."""
+    digest = hashlib.sha256(f"drawing {DRAWING}\0".encode())
     for file in sorted(p for p in _TEMPLATES.rglob("*") if p.is_file()):
         digest.update(file.relative_to(_TEMPLATES).as_posix().encode() + b"\0" + file.read_bytes())
     return digest.hexdigest()[:16]
