@@ -702,6 +702,10 @@ class _Chattr:
             title=box.name,
             summaries=summaries,
             subcategories=subcategories,
+            workers=int(box_settings.load(box).get("workers") or 1),
+            page_progress=lambda done, total: progress(
+                Progress("rendering", done, total, "Writing the pages")
+            ),
         )
         shutil.rmtree(incoming, ignore_errors=True)  # what is left there is already filed
         box.mark_pages(templates_fingerprint())  # what drew them (redrawn when Caixa changes)

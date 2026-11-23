@@ -178,7 +178,8 @@ SCHEMA: dict[str, Any] = {
             "title": "Workers",
             "description": (
                 "How many processes work at once where work can be shared out: reading, cleaning "
-                "and importing mail. Starts at this computer's number of processors (at most 12). "
+                "and importing mail, and writing the pages. Starts at this computer's number of "
+                "processors (at most 12). "
                 "Fewer leaves the computer freer for other things."
             ),
         },

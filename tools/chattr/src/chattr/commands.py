@@ -480,8 +480,11 @@ def publish(
     title: str = "Chattr archive",
     summaries: Optional[Mapping[str, tuple[str, str]]] = None,
     subcategories: Optional[Mapping[str, Any]] = None,
+    workers: int = 1,
+    page_progress: Optional[Callable[[int, int], None]] = None,
 ) -> Optional[Published]:
-    """File every attachment beside the person it came from, then draw every page.
+    """File every attachment beside the person it came from, then draw every page (with several
+    `workers`, shared out among worker processes; `page_progress(done, total)` follows them).
 
     Attachments found in `attachments_dirs` (and Chattr's usual folders) are moved under `out`,
     named for their date and sender (see `chattr.filing`); audio a browser cannot play gets a copy
@@ -505,9 +508,11 @@ def publish(
         )
         if before_pages:
             before_pages()  # filing is done; the pages come next
+        db.commit()  # (workers read what filing recorded)
         pages = render_pages(
-            renderer, folder, roots, pages_list, categories, title, summaries, subcategories
-        )
+            renderer, folder, roots, pages_list, categories, title, summaries, subcategories,
+            workers=workers, database=central_database(settings), progress=page_progress,
+        )  # fmt: skip
     return Published(folder / "index.html", pages, filed)
 
 

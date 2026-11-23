@@ -29,13 +29,14 @@ import re
 from collections import Counter
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Iterable, Mapping, Optional, Sequence, Union
+from typing import Any, Callable, Iterable, Mapping, Optional, Sequence, Union
 from urllib.parse import quote, urlparse
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from markupsafe import Markup, escape
 
 from chattr import blobs, mail_html
+from chattr.database_manager import DatabaseManager
 from chattr.filing import playable_copy
 from chattr.render import GROUPS, PEOPLE, PageSpec, Renderer, compact
 
@@ -1003,6 +1004,64 @@ def _forget_old_pages(out_root: Path, record: Path, written: list[Path]) -> None
     os.replace(temporary, record)
 
 
+#: Fewer pages than this are written in the process: starting workers would cost more than it saves.
+PARALLEL_FROM = 300
+
+
+def _draw(site: _Site, relations: "_Relations", spec: PageSpec) -> Path:
+    path = site.out_root / spec.path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = _mail_page(site, spec) if spec.kind == "mail" else _message_page(site, spec, relations)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _draw_share(job: tuple[str, str, list[str], dict[str, Any], list[tuple[int, str]]]) -> int:
+    """A worker's share of the pages: it reads the archive itself and writes the pages it is given
+    (by their place in the plan, and their path, to be sure it plans the same pages)."""
+    database, out_root, roots, summaries, share = job
+    with DatabaseManager(database) as db:
+        renderer = Renderer(db)
+        site = _Site(renderer, Path(out_root), roots)
+        site.summaries = {k: tuple(v) for k, v in summaries.items()}  # type: ignore[misc]
+        relations = _Relations(renderer)
+        for index, path in share:
+            spec = renderer.pages[index] if index < len(renderer.pages) else None
+            if spec is None or spec.path != path:
+                raise RuntimeError("The archive changed while its pages were being written.")
+            _draw(site, relations, spec)
+    return len(share)
+
+
+def _draw_in_workers(
+    renderer: Renderer,
+    site: _Site,
+    database: PathLike,
+    workers: int,
+    progress: Optional[Callable[[int, int], None]],
+) -> None:
+    import concurrent.futures
+    import multiprocessing
+
+    plan = [(index, spec.path) for index, spec in enumerate(renderer.pages)]
+    count = min(len(plan), workers * 4)  # several shares each, so a slow one does not hold the rest
+    shares = [plan[n::count] for n in range(count)]
+    roots = [str(r) for r in site.roots[1:]]
+    summaries = {k: list(v) for k, v in site.summaries.items()}
+    done, total = 0, len(plan)
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn")
+    ) as pool:
+        futures = [
+            pool.submit(_draw_share, (str(database), str(site.out_root), roots, summaries, share))
+            for share in shares
+        ]
+        for future in concurrent.futures.as_completed(futures):
+            done += future.result()
+            if progress:
+                progress(done, total)
+
+
 def render_pages(
     renderer: Renderer,
     out_root: PathLike,
@@ -1012,28 +1071,42 @@ def render_pages(
     title: str = "Chattr archive",
     summaries: Optional[Mapping[str, tuple[str, str]]] = None,
     subcategories: Optional[Mapping[str, Any]] = None,
+    workers: int = 1,
+    database: Optional[PathLike] = None,
+    progress: Optional[Callable[[int, int], None]] = None,
+    parallel_from: int = PARALLEL_FROM,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
     `categories` ({person's name: category}) sorts people on the index, and `subcategories`
     (`{"tree": [...], "placed": {name: id}}`) into the categories' subcategories; `title` names it.
 
+    With several `workers` and the archive's `database` (committed: each worker reads it itself),
+    the pages are shared out among worker processes once there are `parallel_from` of them; if
+    one fails, they are all written here instead. `progress(done, total)` follows the pages.
+
     Pages written by an earlier call and no longer wanted are deleted. The list of what was
     written is kept in `pages_list` (default: `.chattr-pages` in `out_root`).
     """
     site = _Site(renderer, Path(out_root), attachment_roots)
     site.summaries = dict(summaries or {})
-    relations = _Relations(renderer)
+    total = len(renderer.pages)
+    shared = False
+    if workers > 1 and database is not None and total and total >= parallel_from:
+        try:
+            _draw_in_workers(renderer, site, database, workers, progress)
+            shared = True
+        except Exception as error:  # (a worker that could not start, or fell over)
+            print(f"Writing the pages with {workers} workers failed ({error}); writing them here.")
     written = []
-    for spec in renderer.pages:
-        path = site.out_root / spec.path
-        path.parent.mkdir(parents=True, exist_ok=True)
-        if spec.kind == "mail":
-            text = _mail_page(site, spec)
-        else:
-            text = _message_page(site, spec, relations)
-        path.write_text(text, encoding="utf-8")
-        written.append(path)
+    if shared:
+        written = [site.out_root / spec.path for spec in renderer.pages]
+    else:
+        relations = _Relations(renderer)
+        for number, spec in enumerate(renderer.pages, 1):
+            written.append(_draw(site, relations, spec))
+            if progress and (number % 25 == 0 or number == total):
+                progress(number, total)
     index = site.out_root / "index.html"
     index.parent.mkdir(parents=True, exist_ok=True)
     index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
