@@ -40,7 +40,15 @@ from caixa.box import Box
 #: The folders Caixa writes into above `.caixa/`.
 WRITTEN = ("People", "Groups", "Mail")
 #: Inside `.caixa/`: what goes with the data (the settings file, box.yaml, is not among them).
-STATE = ("work", "undo", "logs", "pages.json", "jobs.sqlite", "caixa.sqlite")
+STATE = (
+    "work",
+    "undo",
+    "logs",
+    "pages.json",
+    "pages.fingerprints.json",
+    "jobs.sqlite",
+    "caixa.sqlite",
+)
 
 
 @dataclass

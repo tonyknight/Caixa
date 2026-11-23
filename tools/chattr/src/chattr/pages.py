@@ -131,6 +131,19 @@ def _attachment_kind(mime: Optional[str], name: str) -> str:
     return "file"
 
 
+class _Unchanged(Exception):
+    """A page is just as it was written the last time: leave its file be."""
+
+
+def _plain(value: Any) -> Any:
+    """What JSON cannot say, said steadily (a page's fingerprint must not vary between runs)."""
+    if isinstance(value, (set, frozenset)):
+        return sorted(value, key=repr)
+    if isinstance(value, Path):
+        return value.as_posix()
+    return str(value)
+
+
 class _Site:
     """Everything a page needs beyond the Renderer: where files are and how to link to them."""
 
@@ -144,6 +157,34 @@ class _Site:
         self.summaries: dict[str, tuple[str, str]] = {}
         self._finder = blobs.Finder()
         self._page_dirs: dict[Path, str] = {}
+        #: What each page was drawn from the last time it was written: {path: [fingerprint, size,
+        #: mtime_ns]} (see `draw`); and what this run drew, to record for the next.
+        self.known: dict[str, list[Any]] = {}
+        self.drawn: dict[str, list[Any]] = {}
+        self._templates = templates_fingerprint()
+        self._page: Optional[str] = None  # the page being drawn (its path under out_root)
+
+    def draw(self, template: str, **context: Any) -> str:
+        """The page from its template and its data, unless both are what it was drawn from the last
+        time and its file is still as written then: then `_Unchanged` (leave the file be)."""
+        digest = hashlib.sha256(f"{self._templates}\0{template}\0".encode())
+        digest.update(
+            json.dumps(context, sort_keys=True, default=_plain, ensure_ascii=False).encode()
+        )
+        fingerprint = digest.hexdigest()
+        page = self._page
+        if page is not None:
+            self.drawn[page] = [fingerprint]
+            was = self.known.get(page)
+            if was and was[0] == fingerprint:
+                try:
+                    status = os.stat(self.out_root / page)
+                except OSError:
+                    status = None
+                if status and [status.st_size, status.st_mtime_ns] == was[1:3]:
+                    self.drawn[page] = was
+                    raise _Unchanged()
+        return self.env.get_template(template).render(**context)
 
     def _file(self, storage_path: Optional[str]) -> Optional[Path]:
         if not storage_path:
@@ -415,7 +456,8 @@ def _message_page(site: _Site, spec: PageSpec, relations: "_Relations") -> str:
             }
         )
     first, last = shown[0][0]["local"], shown[-1][0]["local"]
-    return site.env.get_template("page.html").render(
+    return site.draw(
+        "page.html",
         title=spec.title,
         kind=spec.kind,
         total=_plural(sum(s[1] for s in shown), "item"),
@@ -511,7 +553,8 @@ def _conversation_page(site: _Site, spec: PageSpec) -> str:
             }
         )
     depth = spec.folder.count("/") + 1
-    return site.env.get_template("conversation.html").render(
+    return site.draw(
+        "conversation.html",
         title=spec.title,
         account=spec.account,
         cards=cards,
@@ -560,7 +603,8 @@ def _mail_page(site: _Site, spec: PageSpec) -> str:
             }
         )
     depth = spec.folder.count("/") + 1
-    return site.env.get_template("mail.html").render(
+    return site.draw(
+        "mail.html",
         title=spec.title,
         mails=mails,
         back="../" * depth + "index.html",
@@ -1009,28 +1053,68 @@ PARALLEL_FROM = 300
 
 
 def _draw(site: _Site, relations: "_Relations", spec: PageSpec) -> Path:
+    """Write a page, unless it is just as it was written the last time (see `_Site.draw`)."""
     path = site.out_root / spec.path
+    site._page = spec.path
+    try:
+        text = (
+            _mail_page(site, spec) if spec.kind == "mail" else _message_page(site, spec, relations)
+        )
+    except _Unchanged:
+        return path
+    finally:
+        site._page = None
     path.parent.mkdir(parents=True, exist_ok=True)
-    text = _mail_page(site, spec) if spec.kind == "mail" else _message_page(site, spec, relations)
     path.write_text(text, encoding="utf-8")
+    status = path.stat()
+    site.drawn[spec.path] = [site.drawn[spec.path][0], status.st_size, status.st_mtime_ns]
     return path
 
 
-def _draw_share(job: tuple[str, str, list[str], dict[str, Any], list[tuple[int, str]]]) -> int:
+def _fingerprints(record: Path) -> Path:
+    """Where what each page was drawn from is kept: beside the list of pages."""
+    return record.with_name(record.stem + ".fingerprints.json")
+
+
+def _known(record: Path) -> dict[str, list[Any]]:
+    try:
+        found = json.loads(_fingerprints(record).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {
+        k: v for k, v in found.items() if isinstance(v, list) and len(v) == 3
+    } if isinstance(found, dict) else {}  # fmt: skip
+
+
+def _keep_known(record: Path, drawn: Mapping[str, list[Any]]) -> None:
+    target = _fingerprints(record)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.with_name(target.name + ".part")
+    temporary.write_text(
+        json.dumps(dict(sorted(drawn.items())), separators=(",", ":")), encoding="utf-8"
+    )
+    os.replace(temporary, target)
+
+
+def _draw_share(
+    job: tuple[str, str, list[str], dict[str, Any], list[tuple[int, str]], dict[str, list[Any]]],
+) -> dict[str, list[Any]]:
     """A worker's share of the pages: it reads the archive itself and writes the pages it is given
-    (by their place in the plan, and their path, to be sure it plans the same pages)."""
-    database, out_root, roots, summaries, share = job
+    (by their place in the plan, and their path, to be sure it plans the same pages). Returns
+    what each was drawn from."""
+    database, out_root, roots, summaries, share, known = job
     with DatabaseManager(database) as db:
         renderer = Renderer(db)
         site = _Site(renderer, Path(out_root), roots)
         site.summaries = {k: tuple(v) for k, v in summaries.items()}  # type: ignore[misc]
+        site.known = known
         relations = _Relations(renderer)
         for index, path in share:
             spec = renderer.pages[index] if index < len(renderer.pages) else None
             if spec is None or spec.path != path:
                 raise RuntimeError("The archive changed while its pages were being written.")
             _draw(site, relations, spec)
-    return len(share)
+    return site.drawn
 
 
 def _draw_in_workers(
@@ -1053,13 +1137,21 @@ def _draw_in_workers(
         max_workers=workers, mp_context=multiprocessing.get_context("spawn")
     ) as pool:
         futures = [
-            pool.submit(_draw_share, (str(database), str(site.out_root), roots, summaries, share))
+            pool.submit(
+                _draw_share,
+                (str(database), str(site.out_root), roots, summaries, share,
+                 {path: site.known[path] for _, path in share if path in site.known}),
+            )  # fmt: skip
             for share in shares
         ]
+        drawn: dict[str, list[Any]] = {}
         for future in concurrent.futures.as_completed(futures):
-            done += future.result()
+            part = future.result()
+            drawn.update(part)
+            done += len(part)
             if progress:
                 progress(done, total)
+        site.drawn = drawn
 
 
 def render_pages(
@@ -1086,10 +1178,16 @@ def render_pages(
     one fails, they are all written here instead. `progress(done, total)` follows the pages.
 
     Pages written by an earlier call and no longer wanted are deleted. The list of what was
-    written is kept in `pages_list` (default: `.chattr-pages` in `out_root`).
+    written is kept in `pages_list` (default: `.chattr-pages` in `out_root`). Given a `pages_list`,
+    what each page was drawn from is kept beside it, and a page drawn from the same data and
+    templates as last time (its file untouched since) is not written again.
     """
     site = _Site(renderer, Path(out_root), attachment_roots)
     site.summaries = dict(summaries or {})
+    record = Path(pages_list) if pages_list else site.out_root / PAGES_LIST
+    # A page drawn from the same as last time is left as it is. (Only with a list kept apart from
+    # the pages, as Caixa keeps it: never a file of its own among them.)
+    site.known = _known(record) if pages_list else {}
     total = len(renderer.pages)
     shared = False
     if workers > 1 and database is not None and total and total >= parallel_from:
@@ -1098,6 +1196,7 @@ def render_pages(
             shared = True
         except Exception as error:  # (a worker that could not start, or fell over)
             print(f"Writing the pages with {workers} workers failed ({error}); writing them here.")
+            site.drawn = {}
     written = []
     if shared:
         written = [site.out_root / spec.path for spec in renderer.pages]
@@ -1111,7 +1210,7 @@ def render_pages(
     index.parent.mkdir(parents=True, exist_ok=True)
     index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
     written.append(index)
-    _forget_old_pages(
-        site.out_root, Path(pages_list) if pages_list else site.out_root / PAGES_LIST, written
-    )
+    _forget_old_pages(site.out_root, record, written)
+    if pages_list:
+        _keep_known(record, site.drawn)
     return written
