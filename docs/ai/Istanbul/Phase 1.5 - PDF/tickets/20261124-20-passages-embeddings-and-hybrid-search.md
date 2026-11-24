@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-08-page-text-and-full-text-index
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -36,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:**
 
@@ -78,7 +78,7 @@ Current task: T01
   - no model means nothing to do;
   - a non-local endpoint is refused.
 - Verify: `python -m pytest -q tests/test_documents_semantic.py`
-- [ ] done
+- [x] done
 
 ### T02: Hybrid search, the job and the command
 

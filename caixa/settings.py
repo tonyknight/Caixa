@@ -181,6 +181,17 @@ SCHEMA: dict[str, Any] = {
                 "on the internet, whatever the summaries allow."
             ),
         },
+        "documents.embedding_model": {
+            "type": "string",
+            "default": "",
+            "title": "Embedding model, for search by meaning",
+            "description": (
+                "The name of an embedding model the summaries' endpoint serves (on this computer, "
+                "such as one LM Studio has loaded). Documents' passages are turned into vectors so "
+                "search finds them by what they mean, not only by their words. Empty: search by "
+                "words only."
+            ),
+        },
         "documents.ocr": {
             "type": "boolean",
             "default": True,
