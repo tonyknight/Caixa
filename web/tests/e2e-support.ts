@@ -89,3 +89,15 @@ export async function shot(page: any, name: string): Promise<void> {
   const folder = process.env.CAIXA_SHOTS
   if (folder) await page.screenshot({ path: join(folder, `${name}.png`) })
 }
+
+/** The synthetic PDF family (`tests/fixtures/pdf_family.py`), built into a new folder; returns it. */
+export function buildPdfFamily(into: string): string {
+  const code = [
+    'import sys',
+    "sys.path.insert(0, 'tests/fixtures')",
+    'from pathlib import Path',
+    'from pdf_family import build_pdf_family',
+    'print(build_pdf_family(Path(sys.argv[1])).root)',
+  ].join('\n')
+  return execFileSync('python', ['-c', code, into], { cwd: repository, encoding: 'utf8' }).trim().split('\n').pop()!
+}

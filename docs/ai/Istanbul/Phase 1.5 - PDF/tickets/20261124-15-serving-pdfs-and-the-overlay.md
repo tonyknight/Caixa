@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-04-the-pdf-collector
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:**
 
@@ -88,7 +87,7 @@ Current task: T02
   - **Open in its own window** points at the PDF;
   - the same from `file://`.
 - Verify: `cd web && pnpm exec vitest run tests/e2e-documents.test.ts && pnpm exec tsc --noEmit`
-- [ ] done
+- [x] done
 
 ## Completion report
 
