@@ -74,6 +74,8 @@ class DocumentModel:
         self.family = family
         self.misbehave = dict(misbehave or {})
         self.asked: dict[str, int] = {}
+        self.summaries: dict[str, str] = {}  # a summary to give instead, by file name
+        self.prompts: dict[str, str] = {}  # the last classification request, by file name
 
     def answer_for(self, name: str, pages: dict[int, str]) -> dict[str, Any]:
         try:
@@ -116,9 +118,12 @@ class DocumentModel:
             "organizations": (
                 [fixture.author] if fixture.author and fixture.author not in fixture.people else []
             ),
-            "tags": [],
+            "tags": [
+                f"{fixture.type.title()}s",
+                "Family Papers",
+            ],  # plural, capitals: as models write
             "filename_conflicts": list(fixture.conflicts),
-            "summary": summary,
+            "summary": self.summaries.get(name, summary),
         }
 
     def fields_for(self, name: str, kind: str, pages: dict[int, str]) -> dict[str, Any]:
@@ -166,6 +171,9 @@ class DocumentModel:
             fields = self.fields_for(name, kind.group(1), pages_of(first))
             return {"choices": [{"message": {"content": json.dumps(fields, ensure_ascii=False)}}]}
         mode = self.misbehave.get(name, "")
+        self.prompts[name] = (
+            next(m for m in request["messages"] if m["role"] == "system")["content"] + "\n" + first
+        )
         if mode == "twice" and self.asked[name] == 1:
             mode = "not_json"
         if mode == "not_json":

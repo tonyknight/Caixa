@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-10-ai-classification
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -35,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** the classification answer already carries a summary and tags (ticket 10). This
 ticket makes them right and puts them on the document.
@@ -74,7 +74,7 @@ ticket makes them right and puts them on the document.
   - a summary of 70 words is cut at a sentence;
   - a non-confident document still gets both.
 - Verify: `python -m pytest -q tests/test_documents_tags.py tests/test_documents_enrich.py`
-- [ ] done
+- [x] done
 
 ### T02: The owner's tags and the starter set
 

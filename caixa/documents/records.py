@@ -357,6 +357,10 @@ def set_tags(master: Master, item_id: str, tags: Iterable[str], source: str) -> 
     source stay, and a tag the owner gave is never taken over by a model's."""
     db = master.connection
     wanted = {re.sub(r"\s+", " ", t).strip().casefold() for t in tags if t and t.strip()}
+    if source == "ai_inference":  # what the owner took off stays off
+        from caixa.documents.tags import rejected_tags
+
+        wanted -= rejected_tags(master, item_id)
     db.execute("DELETE FROM document_tags WHERE item_id = ? AND source = ?", (item_id, source))
     for tag in sorted(wanted):
         db.execute("INSERT OR IGNORE INTO tags (name) VALUES (?)", (tag,))

@@ -38,6 +38,7 @@ from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.documents import evidence, records
 from caixa.documents import types as document_types
+from caixa.documents.tags import normalize_tags, starter_tags
 from caixa.naming import NamingDate, NamingError
 
 PROMPT_VERSION = "1"
@@ -193,6 +194,7 @@ class DocumentInput:
     pages: list[tuple[int, str]]  # (number from 1, text)
     page_count: int
     authors: list[str] = field(default_factory=list)  # the box's authors and their aliases
+    tags: list[str] = field(default_factory=list)  # the starter tags, to use when they fit
 
 
 def _said_by_name(named: evidence.FilenameEvidence) -> str:
@@ -243,6 +245,8 @@ def prepare(document: DocumentInput, budget: int) -> str:
     ]
     if known:
         head.append(f"Authors already in the box named in the text: {', '.join(known)}")
+    if document.tags:
+        head.append(f"Tags to use when they fit: {', '.join(document.tags)}")
     header = "\n".join(head) + "\n"
     texts = dict(document.pages)
     labels = {
@@ -498,6 +502,7 @@ def _input(master: Any, item_id: str) -> DocumentInput:
         pages=pages,
         page_count=int(found["pages"] or len(pages)),
         authors=records.author_names(master),
+        tags=starter_tags(master),
     )
 
 
@@ -540,6 +545,20 @@ def _record_type(master: Any, item_id: str, answer: Mapping[str, Any], run: int)
                     evidence=one.get("evidence"), page=one.get("page"),
                     verified=one.get("verified"), number=one.get("number"), run_id=run,
                 )  # fmt: skip
+
+
+def _summary_and_tags(master: Any, item_id: str, answer: Mapping[str, Any], model: str) -> None:
+    """The summary (cut at a sentence within 50 words) and the tags, applied whether or not the
+    document is confident: both are always shown as the model's."""
+    from dataclasses import replace
+
+    summary = " ".join(str(answer.get("summary") or "").split())
+    if summary:
+        summary = summaries._cut(summary)
+        record = records.load_record(master, item_id)
+        records.save_document(master, replace(record, summary=summary, summary_model=model), None)
+    tags = normalize_tags(answer.get("tags") or [], starter_tags(master))
+    records.set_tags(master, item_id, tags, "ai_inference")
 
 
 def _set_status(master: Any, item_id: str, status: str) -> None:
@@ -638,6 +657,7 @@ def enrich_documents(
                     _record(master, item_id, found.answer, run)
                     if typed is not None and typed.ok:
                         _record_type(master, item_id, typed.answer, run)
+                    _summary_and_tags(master, item_id, found.answer, str(info["model"]))
                 _set_status(master, item_id, status)
                 if status in ("completed", "needs_review"):
                     from caixa.documents.reconcile import reconcile_document
