@@ -977,6 +977,20 @@ class Service:
             return self._mail_reduce(box, job, progress)
         if job["kind"] == "mail-summarize":
             return self._mail_summarize(box, progress)
+        if job["kind"] == "documents-enrich":
+            from caixa.documents.enrich import enrich_documents
+
+            options = job.get("options") or {}
+            undo.begin(box, job["id"], "pdf", "enrich")
+            try:
+                return enrich_documents(
+                    box,
+                    item_ids=options.get("item_ids") or None,
+                    every=bool(options.get("all")),
+                    progress=progress,
+                )
+            finally:
+                undo.finish(box, job["id"])
         if job["kind"] == "documents-reprocess":
             from caixa.documents.reprocess import reprocess
 
@@ -1776,6 +1790,15 @@ class Service:
                 ocr_status=ocr_status, limit=max(1, min(int(limit), 500)),
             )  # fmt: skip
         return {"query": document_search.fts_query(query), "hits": hits}
+
+    @method("documents.enrich", write=True)
+    def documents_enrich(
+        self, item_ids: Optional[list[str]] = None, all: bool = False
+    ) -> dict[str, Any]:
+        """Read documents with the model, as a job: those named, every one (`all`), or those
+        still waiting to be read."""
+        options = {"item_ids": list(item_ids or []), "all": bool(all)}
+        return self._enqueue("documents-enrich", "pdf", "enrich", options)
 
     @method("documents.reprocess", write=True)
     def documents_reprocess(

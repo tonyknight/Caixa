@@ -298,7 +298,10 @@ def test_a_failing_provider_marks_failed(server: StubServer, family: Path, tmp_p
     server.status = 500
     box = _box(tmp_path, server)
     _import(box, family)
+    statuses = [d["ai_status"] for d in _documents(box).values()]
     assert _documents(box)["2022 Car Insurance.pdf"]["ai_status"] == "failed"
+    assert statuses.count("failed") == 2  # then it stops: the others wait for a model that answers
+    assert statuses.count("pending") == len(statuses) - 2
 
 
 def test_an_answer_never_valid_needs_review(
@@ -350,7 +353,7 @@ def test_the_job_reads_the_waiting_documents(service: Any) -> None:
     job = service.call("documents.enrich", {})
     done = service.wait(job["id"], 300)
     assert done["status"] == "done", done["error"]
-    assert done["result"]["enriched"] == 15  # every readable document but the locked one
+    assert done["result"]["enriched"] == 14  # every readable document but the locked one
     statuses = {d["ai_status"] for d in service.call("documents.list", {})["documents"]}
     assert statuses == {"completed", "pending"}
 

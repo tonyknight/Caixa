@@ -13,8 +13,7 @@ depends_on:
 - 20261124-08-page-text-and-full-text-index
 - 20261124-09-filename-and-property-evidence
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -38,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/enrich.py`.
 
@@ -122,7 +121,7 @@ Current task: T02
   - the job and the command enrich the pending and named documents;
   - the locked document is skipped.
 - Verify: `python -m pytest -q tests/test_documents_enrich.py tests/test_pdf_collector.py tests/test_worker_protocol.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

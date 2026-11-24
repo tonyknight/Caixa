@@ -29,12 +29,14 @@ import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Any, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional, Sequence
 
-from chattr.translation import TranslationUnavailable, is_local_endpoint
+from chattr.translation import TranslationError, TranslationUnavailable, is_local_endpoint
 
-from caixa import summaries
-from caixa.documents import evidence
+from caixa import settings, summaries
+from caixa.box import Box
+from caixa.collectors.base import Progress
+from caixa.documents import evidence, records
 from caixa.naming import NamingDate, NamingError
 
 PROMPT_VERSION = "1"
@@ -402,5 +404,160 @@ def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
 __all__ = [
     "APPLE_BUDGET", "BUDGET", "CATEGORIES", "Classified", "DATE_KINDS", "DocumentInput",
     "EnrichUnavailable", "PROMPT_VERSION", "SCHEMA", "SCHEMA_VERSION", "TYPES", "classify",
-    "close", "parse_answer", "prepare", "problems", "provider", "verify_quote",
+    "close", "enrich_documents", "parse_answer", "prepare", "problems", "provider",
+    "verify_quote",
 ]  # fmt: skip
+
+
+# --- The stage ------------------------------------------------------------------------------------
+
+#: Review reasons that keep a document from being read (its pages cannot be opened).
+UNREADABLE = ("locked",)
+#: After this many documents in a row the provider failed on, the stage stops: the rest wait.
+FAILURES_IN_A_ROW = 2
+
+
+def _properties(fields: Sequence[Mapping[str, Any]]) -> dict[str, str]:
+    """A document's properties as they were read at import (kept as `pdf_metadata` fields)."""
+    names = {"title": "title", "author": "author", "subject": "subject", "keywords": "keywords"}
+    found: dict[str, str] = {}
+    for one in fields:
+        if one["source"] != "pdf_metadata" or not one["value"]:
+            continue
+        if one["field"] in names:
+            found[names[one["field"]]] = str(one["value"])
+        elif one["field"] == "creation_date":
+            found["creationDate"] = "D:" + str(one["value"]).replace("-", "")
+    return found
+
+
+def _input(master: Any, item_id: str) -> DocumentInput:
+    found = records.get_document(master, item_id)
+    pages = [
+        (int(r["page"]), str(r["text"] or ""))
+        for r in master.connection.execute(
+            "SELECT page, text FROM document_pages WHERE item_id = ? ORDER BY page", (item_id,)
+        )
+    ]
+    return DocumentInput(
+        filename=str(found["original_filename"]),
+        properties=_properties(found["fields"]),
+        pages=pages,
+        page_count=int(found["pages"] or len(pages)),
+        authors=records.author_names(master),
+    )
+
+
+def _record(master: Any, item_id: str, answer: Mapping[str, Any], run: int) -> None:
+    """The model's answer as proposals, each with its evidence and whether that was verified."""
+
+    def add(name: str, value: Any, **extra: Any) -> None:
+        if value not in (None, "", []):
+            records.add_field(
+                master, item_id, name, str(value), "ai_inference", run_id=run, **extra
+            )
+
+    add("type", answer.get("type"))
+    add("category", answer.get("category"))
+    add("title", answer.get("title"))
+    author = answer.get("author") or {}
+    add("author", author.get("name"), evidence=author.get("evidence"), page=author.get("page"),
+        verified=author.get("verified"))  # fmt: skip
+    date = answer.get("date") or {}
+    add("date", date.get("value"), evidence=date.get("evidence"), page=date.get("page"),
+        verified=date.get("verified"))  # fmt: skip
+    add("date_kind", date.get("kind"))
+    for other in answer.get("other_dates") or []:
+        add(f"date_{other.get('kind') or 'other'}", other.get("value"),
+            evidence=other.get("evidence"), page=other.get("page"), verified=other.get("verified"))  # fmt: skip
+    for name, key in (("person", "people"), ("organization", "organizations"), ("tag", "tags"),
+                      ("filename_conflict", "filename_conflicts")):  # fmt: skip
+        for value in answer.get(key) or []:
+            add(name, value)
+    add("summary", answer.get("summary"))
+
+
+def _set_status(master: Any, item_id: str, status: str) -> None:
+    from dataclasses import replace
+
+    record = records.load_record(master, item_id)
+    records.save_document(master, replace(record, ai_status=status), None)
+
+
+def _chosen(master: Any, item_ids: Optional[Sequence[str]], every: bool) -> list[str]:
+    rows = master.connection.execute(
+        "SELECT item_id, ai_status, review FROM documents ORDER BY created_at, item_id"
+    ).fetchall()
+    wanted = set(item_ids or [])
+    chosen = []
+    for row in rows:
+        if any(reason in json.loads(row["review"] or "[]") for reason in UNREADABLE):
+            continue
+        if wanted:
+            if row["item_id"] in wanted:
+                chosen.append(row["item_id"])
+        elif every or row["ai_status"] in ("pending", "processing"):
+            chosen.append(row["item_id"])
+    return chosen
+
+
+def enrich_documents(
+    box: Box,
+    item_ids: Optional[Sequence[str]] = None,
+    every: bool = False,
+    progress: Callable[[Progress], None] = lambda step: None,
+) -> dict[str, Any]:
+    """Read documents with the model: those named, every one (`every`), or those still waiting.
+    Each is committed as it is read, so a stopped run carries on where it stopped. Without a
+    model, nothing is read and `reason` and `message` say why."""
+    with box.master() as master:
+        chosen = _chosen(master, item_ids, every)
+    result: dict[str, Any] = {"enriched": 0, "needs_review": 0, "failed": 0, "waiting": len(chosen)}
+    if not chosen:
+        return result
+    try:
+        client, info = provider(settings.load(box))
+    except EnrichUnavailable as unavailable:
+        return {**result, "reason": unavailable.reason, "message": unavailable.message}
+    result.update(model=info["model"], provider=info["provider"])
+    in_a_row = 0
+    try:
+        for number, item_id in enumerate(chosen, start=1):
+            if in_a_row >= FAILURES_IN_A_ROW:
+                result["stopped"] = (
+                    f"The model failed {in_a_row} times in a row; {len(chosen) - number + 1} "
+                    "documents wait to be read later."
+                )
+                break
+            with box.master() as master:
+                document = _input(master, item_id)
+                _set_status(master, item_id, "processing")
+            progress(Progress("enriching", number, len(chosen), document.filename))
+            found: Optional[Classified] = None
+            problem: Optional[str] = None
+            try:
+                found = classify(client, document, int(info["budget"]))
+            except TranslationError as failure:
+                problem = str(failure)
+            with box.master() as master:
+                if found is None:
+                    status = "failed"
+                elif found.ok:
+                    status = "completed"
+                else:
+                    status, problem = "needs_review", found.error
+                run = records.add_run(
+                    master, item_id, "enrich", status, tool=info["provider"],
+                    model=info["model"], provider=info["provider"],
+                    prompt_version=PROMPT_VERSION, schema_version=SCHEMA_VERSION,
+                    report={"attempts": found.attempts if found else 0, "error": problem},
+                )  # fmt: skip
+                if found is not None and found.ok:
+                    records.clear_fields(master, item_id, "ai_inference")
+                    _record(master, item_id, found.answer, run)
+                _set_status(master, item_id, status)
+            result["enriched" if status == "completed" else status] += 1
+            in_a_row = in_a_row + 1 if status == "failed" else 0
+    finally:
+        close(client)
+    return result

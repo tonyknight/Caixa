@@ -301,7 +301,16 @@ class PdfCollector:
             "workdir": str(box.work_dir("documents") / "ocr"),
         }
         seen = _examine_all(files, self._workers(box, options), progress, ocr)
-        return import_examined(box, source, seen, progress, FORMAT, workdir)
+        result = import_examined(box, source, seen, progress, FORMAT, workdir)
+        from caixa.documents.enrich import enrich_documents
+
+        read = enrich_documents(box, progress=progress)  # the documents still waiting
+        if read.get("reason") and read.get("waiting"):
+            result.warnings.append(
+                f"{read['waiting']} documents were not read by a model: {read['message']} "
+                "They can be read later (caixa documents enrich)."
+            )
+        return result
 
 
 def collectors() -> list[PdfCollector]:

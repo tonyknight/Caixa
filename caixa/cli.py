@@ -123,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--status", help="only documents with this status (needs_review, …)")
     listing.add_argument("--tag", help="only documents with this tag")
     _box_argument(listing)
+    read = document_commands.add_parser(
+        "enrich", help="read documents with the model: those waiting, those named, or --all"
+    )
+    read.add_argument("item_ids", nargs="*", help="documents' ids, as `caixa documents list` shows")
+    read.add_argument("--all", action="store_true", help="every document, read again")
+    _box_argument(read)
     again = document_commands.add_parser(
         "reprocess",
         help="OCR documents again: those named, or --failed for every one that needs it",
@@ -740,6 +746,27 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "enrich":
+        service = _open(args)
+        job = service.documents_enrich(item_ids=args.item_ids, all=args.all)
+        try:
+            done = service.wait(job["id"])
+        finally:
+            service.close()
+        if done["status"] != "done":
+            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+            return 1
+        result = done["result"]
+        if args.json:
+            _print_json(result)
+        elif result.get("reason"):
+            print(f"Nothing was read: {result['message']}")
+        else:
+            print(
+                f"{result['enriched']} read, {result['needs_review']} need review, "
+                f"{result['failed']} failed."
+            )
+        return 0
     if args.action == "reprocess":
         service = _open(args)
         job = service.documents_reprocess(
