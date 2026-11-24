@@ -3,11 +3,11 @@ id: 20261124-02-the-archival-naming-convention
 title: The archival naming convention
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: caixa/naming.py and docs/Archival names.md, examples checked by tests.'
 parent:
 depends_on: []
 subtasks: []
@@ -19,11 +19,11 @@ Caixa's archival naming convention, as a document (`docs/Archival names.md`) and
 
 ## Acceptance criteria
 
-- [ ] `docs/Archival names.md` documents the convention with examples and edge cases, linked from the README
-- [ ] `caixa/naming.py` builds `(DATE) Title - Author.ext` with `(YYYY-MM-DD)`, `(YYYY-MM)`, `(YYYY)`; no author omits ` - Author`; no date is not named (Unrecognized keeps the original name)
-- [ ] Unsafe characters, control characters, leading/trailing dots and spaces, runs of spaces, capitals and NFC are handled; names are cut after 110 characters at a word
-- [ ] A different file of the same name in a folder gets ` (2)`, ` (3)`; the same file is recognised
-- [ ] Every example in the document is a test
+- [x] `docs/Archival names.md` documents the convention with examples and edge cases, linked from the README
+- [x] `caixa/naming.py` builds `(DATE) Title - Author.ext` with `(YYYY-MM-DD)`, `(YYYY-MM)`, `(YYYY)`; no author omits ` - Author`; no date is not named (Unrecognized keeps the original name)
+- [x] Unsafe characters, control characters, leading/trailing dots and spaces, runs of spaces, capitals and NFC are handled; names are cut after 110 characters at a word
+- [x] A different file of the same name in a folder gets ` (2)`, ` (3)`; the same file is recognised
+- [x] Every example in the document is a test
 
 ## Context
 
@@ -98,10 +98,42 @@ module is the general convention they already follow.
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/naming.py` names files by the convention:
+  - `NamingDate` at day, month or year precision;
+  - `clean`: safe characters, NFC, capitals calmed;
+  - `archival_name`: `(DATE) Title - Author.ext`, with the date and author taken out of the
+    title, and cut after 110 characters (the title shortened first, at a word);
+  - `original_name` for Unrecognized;
+  - `folder_name`;
+  - `free_path`: ` (2)`, ` (3)`, with the same content recognised by SHA-256.
+
+  `docs/Archival names.md` documents the convention (the naming date per type, characters,
+  length, clashes, folders, Unrecognized), and its examples table is checked by the tests. Linked
+  from the README.
 - **Files:**
-- **Errors:**
+  - new: `caixa/naming.py`, `tests/test_naming.py`, `docs/Archival names.md`;
+  - changed: `README.md`.
+- **Errors:** none. `free_path` moved from T02 to T01, because its tests share the file.
 - **Verify:**
+  - `python -m pytest -q`: 1610 passed, 1 skipped.
+  - `python -m mypy --python-version 3.12 caixa`: only the 8 baseline errors, none in
+    `naming.py`.
+  - black: clean for the changed files.
+
+## Review
+
+### 2026-11-24: 201a2be..9399499 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the joining-word list (`JOINING`) covers English and Portuguese only. Other
+  languages' articles get capitals when a shouting title is calmed.
+- **Minor:** `original_name` raises on a name with nothing usable in it (`???.pdf`). The collector
+  (ticket 04) must decide what such a file is called.
+- **Spec:** D9 met; every acceptance criterion met. The 110-character limit and the Unrecognized
+  rule match the 2026-11-24 decisions.
+- **TDD:** RED (`ModuleNotFoundError: caixa.naming`; then the missing document) before each GREEN.
+- **Commits:** `20261124-02 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
