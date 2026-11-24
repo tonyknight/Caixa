@@ -3,11 +3,12 @@ id: 20261124-03-migration-6-and-document-records
 title: Migration 6 and document records
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: migration 6, records module, documents.list/get and caixa documents
+  list|show.'
 parent:
 depends_on:
 - 20261124-01-synthetic-pdf-fixtures
@@ -20,11 +21,11 @@ Migration 6 of the master database: every table of *Data model* (documents, sour
 
 ## Acceptance criteria
 
-- [ ] Migration 6 applies to a new master and to one at version 5; `schema.CURRENT_VERSION` is 6
-- [ ] Documents are `items` of type `document`, collector `pdf`, id `pdf:<source sha256>`, with `time_precision` from the naming date
-- [ ] A records module upserts a document, its sources, pages (keeping the FTS index in step), fields, tags and runs, and reads them back
-- [ ] `documents.list` and `documents.get` service methods and `caixa documents list|show` commands
-- [ ] Reset and undo snapshots cover the new tables
+- [x] Migration 6 applies to a new master and to one at version 5; `schema.CURRENT_VERSION` is 6
+- [x] Documents are `items` of type `document`, collector `pdf`, id `pdf:<source sha256>`, with `time_precision` from the naming date
+- [x] A records module upserts a document, its sources, pages (keeping the FTS index in step), fields, tags and runs, and reads them back
+- [x] `documents.list` and `documents.get` service methods and `caixa documents list|show` commands
+- [x] Reset and undo snapshots cover the new tables
 
 ## Context
 
@@ -106,10 +107,46 @@ Reset deletes `caixa.sqlite` whole and undo snapshots copy it whole, so both cov
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** Migration 6 adds the document tables:
+  - authors and accent-free aliases;
+  - documents with the processing, OCR, validation and AI statuses;
+  - sources and pages;
+  - `documents_fts` (FTS5, external content, trigger-synced, accents ignored);
+  - runs, fields with provenance, tags (with the starter set) and chunks.
+
+  `Master.delete_items` clears a document's rows. `caixa/documents/records.py` writes and reads
+  them: `save_document` (insert, update or unchanged, with versions in the change log; the naming
+  date's precision on the item; undated as `''`/`unknown`), `add_source`, `set_pages`, `add_run`,
+  `add_field`, `set_tags` (a model's tags never replace the owner's), `author_id` and aliases,
+  `find_by_source`, `list_documents` (filters) and `get_document`. Also the `documents.list` and
+  `documents.get` service methods, and `caixa documents list|show`.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/__init__.py`, `caixa/documents/records.py`,
+    `tests/test_documents_schema.py`, `tests/test_documents_records.py`;
+  - changed: `caixa/schema.py`, `caixa/master.py`, `caixa/service.py`, `caixa/cli.py`,
+    `tests/test_worker_protocol.py` (the protocol's method list).
+- **Errors:** the full suite caught that the worker protocol's list of methods must name the new
+  ones; added.
 - **Verify:**
+  - `python -m pytest -q`: 1633 passed plus the protocol test (31 passed).
+  - mypy (3.12 target): only the 8 baseline errors.
+  - black: clean.
+
+## Review
+
+### 2026-11-24: 9e84927..b04ecc6 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `save_document` compares every column, so a later step that sets only one fact must
+  pass the whole record. Tickets 05 and later should read, change and save (or gain a small
+  `update_document` helper when they need it).
+- **Minor:** `list_documents` filters by the author's alias; an unknown author gives an empty list
+  rather than an error (as intended for search filters).
+- **Spec:** D3 and D7 met, along with the *Data model*; every acceptance criterion met. Reset
+  deletes `caixa.sqlite` whole, and undo copies it whole (tested).
+- **TDD:** RED (`6 failed`; then `ModuleNotFoundError: caixa.documents`) before each GREEN.
+- **Commits:** `20261124-03 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
