@@ -21,6 +21,13 @@ if str(CHATTR_TESTS) not in sys.path:
 
 from fixtures import FamilyExports, build_all, family  # noqa: E402  (needs the path above)
 
+# Caixa's own fixtures (the PDF family) live in `tests/fixtures/`, a folder of modules on the path.
+CAIXA_FIXTURES = Path(__file__).resolve().parent / "fixtures"
+if str(CAIXA_FIXTURES) not in sys.path:
+    sys.path.insert(0, str(CAIXA_FIXTURES))
+
+from pdf_family import PdfFamily, build_pdf_family  # noqa: E402  (needs the path above)
+
 
 @pytest.fixture(autouse=True)
 def _private_caixa_home(
@@ -32,6 +39,12 @@ def _private_caixa_home(
     from caixa import apple_intelligence
 
     apple_intelligence.forget()  # (whether the Mac's model is ready is asked afresh in each test)
+
+
+@pytest.fixture(scope="session")
+def pdf_family(tmp_path_factory: pytest.TempPathFactory) -> PdfFamily:
+    """The synthetic PDFs (see `tests/fixtures/pdf_family.py`). Read-only: copy before changing."""
+    return build_pdf_family(tmp_path_factory.mktemp("pdf-family"))
 
 
 @pytest.fixture(scope="session")
