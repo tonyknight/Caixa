@@ -1,20 +1,19 @@
 ---
 id: 20261124-02-the-archival-naming-convention
-title: "The archival naming convention"
+title: The archival naming convention
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-24
 updated: 2026-11-24
 closed:
-notes: ""
+notes: ''
 parent:
 depends_on: []
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
 Caixa's archival naming convention, as a document (`docs/Archival names.md`) and as code (`caixa/naming.py`) future file collectors can reuse: dates at their precision, which date names each type, title and author cleaning, characters, a cut after 110 characters, clashes with ` (2)`.
@@ -38,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** `caixa/naming.py`, with no dependencies on documents, so a future photo or video
 collector can use it. Chattr's attachment names (`safe_name`, `_free_name`) stay as they are; this
@@ -76,7 +75,8 @@ module is the general convention they already follow.
 ### T01: Dates, cleaning, names and length
 
 - `caixa/naming.py`: `NamingDate`, `NamingError`, `clean`, `archival_name`, `original_name`,
-  `folder_name`, `LIMIT`.
+  `folder_name`, `free_path`, `LIMIT`. (`free_path` was moved here from T02: its tests share the
+  file.)
 - Tests (`tests/test_naming.py`):
   - the three precisions and refusals;
   - unsafe characters, controls, NFC, shouting titles, joining words;
@@ -84,18 +84,16 @@ module is the general convention they already follow.
   - no author;
   - 110 characters (title shortened first, at a word);
   - a long author;
-  - the original name kept safe.
+  - the original name kept safe;
+  - ` (2)` and ` (3)`, and the same content recognised.
 - Verify: `python -m pytest -q tests/test_naming.py && python -m mypy caixa`
-- [ ] done
+- [x] done
 
 ### T02: Clashes and the convention document
 
-- `free_path` in `caixa/naming.py`.
 - `docs/Archival names.md` with the convention, the naming date per type, Unrecognized, folders and
   the examples table. README link.
-- Tests:
-  - ` (2)` and ` (3)`, and the same content is recognised;
-  - every row of the document's examples table gives its name.
+- Tests: every row of the document's examples table gives its name.
 - Verify: `python -m pytest -q tests/test_naming.py && python -m black --check caixa tests/test_naming.py && python -m mypy caixa`
 - [ ] done
 
