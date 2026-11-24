@@ -248,10 +248,20 @@ class OpenAICompatibleTranslator:
     server_name = "translation server"
 
     def chat(
-        self, messages: list[dict[str, str]], temperature: float = 0
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0,
+        response_format: Optional[dict[str, Any]] = None,
     ) -> tuple[str, dict[str, Any]]:
-        """Send a conversation (`[{role, content}, …]`); the reply's text and its `usage`."""
-        payload = {"model": self.model, "temperature": temperature, "messages": messages}
+        """Send a conversation (`[{role, content}, …]`); the reply's text and its `usage`.
+        `response_format` (such as a JSON schema) is passed on to servers that honour it."""
+        payload: dict[str, Any] = {
+            "model": self.model,
+            "temperature": temperature,
+            "messages": messages,
+        }
+        if response_format is not None:
+            payload["response_format"] = response_format
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"

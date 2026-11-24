@@ -170,6 +170,17 @@ SCHEMA: dict[str, Any] = {
                 "When summaries use the translation endpoint, translation's yes is enough."
             ),
         },
+        "documents.enrich": {
+            "type": "boolean",
+            "default": True,
+            "title": "Read documents with a model on this computer",
+            "description": (
+                "After an import, each document is read by the summaries' model (Apple "
+                "Intelligence, or an endpoint on this computer) to say what it is, who issued it "
+                "and when, so it can be named and filed. Documents are never sent to a service "
+                "on the internet, whatever the summaries allow."
+            ),
+        },
         "documents.ocr": {
             "type": "boolean",
             "default": True,

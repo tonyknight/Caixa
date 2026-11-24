@@ -339,6 +339,11 @@ CREATE TABLE chunks (
 CREATE INDEX chunks_by_item ON chunks (item_id);
 """
 
+# Version 7: whether a fact's evidence was found where it was said to be (NULL: nothing to check).
+MIGRATION_7 = """
+ALTER TABLE document_fields ADD COLUMN verified INTEGER CHECK (verified IN (0, 1));
+"""
+
 MIGRATIONS: list[tuple[int, str]] = [
     (1, MIGRATION_1),
     (2, MIGRATION_2),
@@ -346,6 +351,7 @@ MIGRATIONS: list[tuple[int, str]] = [
     (4, MIGRATION_4),
     (5, MIGRATION_5),
     (6, MIGRATION_6),
+    (7, MIGRATION_7),
 ]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 

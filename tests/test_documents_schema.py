@@ -42,8 +42,8 @@ def _document(db: sqlite3.Connection, item_id: str = "pdf:abc") -> None:
     )
 
 
-def test_the_current_version_is_6() -> None:
-    assert CURRENT_VERSION == 6 and MIGRATIONS[-1][0] == 6
+def test_documents_arrived_in_version_6() -> None:
+    assert CURRENT_VERSION >= 6 and [v for v, _ in MIGRATIONS][5] == 6
 
 
 def test_a_new_master_has_the_document_tables(tmp_path: Path) -> None:
@@ -62,7 +62,7 @@ def test_a_version_5_master_is_migrated(tmp_path: Path) -> None:
             db.execute("INSERT INTO schema_version VALUES (?, ?)", (version, NOW))
     with sqlite3.connect(path) as db:
         assert "documents" not in _tables(db)
-        assert apply_migrations(db) == 6
+        assert apply_migrations(db) == CURRENT_VERSION
         assert DOCUMENT_TABLES <= _tables(db)
 
 

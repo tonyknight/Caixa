@@ -296,7 +296,10 @@ class AppleIntelligence:
         return self._idle.get()
 
     def chat(
-        self, messages: list[dict[str, str]], temperature: float = 0
+        self,
+        messages: list[dict[str, str]],
+        temperature: float = 0,
+        response_format: Optional[dict[str, Any]] = None,  # not used: the schema is in the text
     ) -> tuple[str, dict[str, Any]]:
         instructions = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
         turns = [m for m in messages if m["role"] != "system"]

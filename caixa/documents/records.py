@@ -329,14 +329,27 @@ def add_field(
     number: Optional[float] = None,
     state: str = "proposed",
     run_id: Optional[int] = None,
+    verified: Optional[bool] = None,
 ) -> int:
-    """Record one candidate value of a fact, with where it came from."""
+    """Record one candidate value of a fact, with where it came from; `verified` says whether its
+    evidence was found where it was said to be (None: nothing to check)."""
     cur = master.connection.execute(
         "INSERT INTO document_fields (item_id, field, value, number, source, evidence, page, "
-        "state, run_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (item_id, name, value, number, source, evidence, page, state, run_id),
-    )
+        "state, run_id, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            item_id, name, value, number, source, evidence, page, state, run_id,
+            None if verified is None else int(bool(verified)),
+        ),
+    )  # fmt: skip
     return int(cur.lastrowid or 0)
+
+
+def clear_fields(master: Master, item_id: str, source: str) -> int:
+    """Forget a document's facts from one source (a model's earlier reading); returns how many."""
+    cur = master.connection.execute(
+        "DELETE FROM document_fields WHERE item_id = ? AND source = ?", (item_id, source)
+    )
+    return cur.rowcount
 
 
 def set_tags(master: Master, item_id: str, tags: Iterable[str], source: str) -> None:
@@ -436,7 +449,7 @@ def get_document(master: Master, item_id: str) -> dict[str, Any]:
     found["fields"] = [
         dict(r)
         for r in db.execute(
-            "SELECT id, field, value, number, source, evidence, page, state, run_id "
+            "SELECT id, field, value, number, source, evidence, page, state, run_id, verified "
             "FROM document_fields WHERE item_id = ? ORDER BY field, id",
             (item_id,),
         )
@@ -459,6 +472,7 @@ __all__ = [
     "add_field",
     "add_run",
     "add_source",
+    "clear_fields",
     "author_id",
     "author_names",
     "find_author",
