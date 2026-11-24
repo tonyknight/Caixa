@@ -11,6 +11,7 @@ together.
 - [Timeline](#timeline)
 - [Phase 1: Collectors](#phase-1-collectors-2026-11-01-to-2026-11-19)
 - [Phase 1.5: Mail without the noise](#phase-15-mail-without-the-noise-2026-11-19-to-2026-11-24)
+- [Phase 1.5 - PDF: Documents](#phase-15---pdf-documents-2026-11-24)
 - [Issues we ran into, and what they taught us](#issues-we-ran-into-and-what-they-taught-us)
 - [Where things stand](#where-things-stand)
 - [Backlog](#backlog)
@@ -85,6 +86,7 @@ sources (mail, PDFs, photos, home videos, Obsidian vaults), **Stage 2** the pers
 | 2026-11-22 | Hot fixes from daily use: redraws on new templates, selection and nested categories, the AI benchmark, Apple Intelligence first, merge by drag, mail by account and folder, undecodable characters. |
 | 2026-11-23 | Deleted people's mail, the calendar at the top, merging anywhere, an attachment race, the work bar, and the redraw made fast and batched. |
 | 2026-11-24 | Phase 1.5 complete: 46 tickets, **release 0.5.1** merged to `working` and `main`. Next: PDF support. |
+| 2026-11-24 | Phase 1.5 - PDF planned and built: 23 tickets on `2026-Istanbul/Phase1.5-PDF`, tested on synthetic PDFs; waiting for the maintainer's Mac. |
 
 ---
 
@@ -227,7 +229,80 @@ took (`-10`), and the Workers setting is visible in Settings.
 
 ---
 
+## Phase 1.5 - PDF: Documents (2026-11-24)
+
+Project files: [`docs/ai/Istanbul/Phase 1.5 - PDF/`](docs/ai/Istanbul/Phase%201.5%20-%20PDF/),
+with its completion report and testing guide.
+
+### What we set out to do
+
+Documents as a domain of the box, PDF first:
+
+- import PDFs without touching the originals;
+- give every archived copy a validated, searchable text layer;
+- name and file each one by date and author, from evidence that a local model and the file name
+  agree on;
+- find documents again through search and card pages that open the PDF over the page.
+
+The maintainer's draft had seven phases; phases 1–6 are this project, and the seventh (financial
+transactions) went to the backlog.
+
+### What was built (tickets 01–23)
+
+- **The collector** `pdf` (`caixa/collectors/pdfImport.py`, named so other formats get their own).
+  It takes a file, a folder or a zip, with preview, undo and run-again.
+- **Inspection, OCR and validation:**
+  - each page is classed (text, scan, old OCR layer, broken text);
+  - OCRmyPDF is run on the scanned pages only;
+  - broken-text pages are read by OCR from a render and left as they are;
+  - the copy is checked by PyMuPDF and pikepdf, page by page, against renders of the original. A
+    copy that fails is filed unchanged and can be retried.
+- **Names and folders:** `(date) Title - Author.pdf` under `Documents/PDF/<year>/<author>/`, or
+  `Unrecognized/`. The convention is set out in `docs/Archival names.md`, with `caixa/naming.py`.
+- **Reading by a local model**, through the summaries' provider (Apple Intelligence first), never
+  a remote one:
+  - JSON schemas for classification and for eight types;
+  - every quote verified against its page;
+  - reconciliation and confidence decided by Caixa's rules, not the model's score;
+  - summaries and tags from an extensible starter set;
+  - a documents task in `caixa benchmark`.
+- **Pages:** one per year and author, with cards and an overlay holding the browser's own PDF
+  viewer, and `Documents/PDF/PDF.html` with a heat map, years, authors, Unrecognized and To review.
+  The index links to it through a generic Chattr slot.
+- **In the window:**
+  - search by words, the first full-text index in Caixa (FTS5, accents aside), and by meaning
+    (passages, an endpoint's embeddings, reciprocal rank fusion);
+  - Ask, with checked citations;
+  - corrections and tags, batched behind **Update the pages**.
+- **People:** authors and people named are linked in `item_people`, and documents are listed on
+  person pages through a second generic Chattr slot.
+
+### Decisions (recorded in the Requirements)
+
+- Folders are year and author; category and type are views.
+- Names carry no tags.
+- A document is applied when confident, otherwise it goes to review.
+- PyMuPDF is used, under the AGPL (stated in NOTICE).
+- Every record is in the master.
+- `Unrecognized/` sits at the root of the PDF folder.
+- Author pages are named after the author alone.
+- Names are cut after 110 characters.
+- OCR is in English by default.
+
 ## Issues we ran into, and what they taught us
+
+### Phase 1.5 - PDF
+
+| Issue | Cause | What we did |
+| --- | --- | --- |
+| Git's identity in the container was "Claude" again | The container's restart reset it, as in Phase 1.5 | Set to the maintainer before the first commit, and checked at each restart. |
+| A failing model made every document wait out its retries | Each document retried on its own | Reading stops after two failures in a row; the rest wait. |
+| Undo could not restore a file replaced in place by OCR | Undo followed moves, not rewrites | `undo.keep_file` keeps the earlier copy. |
+| A natural question found nothing | Full text asks for every word, including "how" and "was" | Questions match any of their content words. |
+| A search could hang for two minutes on a stalled model | The embedding call's timeout was meant for batches | Searches wait 10 seconds, then search by words alone. |
+| The docs promised owner-only working copies that did not exist | A requirement with no test | Built, with a test; a privacy test also proves no page text reaches a log. |
+
+
 
 ### Phase 1.5, in the order they came up
 
@@ -272,13 +347,15 @@ took (`-10`), and the Workers setting is visible in Settings.
 ## Where things stand
 
 - **Version** 0.5.1 (Phase 1.5's release, tagged `v0.5.1`; Phase 1 was 0.5.0); Chattr 2.0.0.
-- **Tests**: 1,532 Caixa and 912 Chattr Python tests; 277 tests of the window (unit and end-to-end
-  against the real `caixa serve` in Chromium). About 64,000 lines of Python, TypeScript, HTML and CSS.
+  Phase 1.5 - PDF is built on its branch and not yet released.
+- **Tests**: 1,991 Caixa and 916 Chattr Python tests; 285 tests of the window (unit and end-to-end
+  against the real `caixa serve` in Chromium).
 - **Tried on real data by the maintainer**: iMessage, Messenger, Google Voice, iPhone voicemail, Mac
   Contacts, a local translation endpoint, Apple Intelligence, and now mail: real mboxes of growing
   size, in a box of 48,000 pages.
 - **Not yet tried on real data**: WhatsApp, Instagram, a vCard file, the faster-whisper backend,
-  Windows, the Chattr mirror workflow.
+  Windows, the Chattr mirror workflow, and every part of PDF documents (real PDFs, Apple
+  Intelligence reading them, Homebrew's OCRmyPDF, Safari's overlay).
 
 ## Backlog
 
@@ -286,7 +363,9 @@ Items to plan into future projects. Each names where it came from.
 
 ### Next projects (Stage 1.5 and beyond)
 
-- **PDF support**: the next project.
+- **PDF support**: built in Phase 1.5 - PDF; release after the maintainer's trial on the Mac.
+- Financial transactions from statements and bills, cheques linked to bills (the PDF draft's phase
+  7); other document formats, each with its own collector (Phase 1.5 - PDF).
 - Photos and home videos as their own domain; Obsidian vaults (Stage 1.5).
 - **Person page redesign**: the calendar at the top is a stopgap (Phase 1.5, `20261123-02`).
 - Further message sources: Slack, Telegram, Google Chat (Phase 1).
@@ -297,6 +376,14 @@ Items to plan into future projects. Each names where it came from.
   were out of scope for Phase 1.5.
 
 ### Improvements carried forward
+
+- From Phase 1.5 - PDF:
+  - Apple Intelligence's guided generation (a JSON schema) and Apple's `NLContextualEmbedding` in
+    the Swift helper;
+  - whether Ghostscript is needed;
+  - documents for box people who have no messages, and so no person page (with the person page
+    redesign);
+  - search across mail and messages, using the same `chunks` table (Stage 2).
 
 - **Names from the To line**: mail the owner sent to someone who never wrote back is filed under
   their address, though the To line names them (Phase 1.5, `20261123-05`).
@@ -332,5 +419,6 @@ Items to plan into future projects. Each names where it came from.
 
 ## Next
 
-**PDF support**, the next Stage 1.5 project: a briefing, then the architecture conversation and
-Requirements, as for every project.
+**Try Phase 1.5 - PDF on the Mac**, following the testing guide in its completion report, then
+hot fixes and the release. After that, the next Stage 1.5 project: a briefing, then the
+architecture conversation and Requirements, as for every project.
