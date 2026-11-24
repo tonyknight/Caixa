@@ -3,11 +3,11 @@ id: 20261124-11-type-schemas
 title: Type schemas
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: eight type schemas, amounts parsed by Caixa, type fields recorded.'
 parent:
 depends_on:
 - 20261124-10-ai-classification
@@ -20,8 +20,8 @@ The eight type schemas (statement, cheque, bill, invoice or receipt, insurance, 
 
 ## Acceptance criteria
 
-- [ ] Each typed fixture gets its type's fields with evidence and page
-- [ ] Amounts are stored as found and as a number parsed by Caixa
+- [x] Each typed fixture gets its type's fields with evidence and page
+- [x] Amounts are stored as found and as a number parsed by Caixa
 
 ## Context
 
@@ -90,10 +90,35 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/types.py` holds the eight type schemas (version 1), the money
+  fields, and `parse_amount`, which reads amounts as people write them (`2,310.55`, `2.104,33`,
+  `23,40`, `€ 1 200,00`). `enrich.ask` is now the shared question-and-check loop.
+  `classify_type` asks for a type's fields after classification, verifies each quote, and gives
+  amounts Caixa's number. The stage records them as `ai_inference` fields with evidence, page,
+  verified and number. A failed type question leaves the classification completed and is noted
+  in the run (`type_error`). The stand-in model answers type questions from the fixtures' fields.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/types.py`, `tests/test_documents_types.py`;
+  - changed: `caixa/documents/enrich.py`, `tests/fixtures/stand_in_documents.py`.
+- **Errors:** none.
 - **Verify:**
+  - `python -m pytest -q`: 1841 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 2057e80..9a2c89e (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `parse_amount` reads `1.200` (no cents) as 1200, and `1.20` as 1.20, as the writing
+  usually means. A three-decimal currency would be misread; none is expected here.
+- **Minor:** a type's fields take a second request per document, which doubles the model's time
+  for typed documents.
+- **Spec:** D12 (type schemas, amounts by Caixa) met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.types`; four stage tests failing before
+  T02) before each GREEN.
+- **Commits:** `20261124-11 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
