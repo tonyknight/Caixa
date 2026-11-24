@@ -245,6 +245,7 @@ took (`-10`), and the Workers setting is visible in Settings.
 | The work bar unlocked too early, or let a second change in | A look at the queue begun before a change ended; a change chaining a step before its first request | Each change waits for its own job; a stale look is repeated; a change holds the lock from its first step. |
 | Sorting one person took minutes on 48,000 pages | Every change redrew everything; the Workers setting was invisible | The redraw work above; batching; Workers in Settings. |
 | Naming a number then deleting that person left the number | With batching, the name was never drawn into the archive before the delete | Deleting records the person's numbers and addresses too. |
+| 17 commits were authored as "Claude" instead of the maintainer | A restart of the development container reset git's identity, and nobody checked it | Found at the release; the commits were re-authored as the maintainer (same contents and dates) and the branches force-pushed with the maintainer's agreement. |
 
 ### Patterns worth remembering
 
@@ -261,6 +262,8 @@ took (`-10`), and the Workers setting is visible in Settings.
 - **Measure before optimizing.** The redraw's real costs (character-by-character escaping, path
   resolution) were not where intuition put them; profiling found them, and a benchmark script kept
   the numbers honest.
+- **Check who is committing.** After any restart of the development environment, check
+  `git config user.name` before the first commit: the authorship rule depends on it.
 - **Browser-only behaviour needs a browser.** Safari's drag-and-drop could not be tested here
   (Chromium only); the maintainer's testing on Safari was the check.
 
