@@ -157,9 +157,31 @@ class DocumentModel:
                 answer[field] = {"value": text, "evidence": quote, "page": page}
         return answer
 
+    def answer_question(self, first: str) -> dict[str, Any]:
+        """Ask the documents: the passage sharing most words with the question, its line with an
+        amount (or its first line), cited by its number. `misbehave["ask"]` is `wrong_citation`
+        (cites a passage it was not given) or `not_found`."""
+        mode = self.misbehave.get("ask", "")
+        if mode == "not_found":
+            return {"found": False, "answer": "The passages do not say."}
+        if mode == "wrong_citation":
+            return {"found": True, "answer": "It was 88.15 EUR [99]."}
+        question = re.search(r"^Question: (.+)$", first, re.M)
+        asked = set(re.findall(r"\w+", (question.group(1) if question else "").casefold()))
+        passages = re.findall(r"^\[(\d+)\] .*\n(.*)$", first, re.M)
+        if not passages:
+            return {"found": False, "answer": "The passages do not say."}
+        n, text = max(passages, key=lambda p: len(asked & set(re.findall(r"\w+", p[1].casefold()))))
+        amount = re.search(r"(?:Amount due|Total|Valor)[^.]*?\d[\d.,]*\s*\w*", text)
+        said = amount.group(0) if amount else text[:80]
+        return {"found": True, "answer": f"{said.strip()} [{n}]."}
+
     def respond(self, request: dict[str, Any]) -> dict[str, Any]:
         prompt = request["messages"][-1]["content"]
         first = next(m for m in request["messages"] if m["role"] == "user")["content"]
+        if first.startswith("Question: "):
+            answer = self.answer_question(first)
+            return {"choices": [{"message": {"content": json.dumps(answer, ensure_ascii=False)}}]}
         found = re.search(r"^File name: (.+)$", first, re.M)
         name = found.group(1).strip() if found else ""
         self.asked[name] = self.asked.get(name, 0) + 1

@@ -151,10 +151,11 @@ class EnrichUnavailable(Exception):
         self.message = message
 
 
-def provider(values: Mapping[str, Any]) -> tuple[Any, dict[str, Any]]:
+def provider(values: Mapping[str, Any], reading: bool = True) -> tuple[Any, dict[str, Any]]:
     """The client documents are read with, and `{provider, model, budget}`; `EnrichUnavailable`
-    says why there is none."""
-    if not values.get("documents.enrich", True):
+    says why there is none. The owner's questions (`reading=False`) are answered even when reading
+    at import is turned off; a model on the internet is refused either way."""
+    if reading and not values.get("documents.enrich", True):
         raise EnrichUnavailable("off", "Reading documents with a model is turned off in Settings.")
     apple = summaries.apple(values)
     if not apple:
@@ -385,6 +386,7 @@ def ask(
     prompt: str,
     schema: dict[str, Any],
     check: Callable[[Any], list[str]],
+    name: str = "caixa_document",
 ) -> Classified:
     """Ask once, and once more naming what was wrong when the answer cannot be used. An
     endpoint is given the schema as `response_format`; any other model finds it in its
@@ -393,7 +395,7 @@ def ask(
         instruction += "\n\nThe JSON object follows this JSON Schema:\n" + json.dumps(schema)
     response_format = {
         "type": "json_schema",
-        "json_schema": {"name": "caixa_document", "strict": True, "schema": schema},
+        "json_schema": {"name": name, "strict": True, "schema": schema},
     }
     messages = [
         {"role": "system", "content": instruction},

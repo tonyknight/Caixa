@@ -25,8 +25,23 @@ OPEN, CLOSE, ELLIPSIS, WORDS = "[", "]", "…", 12
 OPENING = 200
 
 
-def fts_query(typed: str) -> str:
-    """An FTS5 query for what a person typed (see the module text); "" when nothing was."""
+#: Words a question is full of that say nothing of what it asks (English and Portuguese).
+COMMON = frozenset(
+    "a an and any are as at be by can could de did do does for from had has have how i in is it many much "
+    "its me my of on or our than that the their there these this to was we were what when where "
+    "which who why will with you your um uma o os as do da dos das em no na nos nas para por "
+    "com que qual quais quando quanto quanta onde foi era e se ao aos".split()
+)
+
+
+def fts_query(typed: str, match: str = "all") -> str:
+    """An FTS5 query for what a person typed (see the module text); "" when nothing was. With
+    `match="any"` (a question), a page needs only one of the words, common ones left out."""
+    if match == "any":
+        words = {w.casefold(): w for w in re.findall(r"\w+", typed or "")}
+        return " OR ".join(
+            f'"{w}"' for key, w in words.items() if len(key) > 1 and key not in COMMON
+        )
     parts = []
     for phrase, word in _PIECES.findall(typed or ""):
         if phrase:
@@ -116,15 +131,17 @@ def search(
     limit: int = 50,
     embed: Optional[Callable[[Sequence[str]], list[list[float]]]] = None,
     model: Optional[str] = None,
+    match: str = "all",
 ) -> list[dict[str, Any]]:
     """The pages that match, best first (see the module text). Without words, the documents the
     filters choose, each by its first page; without either, nothing. Given `embed` and `model`
     (the embedding model and its name), passages close in meaning join the pages found by words,
-    ranked together by reciprocal rank fusion (`hybrid`)."""
+    ranked together by reciprocal rank fusion (`hybrid`). `match="any"` is for questions: a page
+    needs only one of the words (`fts_query`)."""
     where, args = _filters(
         master, type, category, author, date_from, date_to, tag, status, ocr_status
     )
-    matched = fts_query(query)
+    matched = fts_query(query, match)
     db = master.connection
     if not matched:
         if not where:
