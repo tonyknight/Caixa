@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-10-ai-classification
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -35,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** `caixa/documents/types.py` holds the eight type schemas (version 1). Each field is
 `{value, evidence, page}`, or a list of them for parties:
@@ -72,7 +72,7 @@ Current task: T01
   - what is not an amount gives None;
   - answers that break a type's schema are named.
 - Verify: `python -m pytest -q tests/test_documents_types.py`
-- [ ] done
+- [x] done
 
 ### T02: Asking for a type's fields
 
