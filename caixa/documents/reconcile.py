@@ -126,6 +126,7 @@ def decide(
     pages: Mapping[int, str],
     known_authors: Mapping[str, str],
     ai_ok: bool,
+    fallback_title: Optional[str] = None,
 ) -> Decision:
     """What the fields say about a document, and whether it can be applied (see the module text).
     `known_authors` maps every author's normalized name and alias to its name."""
@@ -250,6 +251,10 @@ def decide(
         reasons = [
             r for r in reasons if r not in ("unverified_author", "conflict:author", "no_author")
         ]
+    if owner_date is not None and owner_author is not None:
+        reasons = []  # the owner has said who and when: that is enough to file it
+        if decision.title is None and fallback_title:
+            decision.title = fallback_title
     decision.reasons = reasons
     decision.confident = not reasons
     decision.applied -= decision.conflicts
@@ -351,10 +356,15 @@ def reconcile_document(
     box: Any, master: Any, item_id: str, pages: Mapping[int, str], ai_ok: bool
 ) -> list[tuple[str, str]]:
     """Decide and apply for one document (see `decide` and `apply_decision`)."""
+    from pathlib import Path
+
     from caixa.documents import records
 
-    fields = records.get_document(master, item_id)["fields"]
-    decision = decide(fields, pages, known_authors(master), ai_ok)
+    document = records.get_document(master, item_id)
+    decision = decide(
+        document["fields"], pages, known_authors(master), ai_ok,
+        fallback_title=Path(str(document["original_filename"])).stem,
+    )  # fmt: skip
     return apply_decision(box, master, item_id, decision)
 
 

@@ -1892,6 +1892,61 @@ class Service:
         with box.master() as master:
             return {"starter": change_starter(master, add, remove)}
 
+    @method("documents.update", write=True)
+    def documents_update(
+        self,
+        item_id: str,
+        author: Optional[str] = None,
+        date: Optional[str] = None,
+        title: Optional[str] = None,
+        type: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """The owner corrects a document (its author, date, title or type): recorded as theirs,
+        the file renamed and moved at once; the pages are drawn with the next Update of the pages
+        in Caixa's window (at once otherwise)."""
+        from caixa.documents.corrections import CorrectionError, correct
+        from caixa.documents.pages import draw_documents
+
+        box = self._require_box()
+        with box.master() as master:
+            try:
+                moves = correct(box, master, item_id, author, date, title, type)
+            except KeyError:
+                raise ServiceError("not_found", f"There is no document {item_id}.") from None
+            except CorrectionError as error:
+                raise ServiceError("invalid_params", str(error)) from None
+            master.commit()
+            found = document_records.get_document(master, item_id)
+        undo.note_moves(box, moves)
+        if self.batch_pages:
+            pending = box.add_pending("pages")
+            self._announce("pages.pending", pending)
+        else:
+            draw_documents(box)
+            pending = box.pending()
+        return {"document": found, "moved": len(moves), "pending": pending}
+
+    @method("documents.review")
+    def documents_review(self) -> dict[str, Any]:
+        """The documents waiting for the owner: why each waits, and what is known to choose from."""
+        from caixa.documents.corrections import candidates
+        from caixa.documents.pages import REASONS
+
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            waiting = document_records.list_documents(master, status="needs_review")
+            return {
+                "documents": [
+                    {
+                        "item_id": d["item_id"], "title": d["title"],
+                        "original_filename": d["original_filename"], "file_path": d["file_path"],
+                        "reasons": [REASONS.get(r, r) for r in d["review"]],
+                        "candidates": candidates(master, d["item_id"]),
+                    }
+                    for d in waiting
+                ]
+            }  # fmt: skip
+
     @method("documents.reprocess", write=True)
     def documents_reprocess(
         self,

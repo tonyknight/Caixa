@@ -123,6 +123,17 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--status", help="only documents with this status (needs_review, …)")
     listing.add_argument("--tag", help="only documents with this tag")
     _box_argument(listing)
+    fix = document_commands.add_parser(
+        "update", help="correct a document: --author, --date, --title, --type (yours from then on)"
+    )
+    fix.add_argument("item_id", help="the document's id")
+    fix.add_argument("--author", help="who issued, sent or wrote it")
+    fix.add_argument("--date", help="its date: YYYY, YYYY-MM or YYYY-MM-DD")
+    fix.add_argument("--title", help="what it is, in a few words")
+    fix.add_argument("--type", help="statement, bill, invoice, insurance, tax, …")
+    _box_argument(fix)
+    waiting = document_commands.add_parser("review", help="the documents waiting for you, and why")
+    _box_argument(waiting)
     tags = document_commands.add_parser(
         "tags", help="a document's tags (--add, --remove), or with --starter the starter set"
     )
@@ -763,6 +774,26 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "update":
+        service = _open(args)
+        changed = service.documents_update(
+            args.item_id, author=args.author, date=args.date, title=args.title, type=args.type
+        )
+        print(json.dumps(changed, indent=2) if args.json else
+              f"Filed as {changed['document']['file_path']}.")  # fmt: skip
+        return 0
+    if args.action == "review":
+        listing = _open(args, read_only=True).documents_review()
+        if args.json:
+            _print_json(listing)
+        elif not listing["documents"]:
+            print("Nothing waits for review.")
+        for document in [] if args.json else listing["documents"]:
+            print(
+                f"{document['title'] or document['original_filename']}: {'; '.join(document['reasons'])}"
+            )
+            print(f"            {document['item_id']}")
+        return 0
     if args.action == "tags":
         service = _open(args)
         if args.starter:
