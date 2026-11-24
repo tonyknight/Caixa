@@ -305,6 +305,7 @@ class PdfCollector:
         from caixa.documents.enrich import enrich_documents
 
         read = enrich_documents(box, progress=progress)  # the documents still waiting
+        result.moved += [tuple(pair) for pair in read.get("moved", [])]
         if read.get("reason") and read.get("waiting"):
             result.warnings.append(
                 f"{read['waiting']} documents were not read by a model: {read['message']} "

@@ -196,3 +196,154 @@ def test_a_date_written_in_the_text_needs_no_quote() -> None:
         F("date_in_text", "2024-11-30", "pdf_content", "November 30, 2024", 1)
     ]
     assert decide(fields, PAGES, {}, ai_ok=True).confident
+
+
+# --- Applying, in an import (T02) ----------------------------------------------------------------
+
+from caixa.documents.pdf import ocr as _ocr  # noqa: E402
+
+needs_ocr = pytest.mark.skipif(not _ocr.tools().ready, reason="OCR tools missing here")
+
+
+@pytest.fixture
+def stand_in(pdf_family: Any) -> Iterator[Any]:
+    from stand_in_documents import DocumentModel
+    from stub_server import StubServer
+
+    server = StubServer()
+    server.model = DocumentModel(pdf_family)  # type: ignore[attr-defined]
+    server.respond = server.model.respond  # type: ignore[attr-defined]
+    yield server
+    server.close()
+
+
+def _settings(server: Any) -> dict[str, Any]:
+    return {
+        "summaries.provider": "endpoint",
+        "summaries.endpoint": server.endpoint,
+        "summaries.model": "stand-in-documents",
+    }
+
+
+@pytest.fixture
+def imported(pdf_family: Any, tmp_path: Path, stand_in: Any) -> Any:
+    from caixa import settings
+    from caixa.box import Box
+    from caixa.collectors.pdfImport import PdfCollector
+
+    source = tmp_path / "pdfs"
+    shutil.copytree(pdf_family.root, source)
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, _settings(stand_in))
+    result = PdfCollector().run(box, source, {"workers": 2}, lambda step: None)
+    return box, result
+
+
+def _documents(box: Any) -> dict[str, dict[str, Any]]:
+    from caixa.documents import records
+
+    with box.master() as master:
+        return {
+            d["original_filename"]: records.get_document(master, d["item_id"])
+            for d in records.list_documents(master)
+        }
+
+
+@needs_ocr
+@pytest.mark.parametrize(
+    ("name", "path"),
+    [
+        ("2024-11 Banco Atlântico Checking Statement.pdf",
+         "2024/Banco Atlântico/(2024-11-30) Checking Statement - Banco Atlântico.pdf"),
+        ("scan_00482.pdf", "2024/Águas do Vale/(2024-03-12) Fatura de Água - Águas do Vale.pdf"),
+        ("2023 Property Tax Bill.pdf",
+         "2022/Câmara Municipal de Vila Nova/(2022) Property Tax Bill - Câmara Municipal de Vila Nova.pdf"),
+        ("2024-06-15 Insurance Renewal - Seguradora Horizonte.pdf",
+         "2024/Seguradora Horizonte/(2024-07-01) Home Insurance Renewal - Seguradora Horizonte.pdf"),
+        ("receipt_rotated.pdf", "2024/Café Central/(2024-05-03) Receipt 0093 - Café Central.pdf"),
+    ],
+)  # fmt: skip
+def test_confident_documents_are_named_and_filed(imported: Any, name: str, path: str) -> None:
+    box, _ = imported
+    document = _documents(box)[name]
+    assert document["file_path"] == f"Documents/PDF/{path}", document["review"]
+    assert (box.root / document["file_path"]).is_file()
+    assert document["processing_status"] == "archived" and document["review"] == []
+
+
+@needs_ocr
+def test_the_filenames_other_date_is_kept_as_what_it_is(imported: Any) -> None:
+    box, _ = imported
+    tax = _documents(box)["2023 Property Tax Bill.pdf"]
+    assert tax["date"] == "2022" and tax["date_precision"] == "year" and tax["date_kind"] == "tax_year"
+    kept = [f for f in tax["fields"] if f["source"] == "original_filename" and f["value"] == "2023"]
+    assert {f["field"] for f in kept} >= {"date"} and any(f["field"].startswith("date_") for f in kept)
+
+
+def test_a_misleading_name_waits_for_review(imported: Any) -> None:
+    box, _ = imported
+    misleading = _documents(box)["2022 Car Insurance.pdf"]
+    assert misleading["file_path"] == "Documents/PDF/Unrecognized/2022 Car Insurance.pdf"
+    assert {"conflict:date", "conflict:type"} <= set(misleading["review"])
+    assert misleading["processing_status"] == "needs_review"
+    states = {(f["field"], f["source"]): f["state"] for f in misleading["fields"]}
+    assert states[("date", "original_filename")] == "conflict"
+    assert states[("date", "ai_inference")] == "conflict"
+
+
+def test_a_document_without_an_author_waits(imported: Any) -> None:
+    box, _ = imported
+    contract = _documents(box)["old_ocr_contract.pdf"]
+    assert "no_author" in contract["review"] and "/Unrecognized/" in contract["file_path"]
+
+
+@needs_ocr
+def test_a_probable_duplicate_is_filed_and_still_waits(imported: Any) -> None:
+    box, _ = imported
+    again = _documents(box)["Banco Atlântico November 2024 (1).pdf"]
+    assert again["file_path"].startswith("Documents/PDF/2024/Banco Atlântico/")
+    assert again["file_path"].endswith(" (2).pdf")
+    assert again["review"] == ["probable_duplicate"]
+
+
+def test_applied_fields_are_marked(imported: Any) -> None:
+    box, _ = imported
+    statement = _documents(box)["2024-11 Banco Atlântico Checking Statement.pdf"]
+    applied = {(f["field"], f["source"]) for f in statement["fields"] if f["state"] == "applied"}
+    assert {("date", "ai_inference"), ("author", "ai_inference"), ("type", "ai_inference"),
+            ("date", "original_filename")} <= applied  # fmt: skip
+
+
+@needs_ocr
+def test_the_moves_can_be_undone(pdf_family: Any, tmp_path: Path, stand_in: Any) -> None:
+    from caixa import settings
+    from caixa.service import Service
+
+    source = tmp_path / "pdfs"
+    shutil.copytree(pdf_family.root, source)
+    service = Service(roots=[tmp_path])
+    try:
+        service.box_create(str(tmp_path / "Box"), name="Our box", owner="Maria Costa")
+        from caixa.box import Box
+
+        settings.save(Box.open(tmp_path / "Box"), _settings(stand_in))
+        done = service.wait(service.import_start("pdf", str(source))["id"], 600)
+        assert done["status"] == "done", done["error"]
+        assert "moved" not in done["result"]  # kept on the undo snapshot, not shown
+        documents = tmp_path / "Box" / "Documents"
+        assert (documents / "PDF" / "2024" / "Banco Atlântico").is_dir()
+        undone = service.wait(service.import_undo()["id"], 600)
+        assert undone["status"] == "done", undone["error"]
+        assert not any(documents.rglob("*.pdf"))
+    finally:
+        service.close()
+
+
+def test_reading_again_moves_nothing(imported: Any) -> None:
+    from caixa.documents.enrich import enrich_documents
+
+    box, _ = imported
+    before = {name: d["file_path"] for name, d in _documents(box).items()}
+    done = enrich_documents(box, every=True)
+    assert done["moved"] == []
+    assert {name: d["file_path"] for name, d in _documents(box).items()} == before

@@ -13,7 +13,7 @@ depends_on:
 - 20261124-10-ai-classification
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -38,7 +38,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** `caixa/documents/reconcile.py` decides by Caixa's own rules, from a document's fields.
 The sources are the filename, the properties, the text's dates, the model and the owner.
@@ -117,7 +117,7 @@ follow: each document's file moves, and its aliases are kept. Also `documents.au
   - undoing the import or the enrich job puts files back;
   - reading again changes nothing more.
 - Verify: `python -m pytest -q tests/test_documents_reconcile.py tests/test_documents_enrich.py tests/test_pdf_collector.py`
-- [ ] done
+- [x] done
 
 ### T03: Authors renamed and merged
 

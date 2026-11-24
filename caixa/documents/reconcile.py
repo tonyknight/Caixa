@@ -256,4 +256,109 @@ def decide(
     return decision
 
 
-__all__ = ["CLOSE", "Decision", "REASONS", "decide"]
+# --- Applying a decision ---------------------------------------------------------------------------
+
+
+def known_authors(master: Any) -> dict[str, str]:
+    """Every author's name and alias, normalized, to that author's name."""
+    rows = master.connection.execute(
+        "SELECT a.name, x.alias FROM authors a LEFT JOIN author_aliases x ON x.author_id = a.id"
+    ).fetchall()
+    found: dict[str, str] = {}
+    for name, alias in rows:
+        found[normalize_author(str(name))] = str(name)
+        if alias:
+            found[normalize_author(str(alias))] = str(name)
+    return found
+
+
+def _move(box: Any, old: str, new: str) -> None:
+    import os
+
+    source, target = box.root / old, box.root / new
+    target.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(source, target)
+    folder, stop = source.parent, box.root / "Documents"
+    while folder != stop and folder.is_relative_to(stop):
+        try:
+            folder.rmdir()  # only when empty
+        except OSError:
+            break
+        folder = folder.parent
+
+
+def apply_decision(
+    box: Any, master: Any, item_id: str, decision: Decision
+) -> list[tuple[str, str]]:
+    """Record a decision: confident, the document is named and filed (its file moved; the move is
+    returned for undo); otherwise its reasons join its review. Field states follow."""
+    from dataclasses import replace
+
+    from caixa.documents import records
+    from caixa.documents.archive import Facts, place
+
+    db = master.connection
+    db.execute(
+        "UPDATE document_fields SET state = 'proposed' WHERE item_id = ? "
+        "AND source != 'user_verified' AND state IN ('applied', 'conflict')",
+        (item_id,),
+    )
+    for ids, state in ((decision.applied, "applied"), (decision.conflicts, "conflict")):
+        for one in ids:
+            db.execute("UPDATE document_fields SET state = ? WHERE id = ?", (state, one))
+    record = records.load_record(master, item_id)
+    review = [reason for reason in record.review if reason not in REASONS]
+    moves: list[tuple[str, str]] = []
+    for value, kind in decision.explained:
+        already = db.execute(
+            "SELECT 1 FROM document_fields WHERE item_id = ? AND field = ? AND value = ? "
+            "AND source = 'original_filename'",
+            (item_id, f"date_{kind}", value),
+        ).fetchone()
+        if already is None:
+            records.add_field(master, item_id, f"date_{kind}", value, "original_filename",
+                              evidence=value, state="applied")  # fmt: skip
+    if decision.confident:
+        if decision.alias and decision.author:
+            records.add_author_alias(
+                master, records.author_id(master, decision.author, decision.author_kind),
+                decision.alias,
+            )  # fmt: skip
+        relative = place(
+            box, record.original_filename, record.source_sha256,
+            Facts(date=decision.date, title=decision.title, author=decision.author),
+            record.format, current=record.file_path,
+        )  # fmt: skip
+        if relative != record.file_path:
+            _move(box, record.file_path, relative)
+            moves.append((record.file_path, relative))
+        record = replace(
+            record,
+            title=decision.title, author=decision.author, author_kind=decision.author_kind,
+            date=decision.date, date_precision=decision.precision, date_kind=decision.date_kind,
+            type=decision.type, category=decision.category, file_path=relative,
+        )  # fmt: skip
+    else:
+        review += [reason for reason in decision.reasons if reason not in review]
+    record = replace(
+        record, review=review, processing_status="needs_review" if review else "archived"
+    )
+    records.save_document(master, record, None)
+    return moves
+
+
+def reconcile_document(
+    box: Any, master: Any, item_id: str, pages: Mapping[int, str], ai_ok: bool
+) -> list[tuple[str, str]]:
+    """Decide and apply for one document (see `decide` and `apply_decision`)."""
+    from caixa.documents import records
+
+    fields = records.get_document(master, item_id)["fields"]
+    decision = decide(fields, pages, known_authors(master), ai_ok)
+    return apply_decision(box, master, item_id, decision)
+
+
+__all__ = [
+    "CLOSE", "Decision", "REASONS", "apply_decision", "decide", "known_authors",
+    "reconcile_document",
+]  # fmt: skip

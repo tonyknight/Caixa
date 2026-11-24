@@ -983,7 +983,7 @@ class Service:
             options = job.get("options") or {}
             undo.begin(box, job["id"], "pdf", "enrich")
             try:
-                return enrich_documents(
+                read = enrich_documents(
                     box,
                     item_ids=options.get("item_ids") or None,
                     every=bool(options.get("all")),
@@ -991,6 +991,8 @@ class Service:
                 )
             finally:
                 undo.finish(box, job["id"])
+            undo.note_moves(box, read.pop("moved", []))  # the files filed by their new names
+            return read
         if job["kind"] == "documents-reprocess":
             from caixa.documents.reprocess import reprocess
 

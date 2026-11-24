@@ -577,7 +577,10 @@ def enrich_documents(
     model, nothing is read and `reason` and `message` say why."""
     with box.master() as master:
         chosen = _chosen(master, item_ids, every)
-    result: dict[str, Any] = {"enriched": 0, "needs_review": 0, "failed": 0, "waiting": len(chosen)}
+    result: dict[str, Any] = {
+        "enriched": 0, "needs_review": 0, "failed": 0, "waiting": len(chosen), "moved": [],
+    }  # fmt: skip
+    moved: list[tuple[str, str]] = result["moved"]
     if not chosen:
         return result
     try:
@@ -636,6 +639,12 @@ def enrich_documents(
                     if typed is not None and typed.ok:
                         _record_type(master, item_id, typed.answer, run)
                 _set_status(master, item_id, status)
+                if status in ("completed", "needs_review"):
+                    from caixa.documents.reconcile import reconcile_document
+
+                    moved += reconcile_document(
+                        box, master, item_id, dict(document.pages), status == "completed"
+                    )
             result["enriched" if status == "completed" else status] += 1
             in_a_row = in_a_row + 1 if status == "failed" else 0
     finally:
