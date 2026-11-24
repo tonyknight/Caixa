@@ -50,6 +50,8 @@ ALL_METHODS = {
     "jobs.log",
     "people.list",
     "people.unresolved",
+    "documents.list",
+    "documents.get",
     "people.link",
     "people.merge",
     "people.join",
