@@ -7,8 +7,10 @@ The collector examines files (in worker processes); this one writer then records
 - a new file is placed (`archive.place`), copied byte for byte (`archive.copy_into`) and recorded:
   its document, its pages as inspected (text, class, quality; OCR's text where OCR read a page),
   what OCR did (an `ocr` run, with the tools' versions and settings), where it was found, and an
-  `import` run. When OCR gave a page a text layer the box holds the OCR'd copy (its own SHA-256);
-  otherwise a byte-for-byte copy of the original. A file locked with a password is kept as it is and waits for review
+  `import` run. When OCR gave a page a text layer and the result passed validation (a `validate`
+  run records the checks), the box holds the OCR'd copy (its own SHA-256); otherwise a
+  byte-for-byte copy of the original (`unchanged_copy` when validation failed, `ocr_failed` for
+  review; the failed file is kept in the working folder's `failed/`). A file locked with a password is kept as it is and waits for review
   (`locked`); one whose text is the same as a document's already in the box waits too
   (`probable_duplicate`): both stay.
 
@@ -87,6 +89,8 @@ def import_examined(
             if status == "failed":
                 review.append("ocr_failed")
             texts = {int(number): text for number, text in (done.get("texts") or {}).items()}
+            validation = done.get("validation")
+            checked = "unchanged_copy" if validation and not validation["passed"] else "passed"
             record = records.DocumentRecord(
                 format=format,
                 original_filename=one.name,
@@ -97,6 +101,7 @@ def import_examined(
                 pages=one.pages,
                 processing_status="needs_review" if review else "archived",
                 ocr_status=status,
+                validation_status=checked,
                 review=review,
                 text_hash=one.text_hash,
             )
@@ -121,6 +126,11 @@ def import_examined(
                     version=(done.get("versions") or {}).get("ocrmypdf"),
                     settings={**(done.get("settings") or {}), "versions": done.get("versions")},
                     report={"error": done["error"]} if done.get("error") else None,
+                )  # fmt: skip
+            if validation:
+                records.add_run(
+                    master, item_id, "validate", "passed" if validation["passed"] else "failed",
+                    tool="caixa", version=__version__, report=validation,
                 )  # fmt: skip
             if output is not None:
                 output.unlink(missing_ok=True)  # the working copy, now in the box

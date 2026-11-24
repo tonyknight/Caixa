@@ -225,6 +225,27 @@ def save_document(
     return item_id, "updated"
 
 
+def load_record(master: Master, item_id: str) -> DocumentRecord:
+    """The record `save_document` would write for a document as it is now (`KeyError` without
+    one): change what is new, then save it."""
+    row = master.connection.execute(
+        "SELECT d.*, a.name AS author_name, a.kind AS author_kind, i.file_path "
+        "FROM documents d JOIN items i ON i.id = d.item_id "
+        "LEFT JOIN authors a ON a.id = d.author_id WHERE d.item_id = ?",
+        (item_id,),
+    ).fetchone()
+    if row is None:
+        raise KeyError(item_id)
+    names = {name for name in COLUMNS if name not in ("author_id", "review")}
+    return DocumentRecord(
+        **{name: row[name] for name in names},
+        file_path=row["file_path"],
+        author=row["author_name"],
+        author_kind=row["author_kind"] or "organization",
+        review=json.loads(row["review"] or "[]"),
+    )
+
+
 def add_source(
     master: Master,
     item_id: str,
@@ -437,6 +458,7 @@ __all__ = [
     "get_document",
     "item_id_for",
     "list_documents",
+    "load_record",
     "normalize_author",
     "save_document",
     "set_pages",

@@ -31,7 +31,7 @@ from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
 from caixa.documents.pdf.inspect import inspect_pdf, text_hash
-from caixa.documents.pdf.ocr import ocr_document
+from caixa.documents.pdf.process import ocr_and_validate
 
 FORMAT = "pdf"
 COLLECTOR = "pdf"
@@ -149,26 +149,9 @@ def examine(path: Path, ocr: Optional[Mapping[str, Any]] = None) -> Examined:
     finally:
         doc.close()
     texts = [page["text"] for page in seen.inspection]
-    if ocr is not None:
-        outcome = ocr_document(
-            path,
-            Path(ocr["workdir"]) / f"{seen.sha256}.pdf",
-            seen.inspection,
-            str(ocr.get("languages") or "eng"),
-            bool(ocr.get("enabled", True)),
-        )
-        done = {
-            "status": outcome.status,
-            "output": str(outcome.output) if outcome.output else None,
-            "sha256": _hash(outcome.output) if outcome.output else None,
-            "texts": outcome.texts,
-            "mode": outcome.mode,
-            "tool": outcome.tool,
-            "versions": outcome.versions,
-            "settings": outcome.settings,
-            "error": outcome.error,
-        }
-        texts = [outcome.texts.get(page["number"], page["text"]) for page in seen.inspection]
+    if ocr is not None and not seen.locked:
+        done = ocr_and_validate(path, seen.sha256, seen.inspection, ocr)
+        texts = [done["texts"].get(page["number"], page["text"]) for page in seen.inspection]
         seen = replace(seen, ocr=done)
     return replace(seen, text_hash=text_hash(texts))
 

@@ -977,6 +977,22 @@ class Service:
             return self._mail_reduce(box, job, progress)
         if job["kind"] == "mail-summarize":
             return self._mail_summarize(box, progress)
+        if job["kind"] == "documents-reprocess":
+            from caixa.documents.reprocess import reprocess
+
+            options = job.get("options") or {}
+            undo.begin(box, job["id"], "pdf", "reprocess")
+            try:
+                return reprocess(
+                    box,
+                    item_ids=options.get("item_ids") or None,
+                    failed_only=bool(options.get("failed")),
+                    languages=options.get("languages") or None,
+                    progress=progress,
+                    keep=lambda relative: undo.keep_file(box, job["id"], relative),
+                )
+            finally:
+                undo.finish(box, job["id"])
         if job["kind"] == "mail-import":
             imported = self._mail_import(box, job, progress)
             undo.note_moves(box, imported.pop("moved", []))
@@ -1733,6 +1749,24 @@ class Service:
                 return document_records.get_document(master, item_id)
             except KeyError:
                 raise ServiceError("not_found", f"There is no document {item_id}.") from None
+
+    @method("documents.reprocess", write=True)
+    def documents_reprocess(
+        self,
+        item_ids: Optional[list[str]] = None,
+        failed: bool = False,
+        languages: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """OCR documents again, as a job that can be undone: those named, or (`failed`) every one
+        whose OCR failed, was partial or could not run."""
+        if not item_ids and not failed:
+            raise ServiceError(
+                "invalid_params", "Name the documents to reprocess, or ask for the failed ones."
+            )
+        options = {"item_ids": list(item_ids or []), "failed": bool(failed)}
+        if languages:
+            options["languages"] = str(languages)
+        return self._enqueue("documents-reprocess", "pdf", "reprocess", options)
 
     @method("people.list")
     def people_list(self) -> dict[str, Any]:

@@ -123,6 +123,16 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--status", help="only documents with this status (needs_review, …)")
     listing.add_argument("--tag", help="only documents with this tag")
     _box_argument(listing)
+    again = document_commands.add_parser(
+        "reprocess",
+        help="OCR documents again: those named, or --failed for every one that needs it",
+    )
+    again.add_argument(
+        "item_ids", nargs="*", help="documents' ids, as `caixa documents list` shows"
+    )
+    again.add_argument("--failed", action="store_true", help="every document OCR could improve")
+    again.add_argument("--languages", help="Tesseract languages for this run, such as eng+por")
+    _box_argument(again)
     show = document_commands.add_parser("show", help="everything known about one document")
     show.add_argument("item_id", help="the document's id, as `caixa documents list` shows it")
     _box_argument(show)
@@ -717,6 +727,27 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "reprocess":
+        service = _open(args)
+        job = service.documents_reprocess(
+            item_ids=args.item_ids, failed=args.failed, languages=args.languages
+        )
+        try:
+            done = service.wait(job["id"])
+        finally:
+            service.close()
+        if done["status"] != "done":
+            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+            return 1
+        result = done["result"]
+        if args.json:
+            _print_json(result)
+        else:
+            print(
+                f"{result['reprocessed']} reprocessed: {result['improved']} improved, "
+                f"{result['failed']} still failing (languages {result['languages']})."
+            )
+        return 0
     service = _open(args, read_only=True)
     if args.action == "list":
         listing = service.documents_list(

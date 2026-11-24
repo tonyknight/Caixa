@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-06-selective-ocr
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/pdf/validate.py`, `validate(source, output, ocr_pages)` returns
 `Validation(passed, checks)`, each check with a name, whether it passed and a detail:
@@ -107,7 +106,7 @@ It runs as a job (`documents.reprocess`, `caixa documents reprocess [ids…] [--
   - undo puts the reprocessed file back;
   - the command line reprocesses and reports.
 - Verify: `python -m pytest -q tests/test_pdf_validate.py tests/test_pdf_ocr.py tests/test_pdf_collector.py tests/test_worker_protocol.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

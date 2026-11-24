@@ -164,6 +164,21 @@ def note_moves(box: Box, moved: Iterable[Iterable[str]]) -> None:
     _write(_snapshot(box, int(data["job"])) / "meta.json", data)
 
 
+def keep_file(box: Box, job: int, relative: str) -> None:
+    """A file of the box is about to be replaced by job `job` (a document reprocessed): keep it
+    as it is now, so undoing the job puts this version back."""
+    folder = _snapshot(box, job)
+    data = _read(folder / "meta.json")
+    source = box.root / relative
+    if not data or not source.is_file() or relative in data.get("kept", []):
+        return
+    target = folder / "kept" / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, target)
+    data["kept"] = [*data.get("kept", []), relative]
+    _write(folder / "meta.json", data)
+
+
 def note_people_change(box: Box) -> None:
     """Someone was named, renamed or merged: undoing the newest import would undo that too."""
     data = latest(box)
@@ -204,6 +219,13 @@ def restore(box: Box, job: int) -> dict[str, int]:
             there.parent.mkdir(parents=True, exist_ok=True)
             os.replace(here, there)
             _tidy(here.parent, root)
+            back += 1
+
+    for relative in data.get("kept", []):  # files the job replaced: their earlier version
+        saved, live = folder / "kept" / relative, inside(relative)
+        if live is not None and saved.is_file():
+            live.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(saved, live)
             back += 1
 
     before = set((folder / "before.txt").read_text(encoding="utf-8").splitlines())
