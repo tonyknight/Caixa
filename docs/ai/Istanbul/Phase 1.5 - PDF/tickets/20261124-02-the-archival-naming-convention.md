@@ -11,6 +11,8 @@ notes: ""
 parent:
 depends_on: []
 subtasks: []
+plan_status: approved
+current_task: T01
 ---
 
 ## Description
@@ -36,8 +38,66 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: draft
-Current task:
+Status: approved
+Current task: T01
+
+**Design:** `caixa/naming.py`, with no dependencies on documents, so a future photo or video
+collector can use it. Chattr's attachment names (`safe_name`, `_free_name`) stay as they are; this
+module is the general convention they already follow.
+
+- `NamingDate.parse("2024" | "2024-11" | "2024-11-30")` holds a value and a precision
+  (`year` | `month` | `day`), refusing anything else and impossible dates. `.prefix` is
+  `(2024-11-30)`.
+- `clean(text)`:
+  - NFC;
+  - control characters out;
+  - `/ \ |` → `-`, `:` → ` - `, `* ? < >` out, `"` → `'`;
+  - spaces collapsed;
+  - leading and trailing dots, spaces and dashes trimmed;
+  - a part written all in capitals (more than five letters) becomes title case, with short
+    joining words (`de, da, do, dos, das, e, of, the, and, a, o, for`) kept lower case after the
+    first word.
+- `archival_name(date, title, author=None, extension=".pdf")` gives
+  `(DATE) Title - Author.ext`:
+  - the author, a leading date and a leading or trailing ` - Author` are taken out of the title
+    when something is left;
+  - no author means no ` - Author`;
+  - a missing date or title raises `NamingError`.
+- `original_name(filename)` is the original name made safe, used in `Unrecognized/`.
+- **Length**: the stem is at most `LIMIT = 110` characters. The title is shortened at a word first
+  (the date and author kept); if the stem is still too long, it is cut at a word, else at 110.
+- `folder_name(text)` cleans a folder name (an author) the same way and within the limit.
+- `free_path(folder, name, sha256=None)`: `name`, or the first ` (2)`, ` (3)`… free name. A file
+  already holding the same SHA-256 is returned as it is (the same file).
+- `docs/Archival names.md`: the convention with examples and edge cases, linked from the README. Its
+  examples table (between `<!-- examples -->` markers) is read by the tests and checked against
+  `archival_name`, so the document and the code cannot drift.
+
+### T01: Dates, cleaning, names and length
+
+- `caixa/naming.py`: `NamingDate`, `NamingError`, `clean`, `archival_name`, `original_name`,
+  `folder_name`, `LIMIT`.
+- Tests (`tests/test_naming.py`):
+  - the three precisions and refusals;
+  - unsafe characters, controls, NFC, shouting titles, joining words;
+  - author and date repeated in the title;
+  - no author;
+  - 110 characters (title shortened first, at a word);
+  - a long author;
+  - the original name kept safe.
+- Verify: `python -m pytest -q tests/test_naming.py && python -m mypy caixa`
+- [ ] done
+
+### T02: Clashes and the convention document
+
+- `free_path` in `caixa/naming.py`.
+- `docs/Archival names.md` with the convention, the naming date per type, Unrecognized, folders and
+  the examples table. README link.
+- Tests:
+  - ` (2)` and ` (3)`, and the same content is recognised;
+  - every row of the document's examples table gives its name.
+- Verify: `python -m pytest -q tests/test_naming.py && python -m black --check caixa tests/test_naming.py && python -m mypy caixa`
+- [ ] done
 
 ## Completion report
 
