@@ -275,9 +275,13 @@ def test_confident_documents_are_named_and_filed(imported: Any, name: str, path:
 def test_the_filenames_other_date_is_kept_as_what_it_is(imported: Any) -> None:
     box, _ = imported
     tax = _documents(box)["2023 Property Tax Bill.pdf"]
-    assert tax["date"] == "2022" and tax["date_precision"] == "year" and tax["date_kind"] == "tax_year"
+    assert (
+        tax["date"] == "2022" and tax["date_precision"] == "year" and tax["date_kind"] == "tax_year"
+    )
     kept = [f for f in tax["fields"] if f["source"] == "original_filename" and f["value"] == "2023"]
-    assert {f["field"] for f in kept} >= {"date"} and any(f["field"].startswith("date_") for f in kept)
+    assert {f["field"] for f in kept} >= {"date"} and any(
+        f["field"].startswith("date_") for f in kept
+    )
 
 
 def test_a_misleading_name_waits_for_review(imported: Any) -> None:
@@ -347,3 +351,133 @@ def test_reading_again_moves_nothing(imported: Any) -> None:
     done = enrich_documents(box, every=True)
     assert done["moved"] == []
     assert {name: d["file_path"] for name, d in _documents(box).items()} == before
+
+
+# --- Authors renamed and merged (T03) ------------------------------------------------------------
+
+
+@pytest.fixture
+def filed(tmp_path: Path) -> Any:
+    """A box with two documents by one author and one by another, filed by their names."""
+    from caixa.box import Box
+    from caixa.documents import records
+    from caixa.documents.archive import Facts, copy_into, place
+
+    box = Box.create(tmp_path / "Box", name="Our box")
+    made = []
+    with box.master() as master:
+        for number, (author, date, title) in enumerate(
+            [("Banco Atlântico", "2024-11-30", "Checking Statement"),
+             ("Banco Atlântico", "2023-05-31", "Savings Statement"),
+             ("Banco Atlantico SA", "2022-01-31", "Card Statement")]  # fmt: skip
+        ):
+            sha = f"{number}" * 64
+            source = tmp_path / f"{number}.pdf"
+            source.write_bytes(b"%PDF-1.4 fake " + bytes([number]))
+            import hashlib
+
+            sha = hashlib.sha256(source.read_bytes()).hexdigest()
+            relative = place(box, source.name, sha, Facts(date=date, title=title, author=author))
+            copy_into(box, source, relative, sha)
+            records.save_document(
+                master,
+                records.DocumentRecord(
+                    format="pdf", original_filename=source.name, source_sha256=sha, size=1,
+                    file_path=relative, archived_sha256=sha, title=title, author=author,
+                    date=date, date_precision="day",
+                ),
+                None,
+            )  # fmt: skip
+            made.append(relative)
+    return box, made
+
+
+def _paths(box: Any) -> list[str]:
+    from caixa.documents import records
+
+    with box.master() as master:
+        return sorted(d["file_path"] for d in records.list_documents(master))
+
+
+def test_renaming_an_author_moves_its_files(filed: Any) -> None:
+    from caixa.documents import authors, records
+
+    box, _ = filed
+    with box.master() as master:
+        banco = records.find_author(master, "Banco Atlântico")
+        assert banco is not None
+        moves = authors.rename(box, master, banco, "Banco Atlântico Português")
+    assert len(moves) == 2
+    paths = _paths(box)
+    assert (
+        "Documents/PDF/2024/Banco Atlântico Português/(2024-11-30) Checking Statement - Banco Atlântico Português.pdf"
+        in paths
+    )
+    assert (
+        "Documents/PDF/2023/Banco Atlântico Português/(2023-05-31) Savings Statement - Banco Atlântico Português.pdf"
+        in paths
+    )
+    for path in paths:
+        assert (box.root / path).is_file()
+    assert not (box.root / "Documents/PDF/2024/Banco Atlântico").exists()
+    with box.master() as master:
+        assert (
+            records.find_author(master, "Banco Atlântico") == banco
+        )  # the old name stays an alias
+
+
+def test_a_name_already_taken_is_refused(filed: Any) -> None:
+    from caixa.documents import authors, records
+
+    box, _ = filed
+    with box.master() as master:
+        banco = records.find_author(master, "Banco Atlântico")
+        with pytest.raises(ValueError):
+            authors.rename(box, master, banco, "Banco Atlantico SA")
+
+
+def test_merging_two_authors(filed: Any) -> None:
+    from caixa.documents import authors, records
+
+    box, _ = filed
+    with box.master() as master:
+        kept = records.find_author(master, "Banco Atlântico")
+        gone = records.find_author(master, "Banco Atlantico SA")
+        moves = authors.merge(box, master, gone, kept)
+        assert len(moves) == 1
+        assert records.find_author(master, "Banco Atlantico SA") == kept
+        listing = authors.list_authors(master)
+    assert [a["name"] for a in listing] == ["Banco Atlântico"]
+    assert listing[0]["documents"] == 3 and "Banco Atlantico SA" in listing[0]["aliases"]
+    assert (
+        "Documents/PDF/2022/Banco Atlântico/(2022-01-31) Card Statement - Banco Atlântico.pdf"
+        in _paths(box)
+    )
+
+
+def test_the_service_and_the_commands(filed: Any, capsys: pytest.CaptureFixture[str]) -> None:
+    from caixa import cli
+    from caixa.service import Service
+
+    box, _ = filed
+    service = Service(roots=[box.root.parent])
+    service.box_open(str(box.root))
+    try:
+        listed = service.call("documents.authors", {})["authors"]
+        banco = next(a["id"] for a in listed if a["name"] == "Banco Atlântico")
+        other = next(a["id"] for a in listed if a["name"] == "Banco Atlantico SA")
+        renamed = service.call(
+            "documents.authors.rename", {"author_id": other, "name": "BA Cartões"}
+        )
+        assert renamed["author"]["name"] == "BA Cartões" and renamed["moved"] == 1
+    finally:
+        service.close()
+    assert cli.main(["documents", "authors", "--box", str(box.root)]) == 0
+    out = capsys.readouterr().out
+    assert "Banco Atlântico" in out and "2 documents" in out
+    assert (
+        cli.main(["documents", "authors", "merge", str(other), str(banco), "--box", str(box.root)])
+        == 0
+    )
+    assert "Merged" in capsys.readouterr().out
+    assert "BA Cartões" not in {p.split("/")[3] for p in _paths(box)}

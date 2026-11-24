@@ -1802,6 +1802,51 @@ class Service:
         options = {"item_ids": list(item_ids or []), "all": bool(all)}
         return self._enqueue("documents-enrich", "pdf", "enrich", options)
 
+    @method("documents.authors")
+    def documents_authors(self) -> dict[str, Any]:
+        """Every author documents are filed under, with aliases and counts."""
+        from caixa.documents import authors
+
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            return {"authors": authors.list_authors(master)}
+
+    def _author_change(
+        self, change: Callable[[Box, Any], list[tuple[str, str]]], keep: int
+    ) -> dict[str, Any]:
+        from caixa.documents import authors
+
+        box = self._require_box()
+        with box.master() as master:
+            try:
+                moved = change(box, master)
+            except KeyError:
+                raise ServiceError("not_found", "There is no such author.") from None
+            except ValueError as error:
+                raise ServiceError("conflict", str(error)) from None
+            master.commit()
+            found = next(a for a in authors.list_authors(master) if a["id"] == keep)
+        undo.note_moves(box, moved)
+        return {"author": found, "moved": len(moved)}
+
+    @method("documents.authors.rename", write=True)
+    def documents_authors_rename(self, author_id: int, name: str) -> dict[str, Any]:
+        """Rename an author: its folders and its documents' names follow."""
+        from caixa.documents import authors
+
+        return self._author_change(
+            lambda box, master: authors.rename(box, master, int(author_id), name), int(author_id)
+        )
+
+    @method("documents.authors.merge", write=True)
+    def documents_authors_merge(self, source: int, target: int) -> dict[str, Any]:
+        """Give one author's documents and aliases to another, which keeps its name."""
+        from caixa.documents import authors
+
+        return self._author_change(
+            lambda box, master: authors.merge(box, master, int(source), int(target)), int(target)
+        )
+
     @method("documents.reprocess", write=True)
     def documents_reprocess(
         self,

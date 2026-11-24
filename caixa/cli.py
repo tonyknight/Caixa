@@ -123,6 +123,12 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--status", help="only documents with this status (needs_review, …)")
     listing.add_argument("--tag", help="only documents with this tag")
     _box_argument(listing)
+    who = document_commands.add_parser(
+        "authors", help="the authors documents are filed under: list, rename ID NAME, merge FROM TO"
+    )
+    who.add_argument("verb", nargs="?", default="list", choices=["list", "rename", "merge"])
+    who.add_argument("values", nargs="*", help="rename: ID NAME; merge: FROM_ID TO_ID")
+    _box_argument(who)
     read = document_commands.add_parser(
         "enrich", help="read documents with the model: those waiting, those named, or --all"
     )
@@ -746,6 +752,29 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "authors":
+        service = _open(args, read_only=args.verb == "list")
+        if args.verb == "list":
+            listing = service.documents_authors()
+            if args.json:
+                _print_json(listing)
+            for author in [] if args.json else listing["authors"]:
+                also = f"  (also {', '.join(author['aliases'])})" if author["aliases"] else ""
+                print(
+                    f"{author['id']:<4} {author['name']}  {_plural(author['documents'], 'document')}{also}"
+                )
+            return 0
+        if len(args.values) != 2:
+            raise ServiceError("invalid_params", f"'authors {args.verb}' takes two values.")
+        if args.verb == "rename":
+            change = service.documents_authors_rename(int(args.values[0]), args.values[1])
+            print(json.dumps(change, indent=2) if args.json else
+                  f"Renamed: {change['author']['name']} ({_plural(change['moved'], 'file')} moved).")  # fmt: skip
+        else:
+            change = service.documents_authors_merge(int(args.values[0]), int(args.values[1]))
+            print(json.dumps(change, indent=2) if args.json else
+                  f"Merged into {change['author']['name']} ({_plural(change['moved'], 'file')} moved).")  # fmt: skip
+        return 0
     if args.action == "enrich":
         service = _open(args)
         job = service.documents_enrich(item_ids=args.item_ids, all=args.all)
