@@ -487,6 +487,7 @@ def publish(
     page_progress: Optional[Callable[[int, int], None]] = None,
     on_filed: Optional[Callable[[Filed], None]] = None,
     links: Optional[Sequence[Mapping[str, Any]]] = None,
+    page_links: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
 ) -> Optional[Published]:
     """File every attachment beside the person it came from, then draw every page (with several
     `workers`, shared out among worker processes; `page_progress(done, total)` follows them).
@@ -495,7 +496,9 @@ def publish(
     named for their date and sender (see `chattr.filing`); audio a browser cannot play gets a copy
     it can. `summaries` ({mail thread: (summary, the model that wrote it)}) go on the entries of
     mail conversations; `subcategories` (`{"tree": [{id, category, parent_id, name, people}],
-    "placed": {person's name: subcategory id}}`) go on the index. Returns None when the archive is
+    "placed": {person's name: subcategory id}}`) go on the index, and `page_links` (`{a person's
+    name: [{group, links: [{label, href, note}]}]}`, hrefs relative to `out`) on that person's
+    page, each with Open (see `pages.render_pages`). Returns None when the archive is
     empty, unless it had pages before (everyone in it
     was removed): then the old pages go and an empty index is drawn.
     """
@@ -520,7 +523,7 @@ def publish(
         pages = render_pages(
             renderer, folder, roots, pages_list, categories, title, summaries, subcategories,
             workers=workers, database=central_database(settings), progress=page_progress,
-            stats=drawn, links=links,
+            stats=drawn, links=links, page_links=page_links,
         )  # fmt: skip
     return Published(folder / "index.html", pages, filed, drawn)
 

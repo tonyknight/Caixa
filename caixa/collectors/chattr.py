@@ -43,6 +43,7 @@ from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
 from caixa.collectors.inputs import InputError
 from caixa.collectors.messages import alias_kind, sync_chattr
 from caixa.collectors.options import defaults
+from caixa.documents.people import person_links
 from caixa.documents.view import index_links
 
 #: Importers put the files they extract in a working folder inside `.caixa/` (one per kind).
@@ -705,6 +706,7 @@ class _Chattr:
             summaries=summaries,
             subcategories=subcategories,
             links=index_links(box),
+            page_links=person_links(box),  # the documents by or naming each person
             workers=workers,
             page_progress=lambda done, total: progress(
                 Progress("rendering", done, total, f"Writing the pages ({_workers(workers)})")

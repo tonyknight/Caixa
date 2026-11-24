@@ -523,3 +523,60 @@ def test_the_index_draws_the_links_it_is_given(full_archive, tmp_path: Path) -> 
         and 'PDF <span class="n">15</span>' in text
     )
     assert "Documents/PDF" not in (tmp_path / "without" / "index.html").read_text(encoding="utf-8")
+
+
+# --- Links a page is given (Caixa's documents, on person pages) ----------------------------------
+
+PAGE_LINKS = {
+    family.ANA.name: [{"group": "Documents", "links": [
+        {"label": "(2020-05-04) Exame", "href": "Documents/PDF/2020/Clínica/(2020-05-04) Exame.pdf",
+         "note": "names them"},
+    ]}],
+}  # fmt: skip
+
+
+def _drawn_with(full_archive, out: Path, page_links, pages_list=None, **more):
+    with DatabaseManager(full_archive.database) as db:
+        renderer = Renderer(db)
+        render_pages(renderer, out, [], page_links=page_links, pages_list=pages_list, **more)
+        return renderer
+
+
+def test_a_page_shows_the_links_it_is_given(full_archive, tmp_path: Path) -> None:
+    renderer = _drawn_with(full_archive, tmp_path, PAGE_LINKS)
+    ana = next(p for p in renderer.pages if (p.kind, p.title) == ("person", family.ANA.name))
+    text = (tmp_path / ana.path).read_text(encoding="utf-8")
+    assert '<details class="page-links">' in text and "Documents (1)" in text
+    assert "(2020-05-04) Exame" in text and "names them" in text
+    href = re.search(r'<a class="out" href="([^"]+)">Open</a>', text).group(1)
+    assert not href.startswith(("/", "http"))
+    target = (tmp_path / ana.path).parent / unquote(href)
+    assert (
+        target.resolve()
+        == (tmp_path / PAGE_LINKS[family.ANA.name][0]["links"][0]["href"]).resolve()
+    )
+    others = [p for p in renderer.pages if p.title != family.ANA.name]
+    assert others and all(
+        '<details class="page-links">' not in (tmp_path / p.path).read_text(encoding="utf-8")
+        for p in others
+    )
+
+
+def test_a_change_of_links_draws_the_page_again(full_archive, tmp_path: Path) -> None:
+    record = tmp_path / "pages.json"
+    out = tmp_path / "site"
+    renderer = _drawn_with(full_archive, out, PAGE_LINKS, record)
+    ana = next(p for p in renderer.pages if (p.kind, p.title) == ("person", family.ANA.name))
+    page = out / ana.path
+    before = page.stat().st_mtime_ns
+    _drawn_with(full_archive, out, PAGE_LINKS, record)
+    assert page.stat().st_mtime_ns == before  # the same links: left as it was
+    _drawn_with(full_archive, out, {}, record)
+    assert '<details class="page-links">' not in page.read_text(encoding="utf-8")
+
+
+def test_workers_draw_the_links_too(full_archive, tmp_path: Path) -> None:
+    renderer = _drawn_with(full_archive, tmp_path, PAGE_LINKS, workers=2,
+                           database=full_archive.database, parallel_from=1)  # fmt: skip
+    ana = next(p for p in renderer.pages if (p.kind, p.title) == ("person", family.ANA.name))
+    assert "Documents (1)" in (tmp_path / ana.path).read_text(encoding="utf-8")

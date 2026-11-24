@@ -10,7 +10,9 @@
 <ul>{% for r in related %}<li>{% if r.href %}<a href="{{ r.href }}">{{ r.title }}</a>{% else %}{{ r.title }}{% endif %}</li>{% endfor %}</ul></details>
 {% endif %}{% if mail %}<details class="mail-list"><summary>Mail ({{ mail | length }})</summary>
 <ul>{% for m in mail %}<li><a href="{{ m.href }}">{{ m.title }}</a></li>{% endfor %}</ul></details>
-{% endif %}</header>
+{% endif %}{% for g in page_links %}<details class="page-links"><summary>{{ g.group }} ({{ g.links | length }})</summary>
+<ul>{% for l in g.links %}<li>{{ l.label }}{% if l.note %} <span class="note">{{ l.note }}</span>{% endif %} <a class="out" href="{{ l.href }}">Open</a></li>{% endfor %}</ul></details>
+{% endfor %}</header>
 <nav class="years" aria-label="Years">{% for y in years %}<a class="year" href="#y-{{ y.year }}">{{ y.year }}</a>{% endfor %}<a class="year latest" href="#end">Latest</a></nav>
 <section class="calendars" aria-label="Calendar">
 {% for y in years | reverse %}<details class="calendar" id="cal-{{ y.year }}"{% if loop.first %} open{% endif %}><summary>{{ y.year }} <span class="count">{{ y.count }}</span></summary><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="#date-{{ cell.date }}" class="d l{{ cell.level }}" title="{{ cell.count }} message{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></details>

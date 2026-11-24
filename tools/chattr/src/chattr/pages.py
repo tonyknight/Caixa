@@ -156,6 +156,9 @@ class _Site:
         self.env = _environment()
         #: Mail conversations' summaries: {thread (its conversation's source id): (text, model)}.
         self.summaries: dict[str, tuple[str, str]] = {}
+        #: Links a page is given by whoever draws the archive, by the page's title: {title:
+        #: [{group, links: [{label, href, note}]}]}, hrefs relative to the output folder.
+        self.page_links: dict[str, list[dict[str, Any]]] = {}
         self._finder = blobs.Finder()
         self._page_dirs: dict[Path, str] = {}
         #: What each page was drawn from the last time it was written: {path: [fingerprint, size,
@@ -470,11 +473,30 @@ def _message_page(site: _Site, spec: PageSpec, relations: "_Relations") -> str:
         ],
         related=relations.related(spec, up),
         mail=relations.mail(spec, up),
+        page_links=_page_links(site, spec, page_dir),
         conversations=bool(spec.mail),
         years=ordered,
         back=f"{up}index.html",
         island=Markup(island_json(compact(renderer.document(spec)))),
     )
+
+
+def _page_links(site: _Site, spec: PageSpec, page_dir: Path) -> list[dict[str, Any]]:
+    """The links a person's page was given (`render_pages`' `page_links`), each made relative to
+    the page; an address that is not a path inside the output folder is left out."""
+    groups = []
+    for group in site.page_links.get(spec.title, []) if spec.kind == "person" else []:
+        links = []
+        for link in group.get("links") or []:
+            href = str(link.get("href") or "")
+            if not href or "://" in href or href.startswith(("/", "\\")) or ".." in href.split("/"):
+                continue
+            relative = os.path.relpath(site.out_root / href, page_dir).replace(os.sep, "/")
+            links.append({"label": str(link.get("label") or href), "note": str(link.get("note") or ""),
+                          "href": quote(relative, safe="/()")})  # fmt: skip
+        if links:
+            groups.append({"group": str(group.get("group") or ""), "links": links})
+    return groups
 
 
 def _people_line(people: Iterable[dict[str, str]]) -> str:
@@ -1101,17 +1123,26 @@ def _keep_known(record: Path, drawn: Mapping[str, list[Any]]) -> None:
 
 
 def _draw_share(
-    job: tuple[str, str, list[str], dict[str, Any], list[tuple[int, str]], dict[str, list[Any]]],
+    job: tuple[
+        str,
+        str,
+        list[str],
+        dict[str, Any],
+        list[tuple[int, str]],
+        dict[str, list[Any]],
+        dict[str, list[dict[str, Any]]],
+    ],
 ) -> dict[str, list[Any]]:
     """A worker's share of the pages: it reads the archive itself and writes the pages it is given
     (by their place in the plan, and their path, to be sure it plans the same pages). Returns
     what each was drawn from."""
-    database, out_root, roots, summaries, share, known = job
+    database, out_root, roots, summaries, share, known, page_links = job
     with DatabaseManager(database) as db:
         renderer = Renderer(db)
         site = _Site(renderer, Path(out_root), roots)
         site.summaries = {k: tuple(v) for k, v in summaries.items()}  # type: ignore[misc]
         site.known = known
+        site.page_links = page_links
         relations = _Relations(renderer)
         for index, path in share:
             spec = renderer.pages[index] if index < len(renderer.pages) else None
@@ -1144,7 +1175,8 @@ def _draw_in_workers(
             pool.submit(
                 _draw_share,
                 (str(database), str(site.out_root), roots, summaries, share,
-                 {path: site.known[path] for _, path in share if path in site.known}),
+                 {path: site.known[path] for _, path in share if path in site.known},
+                 site.page_links),
             )  # fmt: skip
             for share in shares
         ]
@@ -1193,6 +1225,7 @@ def render_pages(
     parallel_from: int = PARALLEL_FROM,
     stats: Optional[dict[str, Any]] = None,
     links: Optional[Sequence[Mapping[str, Any]]] = None,
+    page_links: Optional[Mapping[str, Sequence[Mapping[str, Any]]]] = None,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
@@ -1211,6 +1244,13 @@ def render_pages(
     started = time.monotonic()
     site = _Site(renderer, Path(out_root), attachment_roots)
     site.summaries = dict(summaries or {})
+    site.page_links = {
+        str(title): [
+            {"group": g.get("group"), "links": [dict(link) for link in g.get("links") or []]}
+            for g in groups
+        ]
+        for title, groups in (page_links or {}).items()
+    }
     record = Path(pages_list) if pages_list else site.out_root / PAGES_LIST
     # A page drawn from the same as last time is left as it is. (Only with a list kept apart from
     # the pages, as Caixa keeps it: never a file of its own among them.)

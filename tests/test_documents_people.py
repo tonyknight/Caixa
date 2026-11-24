@@ -151,3 +151,63 @@ def test_a_change_waits_for_update_the_pages(box: Box) -> None:
     link_documents(box)
     after = box.pending()
     assert after["changes"] == before + 1 and after["scope"] == "pages"
+
+
+# --- On person pages (T02) ------------------------------------------------------------------------
+
+
+@pytest.fixture
+def family_box(pdf_family: Any, fixture_family: Any, model: StubServer, tmp_path: Path) -> Box:
+    """João Costa's messages, then the documents: his letter is his."""
+    from caixa.collectors.chattr import collectors
+    from caixa.collectors.options import validate
+
+    made = Box.create(tmp_path / "Box", name="Our box")
+    messenger = next(c for c in collectors() if c.info.id == "messenger")
+    messenger.run(made, fixture_family.paths["messenger"],
+                  validate(messenger.info.options_schema, {}), lambda step: None)  # fmt: skip
+    _people(made)
+    _import(made, pdf_family, model, tmp_path)
+    return made
+
+
+def _person_page(box: Box, name: str) -> Path:
+    return box.root / "People" / name / f"{name}.html"
+
+
+def test_update_the_pages_puts_documents_on_person_pages(family_box: Box) -> None:
+    from caixa.service import Service
+
+    page = _person_page(family_box, "João Costa")
+    assert page.is_file() and 'class="page-links"' not in page.read_text(encoding="utf-8")
+    assert family_box.pending()["scope"] == "pages"  # the links wait to be drawn
+    service = Service(roots=[family_box.root.parent])
+    try:
+        service.box_open(str(family_box.root))
+        job = service.call("people.update", {})["job"]
+        done = service.wait(job["id"], 300)
+        assert done["status"] == "done", done["error"]
+    finally:
+        service.close()
+    text = page.read_text(encoding="utf-8")
+    assert "Documents (1)" in text and "Carta de João Costa" in text and "by them" in text
+    import re
+    from urllib.parse import unquote
+
+    href = re.search(r'<a class="out" href="([^"]+)">Open</a>', text).group(1)
+    target = (page.parent / unquote(href)).resolve()
+    assert target.is_file() and target.suffix == ".pdf"
+    with family_box.master() as master:
+        letter = next(d for d in records.list_documents(master) if d["original_filename"] == LETTER)
+    assert target == (family_box.root / letter["file_path"]).resolve()
+
+
+def test_person_links_are_newest_first_and_never_the_owner(box: Box) -> None:
+    from caixa.documents.people import person_links
+
+    found = person_links(box)
+    assert "Maria Costa" not in found
+    assert found["João Costa"][0]["group"] == "Documents"
+    links = found["Rui Pereira"][0]["links"]
+    assert all(link["note"] == "names them" for link in links)
+    assert all(link["href"].startswith("Documents/PDF/") for link in links)
