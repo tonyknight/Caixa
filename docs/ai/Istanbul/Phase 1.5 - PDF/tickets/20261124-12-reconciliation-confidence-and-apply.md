@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-10-ai-classification
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** `caixa/documents/reconcile.py` decides by Caixa's own rules, from a document's fields.
 The sources are the filename, the properties, the text's dates, the model and the owner.
@@ -95,7 +95,7 @@ follow: each document's file moves, and its aliases are kept. Also `documents.au
   - each review reason;
   - confident with every condition met.
 - Verify: `python -m pytest -q tests/test_documents_reconcile.py`
-- [ ] done
+- [x] done
 
 ### T02: Applying, moving and undo
 
