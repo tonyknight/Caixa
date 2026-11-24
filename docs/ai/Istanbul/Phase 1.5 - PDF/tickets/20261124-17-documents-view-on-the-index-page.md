@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-16-author-pages-and-the-unrecognized-page
 subtasks: []
-plan_status: in-progress
-current_task: T03
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 **Design:** the Documents ▸ PDF view is a page Caixa draws, `Documents/PDF/PDF.html` (named like
 the other document pages: after its folder). The box's index reaches it from its sidebar. Chattr
@@ -101,7 +100,7 @@ Without the script everything shows. The page is drawn by `draw_documents` with 
   - a year range hides other years;
   - the index's sidebar link opens the view.
 - Verify: `cd web && pnpm exec vitest run tests/e2e-documents.test.ts && pnpm exec tsc --noEmit`
-- [ ] done
+- [x] done
 
 ## Completion report
 

@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
-import { buildPdfFamily, canRun, openCaixa, playwright, repository, startCaixa, type Running } from './e2e-support.ts'
+import { buildDocumentsBox, buildPdfFamily, canRun, openCaixa, playwright, repository, startCaixa, type Running } from './e2e-support.ts'
 
 const run = canRun && playwright() ? describe : describe.skip
 const SCRIPT = readFileSync(join(repository, 'caixa', 'documents', 'templates', 'document.js'), 'utf8').replace(/\n$/, '')
@@ -93,3 +93,47 @@ run('Documents, in a browser', () => {
     }
   }, 120_000)
 })
+
+run('The documents view, from disk', () => {
+  let box: string
+  beforeAll(() => { box = buildDocumentsBox(mkdtempSync(join(tmpdir(), 'caixa-documents-box-'))) }, 300_000)
+
+  it('narrows the documents by their words and by years', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await browser.newPage()
+      await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'PDF.html')).href)
+      const entries = page.locator('li.entry-doc')
+      const visible = async () => await entries.evaluateAll((items: HTMLElement[]) => items.filter(i => !i.hidden).length)
+      expect(await entries.count()).toBe(15)
+      expect(await visible()).toBe(15)
+      await page.getByLabel('Find documents by their words').fill('atlantico checking')
+      expect(await visible()).toBe(2)  // the statement and its copy: accents and case aside
+      await page.getByLabel('Find documents by their words').fill('')
+      await page.getByLabel('From the year').selectOption('2024')
+      const years = await page.locator('section.year-block').evaluateAll((blocks: HTMLElement[]) =>
+        blocks.filter(b => !b.hidden).map(b => b.getAttribute('data-year-block')))
+      expect(years).toEqual(['2024'])
+      const shown = await entries.evaluateAll((items: HTMLElement[]) =>
+        items.filter(i => !i.hidden).map(i => i.getAttribute('data-year')))
+      expect(shown.every((year: string | null) => !year || year >= '2024')).toBe(true)
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+
+  it('is reached from the box', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await browser.newPage()
+      await page.goto(pathToFileURL(join(box, 'index.html')).href)
+      await page.getByRole('link', { name: 'Documents ▸ PDF' }).click()
+      await page.getByRole('heading', { name: 'PDF documents' }).waitFor()
+      await page.getByRole('link', { name: /Banco Atlântico/ }).first().click()
+      await page.getByRole('heading', { name: /Banco Atlântico · 2024/ }).waitFor()
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+})
+

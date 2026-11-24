@@ -101,3 +101,30 @@ export function buildPdfFamily(into: string): string {
   ].join('\n')
   return execFileSync('python', ['-c', code, into], { cwd: repository, encoding: 'utf8' }).trim().split('\n').pop()!
 }
+
+/** A box of the PDF family, read by the stand-in model (`tests/fixtures/stand_in_documents.py`)
+ *  and filed by year and author, built into a new folder; returns the box's folder. */
+export function buildDocumentsBox(into: string): string {
+  const code = [
+    'import sys',
+    "sys.path[:0] = ['tests/fixtures', 'tools/chattr/tests']",
+    'from pathlib import Path',
+    'from pdf_family import build_pdf_family',
+    'from stand_in_documents import DocumentModel',
+    'from stub_server import StubServer',
+    'from caixa import settings',
+    'from caixa.box import Box',
+    'from caixa.collectors.pdfImport import PdfCollector',
+    'base = Path(sys.argv[1])',
+    "family = build_pdf_family(base / 'pdfs')",
+    "(base / 'pdfs' / 'answers.json').unlink()",
+    'server = StubServer()',
+    'server.respond = DocumentModel(family).respond',
+    "box = Box.create(base / 'Box', name='Documents box')",
+    "settings.save(box, {'documents.ocr': False, 'summaries.provider': 'endpoint', 'summaries.endpoint': server.endpoint, 'summaries.model': 'stand-in-documents'})",
+    "PdfCollector().run(box, base / 'pdfs', {'workers': 1}, lambda step: None)",
+    'server.close()',
+    'print(box.root)',
+  ].join('\n')
+  return execFileSync('python', ['-c', code, into], { cwd: repository, encoding: 'utf8' }).trim().split('\n').pop()!
+}
