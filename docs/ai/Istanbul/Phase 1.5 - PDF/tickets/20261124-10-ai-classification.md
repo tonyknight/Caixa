@@ -3,11 +3,12 @@ id: 20261124-10-ai-classification
 title: AI classification
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: local-only classification with schema, retry, verified evidence; enrich
+  stage, job, command. Apple guided generation left for the Mac.'
 parent:
 depends_on:
 - 20261124-08-page-text-and-full-text-index
@@ -21,10 +22,10 @@ Classification by a local model: provider reuse (Automatic, Apple Intelligence, 
 
 ## Acceptance criteria
 
-- [ ] With the stand-in endpoint and the stand-in Apple helper, fixtures get proposals of the classification schema
-- [ ] Every evidence quote is checked against its page; unverified fields stay proposals
-- [ ] A non-local endpoint is refused even with `summaries.allow_remote`
-- [ ] Model, provider, prompt version, schema version and time are recorded; the stage can stop and continue
+- [x] With the stand-in endpoint and the stand-in Apple helper, fixtures get proposals of the classification schema
+- [x] Every evidence quote is checked against its page; unverified fields stay proposals
+- [x] A non-local endpoint is refused even with `summaries.allow_remote`
+- [x] Model, provider, prompt version, schema version and time are recorded; the stage can stop and continue
 
 ## Context
 
@@ -125,10 +126,55 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/enrich.py` reads each document with the summaries' model:
+  - **Provider:** Automatic means Apple Intelligence first; any endpoint not on this computer is
+    refused even with `allow_remote`; the new `documents.enrich` setting turns it off.
+  - **What is sent:** the filename and what it says, properties without noise, the authors named
+    in the text, and the first two pages and the last, within 6,000 or 12,000 characters.
+  - **The answer:** classification schema v1, sent as `response_format` to an endpoint (Chattr's
+    `chat` gained the argument) and in the instructions for Apple. Caixa checks it, retries once
+    naming the problem, and verifies every quote against its page (migration 7:
+    `document_fields.verified`).
+  - **Recording:** proposals as `ai_inference` fields and an `enrich` run with model, provider and
+    prompt and schema versions. `ai_status` becomes completed, needs_review or failed. Reading
+    again replaces the model's fields and keeps the owner's.
+  - **When:** a stage after each import (locked documents skipped); without a model, documents
+    wait and the import says why. After two provider failures in a row it stops and the rest
+    wait. Also the `documents.enrich` job and `caixa documents enrich [ids] [--all]`.
+  - **Tests:** a stand-in model (`tests/fixtures/stand_in_documents.py`) answers from the
+    fixtures' known answers.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/enrich.py`, `tests/test_documents_enrich.py`,
+    `tests/fixtures/stand_in_documents.py`;
+  - changed: `tools/chattr/src/chattr/translation.py`, `caixa/apple_intelligence.py`,
+    `caixa/schema.py`, `caixa/settings.py`, `caixa/documents/records.py` (`verified`,
+    `clear_fields`), `caixa/collectors/pdfImport.py`, `caixa/service.py`, `caixa/cli.py`,
+    `tests/test_documents_schema.py`, `tests/test_worker_protocol.py`.
+- **Errors:** a failing provider made every document wait out its retries (84 s in the test).
+  The stage now stops after two failures in a row. Three mypy redefinitions were fixed.
 - **Verify:**
+  - `python -m pytest -q`: 1818 passed, 1 skipped.
+  - vitest: 277 passed; tsc clean.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 5bbf7a5..694aa2c (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only (one carried to the Mac).
+
+- **Minor (for the Mac):** Apple Intelligence gets the schema in its instructions only. Guided
+  generation from a schema in the Swift helper (`DynamicGenerationSchema`) cannot be built or
+  tested in this container, and is to be tried on the maintainer's Mac. The benchmark (ticket 14)
+  will show whether the prompt-only route is good enough.
+- **Minor:** documents are read one at a time, even when the provider could take several at
+  once.
+- **Minor:** whether a client is an endpoint is told by its `server_name`; a sturdier sign would
+  be a type check.
+- **Spec:** D12 and D17 met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.enrich`; the stage tests before T02) before
+  each GREEN.
+- **Commits:** `20261124-10 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
