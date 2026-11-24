@@ -146,14 +146,16 @@ def test_an_import_archives_every_readable_pdf_byte_for_byte(family: Path, box: 
     for document in documents:
         archived = box.root / document["file_path"]
         assert archived.is_file()
-        assert document["file_path"].startswith("Documents/PDF/Unrecognized/")
+        assert document["file_path"].startswith("Documents/PDF/")
         with box.master() as master:
             found = records.get_document(master, document["item_id"])
         assert _sha(archived) == found["archived_sha256"]
         if found["ocr_status"] in ("not_needed", "needs_ocr"):  # OCR did not change it
             assert found["archived_sha256"] == found["source_sha256"]
     names = {Path(d["file_path"]).name for d in documents}
-    assert "scan_00482.pdf" in names and "Document1.pdf" in names
+    assert "scan_00482.pdf" in names and "Document1.pdf" in names  # kept their own names
+    unrecognized = [d for d in documents if "/Unrecognized/" in d["file_path"]]
+    assert len(unrecognized) == READABLE - 2  # the statement and the renewal were filed by name
     with sqlite3.connect(box.master_path) as db:
         (imports,) = db.execute("SELECT COUNT(*) FROM imports WHERE collector = 'pdf'").fetchone()
     assert imports == 1

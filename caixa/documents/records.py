@@ -120,6 +120,14 @@ def find_author(master: Master, name: str) -> Optional[int]:
     return int(row[0]) if row else None
 
 
+def author_names(master: Master) -> list[str]:
+    """Every author's name and every other way it is written (for finding them in filenames)."""
+    rows = master.connection.execute(
+        "SELECT name FROM authors UNION SELECT alias FROM author_aliases"
+    ).fetchall()
+    return [str(r[0]) for r in rows]
+
+
 def add_author_alias(master: Master, author_id: int, alias: str) -> None:
     master.connection.execute(
         "INSERT OR IGNORE INTO author_aliases (author_id, alias, normalized) VALUES (?, ?, ?)",
@@ -452,6 +460,7 @@ __all__ = [
     "add_run",
     "add_source",
     "author_id",
+    "author_names",
     "find_author",
     "find_by_source",
     "find_by_text",

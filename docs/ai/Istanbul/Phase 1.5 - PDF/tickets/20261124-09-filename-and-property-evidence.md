@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-03-migration-6-and-document-records
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/evidence.py`, deterministic, with no model.
 
@@ -104,7 +103,7 @@ name.
   - the original filename stays on the record;
   - a second import changes nothing.
 - Verify: `python -m pytest -q tests/test_documents_evidence.py tests/test_pdf_collector.py tests/test_documents_search.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
