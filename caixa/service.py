@@ -59,6 +59,8 @@ from caixa.state import State
 
 PathLike = Union[str, Path]
 TEXT_LIMIT = 2_000_000  # the largest text file `browse.file` includes in full
+#: How long a search waits for the embedding model before it searches by words alone.
+SEARCH_WAIT = 10
 
 
 class ServiceError(Exception):
@@ -1810,7 +1812,7 @@ class Service:
 
         box = self._require_box()
         try:  # with an embedding model, by meaning too
-            embed, model = embeddings.embedder(settings.load(box))
+            embed, model = embeddings.embedder(settings.load(box), timeout=SEARCH_WAIT)
         except embeddings.EmbeddingsUnavailable:
             embed, model = None, None
         with box.master(read_only=self.read_only) as master:

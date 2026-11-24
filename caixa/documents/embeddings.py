@@ -46,7 +46,11 @@ class EmbeddingsUnavailable(Exception):
 
 
 def _ask(
-    address: str, model: str, texts: Sequence[str], key: Optional[str] = None
+    address: str,
+    model: str,
+    texts: Sequence[str],
+    key: Optional[str] = None,
+    timeout: float = 120,
 ) -> list[list[float]]:
     body = json.dumps({"model": model, "input": list(texts)}).encode("utf-8")
     request = urllib.request.Request(
@@ -54,7 +58,7 @@ def _ask(
         headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
     )  # fmt: skip
     try:
-        with urllib.request.urlopen(request, timeout=120) as answer:
+        with urllib.request.urlopen(request, timeout=timeout) as answer:
             data = json.loads(answer.read().decode("utf-8"))
     except (urllib.error.URLError, OSError, ValueError) as error:
         raise EmbeddingError(f"The embedding model could not be asked: {error}") from None
@@ -68,8 +72,21 @@ def _ask(
     return vectors
 
 
-def embedder(values: Mapping[str, Any]) -> tuple[Callable[[Sequence[str]], list[list[float]]], str]:
-    """A function that embeds texts, and the model's name; `EmbeddingsUnavailable` says why not."""
+class _Embedder:
+    """Embeds texts with one model at one address, waiting at most `timeout` seconds."""
+
+    def __init__(self, address: str, model: str, key: Optional[str], timeout: float) -> None:
+        self.address, self.model, self.key, self.timeout = address, model, key, timeout
+
+    def __call__(self, texts: Sequence[str]) -> list[list[float]]:
+        return _ask(self.address, self.model, texts, self.key, self.timeout)
+
+
+def embedder(
+    values: Mapping[str, Any], timeout: float = 120
+) -> tuple[Callable[[Sequence[str]], list[list[float]]], str]:
+    """A function that embeds texts, and the model's name; `EmbeddingsUnavailable` says why not.
+    A search asks with a short `timeout`, so a model that does not answer only slows it a little."""
     model = str(values.get("documents.embedding_model") or "").strip()
     if not model:
         raise EmbeddingsUnavailable("no_model", "No embedding model is set (Settings, Documents).")
@@ -86,7 +103,7 @@ def embedder(values: Mapping[str, Any]) -> tuple[Callable[[Sequence[str]], list[
     from caixa.translation import Keys
 
     key = Keys().get(address)
-    return (lambda texts: _ask(address, model, texts, key)), model
+    return _Embedder(address, model, key, timeout), model
 
 
 def model_name(values: Mapping[str, Any]) -> str:

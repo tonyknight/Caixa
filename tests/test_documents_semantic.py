@@ -192,3 +192,29 @@ def test_an_import_embeds_when_a_model_is_set(
             "SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL"
         ).fetchone()
     assert count >= 1
+
+
+# --- Review fixes ---------------------------------------------------------------------------------
+
+
+def test_new_page_text_drops_the_old_passages(box: Box) -> None:
+    from caixa.documents import records
+
+    embed_documents(box)
+    with box.master() as master:
+        item_id = master.connection.execute("SELECT item_id FROM chunks LIMIT 1").fetchone()[0]
+        records.set_pages(
+            master, item_id, [records.PageText(page=1, text="Other words.", source="ocr")]
+        )
+        (left,) = master.connection.execute(
+            "SELECT COUNT(*) FROM chunks WHERE item_id = ?", (item_id,)
+        ).fetchone()
+    assert left == 0  # embedded again on the next run
+    assert item_id in embed_documents(box)["documents"]
+
+
+def test_a_search_does_not_wait_long_for_the_model() -> None:
+    values = {"summaries.provider": "endpoint", "summaries.endpoint": "http://127.0.0.1:9/v1",
+              "documents.embedding_model": "m"}  # fmt: skip
+    embed, _ = embeddings.embedder(values, timeout=5)
+    assert embed.timeout == 5  # type: ignore[attr-defined]

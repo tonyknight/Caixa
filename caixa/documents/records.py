@@ -272,9 +272,11 @@ def add_source(
 
 
 def set_pages(master: Master, item_id: str, pages: Sequence[PageText]) -> None:
-    """Replace the document's page text (the full-text index follows by its triggers)."""
+    """Replace the document's page text (the full-text index follows by its triggers). Its
+    passages go too: they are embedded again from the new text."""
     db = master.connection
     db.execute("DELETE FROM document_pages WHERE item_id = ?", (item_id,))
+    db.execute("DELETE FROM chunks WHERE item_id = ?", (item_id,))
     db.executemany(
         "INSERT INTO document_pages (item_id, page, text, source, class, quality) "
         "VALUES (?, ?, ?, ?, ?, ?)",
