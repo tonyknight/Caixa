@@ -151,7 +151,9 @@ def test_renaming_an_author_moves_its_page(own_box: Box) -> None:
         authors.rename(own_box, master, banco, "Banco Atlântico Português")
     drawn = draw_documents(own_box)
     assert STATEMENT_PAGE in drawn.removed
-    assert (own_box.root / "Documents/PDF/2024/Banco Atlântico Português/Banco Atlântico Português.html").is_file()
+    assert (
+        own_box.root / "Documents/PDF/2024/Banco Atlântico Português/Banco Atlântico Português.html"
+    ).is_file()
     assert not (own_box.root / STATEMENT_PAGE).exists()
 
 
@@ -159,7 +161,9 @@ def test_reset_takes_the_pages(own_box: Box) -> None:
     from caixa.reset import reset_box
 
     reset_box(own_box)
-    assert not (own_box.root / "Documents").exists() or not any((own_box.root / "Documents").rglob("*.html"))
+    assert not (own_box.root / "Documents").exists() or not any(
+        (own_box.root / "Documents").rglob("*.html")
+    )
 
 
 def test_chattrs_templates_know_nothing_of_documents() -> None:
@@ -168,3 +172,57 @@ def test_chattrs_templates_know_nothing_of_documents() -> None:
     templates = Path(chattr.__file__).resolve().parent / "templates"
     for template in templates.glob("*.html"):
         assert "open-document" not in template.read_text(encoding="utf-8"), template.name
+
+
+# --- Drawn when documents change (T02) -----------------------------------------------------------
+
+
+def test_an_import_draws_the_pages(own_box: Box) -> None:
+    (own_box.root / STATEMENT_PAGE).unlink()
+    drawn = draw_documents(own_box)
+    assert (
+        STATEMENT_PAGE in drawn.written
+    )  # (the import itself drew it: drawing again puts it back)
+
+
+def test_the_import_itself_drew_them(pdf_family: PdfFamily, stand_in: Any, tmp_path: Path) -> None:
+    made = _make(tmp_path, pdf_family, stand_in)  # no draw_documents here
+    assert (made.root / STATEMENT_PAGE).is_file() and (made.root / UNRECOGNIZED_PAGE).is_file()
+
+
+@pytest.fixture
+def service(own_box: Box) -> Iterator[Any]:
+    from caixa.service import Service
+
+    made = Service(roots=[own_box.root.parent])
+    made.box_open(str(own_box.root))
+    yield made
+    made.close()
+
+
+def test_a_rename_through_the_service_redraws(service: Any, own_box: Box) -> None:
+    listed = service.call("documents.authors", {})["authors"]
+    banco = next(a["id"] for a in listed if a["name"] == "Banco Atlântico")
+    service.call("documents.authors.rename", {"author_id": banco, "name": "Banco do Atlântico"})
+    assert (
+        own_box.root / "Documents/PDF/2024/Banco do Atlântico/Banco do Atlântico.html"
+    ).is_file()
+    assert not (own_box.root / STATEMENT_PAGE).exists()
+
+
+def test_a_tag_shows_on_its_card(service: Any, own_box: Box) -> None:
+    with own_box.master() as master:
+        statement = next(
+            d for d in records.list_documents(master)
+            if d["original_filename"] == "2024-11 Banco Atlântico Checking Statement.pdf"
+        )  # fmt: skip
+    service.call("documents.tags", {"item_id": statement["item_id"], "add": ["checking account"]})
+    assert "checking account" in _page(own_box, STATEMENT_PAGE)
+
+
+def test_update_the_pages_draws_them_again(service: Any, own_box: Box) -> None:
+    (own_box.root / UNRECOGNIZED_PAGE).unlink()
+    job = service._refresh_job("pages")  # what Update the pages starts when changes wait
+    done = service.wait(job["id"], 300)
+    assert done["status"] == "done", done["error"]
+    assert (own_box.root / UNRECOGNIZED_PAGE).is_file()

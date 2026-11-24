@@ -992,6 +992,9 @@ class Service:
             finally:
                 undo.finish(box, job["id"])
             undo.note_moves(box, read.pop("moved", []))  # the files filed by their new names
+            from caixa.documents.pages import draw_documents
+
+            read["pages"] = len(draw_documents(box).written)
             return read
         if job["kind"] == "documents-reprocess":
             from caixa.documents.reprocess import reprocess
@@ -999,7 +1002,7 @@ class Service:
             options = job.get("options") or {}
             undo.begin(box, job["id"], "pdf", "reprocess")
             try:
-                return reprocess(
+                done = reprocess(
                     box,
                     item_ids=options.get("item_ids") or None,
                     failed_only=bool(options.get("failed")),
@@ -1009,6 +1012,10 @@ class Service:
                 )
             finally:
                 undo.finish(box, job["id"])
+            from caixa.documents.pages import draw_documents
+
+            done["pages"] = len(draw_documents(box).written)
+            return done
         if job["kind"] == "mail-import":
             imported = self._mail_import(box, job, progress)
             undo.note_moves(box, imported.pop("moved", []))
@@ -1064,6 +1071,11 @@ class Service:
         result: dict[str, Any] = {}
         for aware in self._people_aware():
             result = asdict(aware.refresh(box, progress, scope))
+        if scope == "pages":  # the documents' pages are drawn with the rest
+            from caixa.documents.pages import draw_documents
+
+            drawn = draw_documents(box)
+            result["pages"] = int(result.get("pages") or 0) + len(drawn.written)
         return result
 
     # --- Mail -------------------------------------------------------------------------------
@@ -1827,6 +1839,9 @@ class Service:
             master.commit()
             found = next(a for a in authors.list_authors(master) if a["id"] == keep)
         undo.note_moves(box, moved)
+        from caixa.documents.pages import draw_documents
+
+        draw_documents(box)
         return {"author": found, "moved": len(moved)}
 
     @method("documents.authors.rename", write=True)
@@ -1860,7 +1875,11 @@ class Service:
                 document_records.get_document(master, item_id)
             except KeyError:
                 raise ServiceError("not_found", f"There is no document {item_id}.") from None
-            return {"item_id": item_id, "tags": change_tags(master, item_id, add, remove)}
+            tags = change_tags(master, item_id, add, remove)
+        from caixa.documents.pages import draw_documents
+
+        draw_documents(box)
+        return {"item_id": item_id, "tags": tags}
 
     @method("documents.tags.starter", write=True)
     def documents_tags_starter(

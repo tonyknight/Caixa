@@ -311,6 +311,10 @@ class PdfCollector:
                 f"{read['waiting']} documents were not read by a model: {read['message']} "
                 "They can be read later (caixa documents enrich)."
             )
+        from caixa.documents.pages import draw_documents
+
+        progress(Progress("rendering", message="Drawing the document pages"))
+        result.pages += len(draw_documents(box).written)
         return result
 
 
