@@ -1750,6 +1750,33 @@ class Service:
             except KeyError:
                 raise ServiceError("not_found", f"There is no document {item_id}.") from None
 
+    @method("documents.search")
+    def documents_search(
+        self,
+        query: str = "",
+        type: Optional[str] = None,
+        category: Optional[str] = None,
+        author: Optional[str] = None,
+        date_from: Optional[str] = None,
+        date_to: Optional[str] = None,
+        tag: Optional[str] = None,
+        status: Optional[str] = None,
+        ocr_status: Optional[str] = None,
+        limit: int = 50,
+    ) -> dict[str, Any]:
+        """The pages of documents that hold every word asked for, best first, each with its
+        document, page and a snippet; filters narrow by the documents' facts."""
+        from caixa.documents import search as document_search
+
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            hits = document_search.search(
+                master, query, type=type, category=category, author=author,
+                date_from=date_from, date_to=date_to, tag=tag, status=status,
+                ocr_status=ocr_status, limit=max(1, min(int(limit), 500)),
+            )  # fmt: skip
+        return {"query": document_search.fts_query(query), "hits": hits}
+
     @method("documents.reprocess", write=True)
     def documents_reprocess(
         self,

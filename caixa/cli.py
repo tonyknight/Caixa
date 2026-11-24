@@ -133,6 +133,19 @@ def build_parser() -> argparse.ArgumentParser:
     again.add_argument("--failed", action="store_true", help="every document OCR could improve")
     again.add_argument("--languages", help="Tesseract languages for this run, such as eng+por")
     _box_argument(again)
+    find = document_commands.add_parser(
+        "search", help='find documents by their words ("a phrase", prefix*), and their facts'
+    )
+    find.add_argument("query", nargs="?", default="", help="the words to find")
+    for name, help_text in (
+        ("type", "only documents of this type"), ("category", "only this category"),
+        ("author", "only this author"), ("date-from", "from this date (YYYY, YYYY-MM or YYYY-MM-DD)"),
+        ("date-to", "up to this date"), ("tag", "only documents with this tag"),
+        ("status", "only documents with this status"),
+    ):  # fmt: skip
+        find.add_argument(f"--{name}", help=help_text)
+    find.add_argument("--limit", type=int, default=50, help="at most this many pages (50)")
+    _box_argument(find)
     show = document_commands.add_parser("show", help="everything known about one document")
     show.add_argument("item_id", help="the document's id, as `caixa documents list` shows it")
     _box_argument(show)
@@ -749,6 +762,25 @@ def _cmd_documents(args: argparse.Namespace) -> int:
             )
         return 0
     service = _open(args, read_only=True)
+    if args.action == "search":
+        found = service.documents_search(
+            args.query, type=args.type, category=args.category, author=args.author,
+            date_from=args.date_from, date_to=args.date_to, tag=args.tag, status=args.status,
+            limit=args.limit,
+        )  # fmt: skip
+        if args.json:
+            _print_json(found)
+            return 0
+        if not found["hits"]:
+            print("Nothing found.")
+        for hit in found["hits"]:
+            title = hit["title"] or hit["original_filename"]
+            author = f" - {hit['author']}" if hit["author"] else ""
+            read = " (OCR)" if hit["source"] == "ocr" else ""
+            snippet = " ".join(str(hit["snippet"] or "").split())
+            print(f"{hit['date'] or 'undated':<10}  {title}{author}, page {hit['page']}{read}")
+            print(f"            {snippet}\n            {hit['file_path']}")
+        return 0
     if args.action == "list":
         listing = service.documents_list(
             type=args.type, author=args.author, year=args.year, status=args.status, tag=args.tag

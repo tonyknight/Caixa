@@ -52,6 +52,7 @@ ALL_METHODS = {
     "people.unresolved",
     "documents.list",
     "documents.get",
+    "documents.search",
     "documents.reprocess",
     "people.link",
     "people.merge",
