@@ -204,12 +204,12 @@ logged. A read-only mode (`caixa worker --read-only`) already exists as the grou
 
 ## Where the project is
 
-Caixa is in early development; version 0.5.0 closes its first project (Phase 1, the collectors). This is what exists today, and what does not.
+Caixa is in early development; version 0.5.0 closed its first project (Phase 1, the collectors), and Phase 1.5 (mail without the noise) was completed on 2026-11-24. This is what exists today, and what does not. The story so far, the issues met along the way and the backlog are in [`Development.md`](Development.md).
 
 | | Status |
 | --- | --- |
-| **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice and iPhone voicemail also tried by the maintainer on real exports; mail not yet |
-| **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, the Reduced mbox | Built and tested on a synthetic noisy mailbox, in a real browser too, with conversation pages filed with each person, an entry on their page that shows the conversation over it, and summaries by a model you choose; not yet tried on real mail |
+| **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice, iPhone voicemail and mail also tried by the maintainer on real exports |
+| **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, summaries (Apple Intelligence first), the Reduced mbox; changes on the people page drawn together with **Update the pages** | Built, tested on a synthetic noisy mailbox and in a real browser, and used by the maintainer on real mailboxes in a box of 48,000 pages |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
 | **Browser interface**: create a box, import wizard, jobs, people, browse, settings, Clean mail and Sort mail | Built, and tested in a real browser against the real `caixa serve` |
@@ -221,8 +221,9 @@ Caixa is in early development; version 0.5.0 closes its first project (Phase 1, 
 
 The known gaps of the collectors (for example, that iMessage attachments still in iCloud cannot be
 fetched) are listed in [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#known-limitations).
-The project's briefing, requirements and ticket history are in
-[`docs/ai/Istanbul/Phase1-Collector/`](docs/ai/Istanbul/Phase1-Collector/).
+Each project's briefing, requirements and ticket history are in
+[`docs/ai/Istanbul/Phase1-Collector/`](docs/ai/Istanbul/Phase1-Collector/) and
+[`docs/ai/Istanbul/Phase 1.5 - Mbox/`](docs/ai/Istanbul/Phase%201.5%20-%20Mbox/).
 
 ## Installation
 
