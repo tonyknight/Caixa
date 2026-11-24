@@ -3,11 +3,12 @@ id: 20261124-17-documents-view-on-the-index-page
 title: Documents view on the index page
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: PDF view page (heat map, years, tiles, review, entries, filter), linked
+  from the index sidebar.'
 parent:
 depends_on:
 - 20261124-16-author-pages-and-the-unrecognized-page
@@ -20,9 +21,9 @@ Documents ▸ PDF on the index page: a heat map of document dates with a year ra
 
 ## Acceptance criteria
 
-- [ ] The sidebar shows Documents ▸ PDF with its count
-- [ ] Heat map and year range; years then author tiles; Unrecognized and To review
-- [ ] The in-page filter narrows cards by their words, also from disk
+- [x] The sidebar shows Documents ▸ PDF with its count
+- [x] Heat map and year range; years then author tiles; Unrecognized and To review
+- [x] The in-page filter narrows cards by their words, also from disk
 
 ## Context
 
@@ -105,9 +106,53 @@ Without the script everything shows. The page is drawn by `draw_documents` with 
 ## Completion report
 
 - **Outcome:**
+  - **The view page:** `Documents/PDF/PDF.html` has a heat map of document dates (each day
+    linking to its first card), a year range, each year's authors as tiles (initials, count)
+    linking to their pages, Unrecognized, To review with reasons in words, and every document as
+    an entry with Open.
+  - **The filter script:** `documents-index.js`, a page script whose hash is in the policy,
+    narrows entries and tiles by every word typed (accents aside) and hides years outside the
+    range. Without it everything shows.
+  - **The index link:** Chattr's index gained a generic `links` slot, groups of plain sidebar
+    links. Caixa fills it with **Documents** ▸ **PDF (n)** through `publish` and `publish_index`;
+    Chattr itself knows nothing of documents.
+  - **A box of PDFs alone** gets a small index of its own that leads to the view.
+  - Chromium end-to-end tests filter, choose years, and follow the link from the box.
 - **Files:**
+  - new: `caixa/documents/view.py`, `caixa/documents/templates/documents.html`,
+    `caixa/documents/templates/documents-index.js`, `caixa/documents/templates/box-index.html`,
+    `tests/test_documents_view.py`;
+  - changed: `tools/chattr/src/chattr/pages.py`, `templates/index.html`, `commands.py`,
+    `tools/chattr/tests/test_render_pages.py`, `caixa/collectors/chattr.py`,
+    `caixa/documents/pages.py`, `caixa/web.py`, `tests/test_web_server.py`,
+    `web/tests/e2e-documents.test.ts`, `web/tests/e2e-support.ts`.
 - **Errors:**
+  - Only one of Caixa's two publish calls was patched at first; fixed.
+  - Three test patterns were corrected: year blocks also matched calendars, and 30 November has
+    two documents.
+  - A document waiting for review now shows its file name, since it has no title yet.
 - **Verify:**
+  - `python -m pytest -q`: 1929 passed, 1 skipped.
+  - vitest: 281 passed (four document end-to-end tests).
+  - mypy (3.12 target): only the 8 baseline errors.
+  - A screenshot of the view was checked by eye.
+
+## Review
+
+### 2026-11-24: 3742672..ba7ab60 (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the view is a page of its own reached from the index's sidebar, not a view inside the
+  index page. This keeps Chattr free of documents (decided in this ticket's design); the
+  Requirements' "Documents ▸ PDF on the index page" is met as a sidebar entry.
+- **Minor:** a box of documents alone gets a small index from Caixa. Once Chattr draws the full
+  index, that one replaces it.
+- **Minor:** Chattr's change (the `links` slot) reaches its own repository through the mirror
+  when this project is merged.
+- **Spec:** D20 and D21 (in-page filter) met; every acceptance criterion met.
+- **TDD:** RED (the links test failing; nine view tests; the end-to-end tests) before each GREEN.
+- **Commits:** `20261124-17 T01–T03: …`, authored by Tony Knight.
 
 ## Notes
 
