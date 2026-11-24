@@ -101,7 +101,7 @@ def _cover(page: Any) -> float:
     if not boxes:
         return 0.0
     if len(boxes) == 1:
-        return min(1.0, abs(boxes[0]) / area)
+        return min(1.0, float(abs(boxes[0])) / area)
     # several pictures: their union on a coarse grid (exact enough to tell a scan from a logo)
     steps = 40
     covered = 0
