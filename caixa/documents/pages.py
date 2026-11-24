@@ -185,7 +185,9 @@ def draw_documents(box: Box) -> Drawn:
     """Draw every document page that changed, remove those no longer needed (see the module)."""
     from caixa.documents.corrections import candidates
     from caixa.documents.enrich import TYPES
+    from caixa.documents.people import link_documents
 
+    link_documents(box)  # who wrote and who is named, for the person pages
     with box.master(read_only=True) as master:
         documents = records.list_documents(master)
         known = {d["item_id"]: candidates(master, d["item_id"]) for d in documents}
