@@ -1847,6 +1847,32 @@ class Service:
             lambda box, master: authors.merge(box, master, int(source), int(target)), int(target)
         )
 
+    @method("documents.tags", write=True)
+    def documents_tags(
+        self, item_id: str, add: Optional[list[str]] = None, remove: Optional[list[str]] = None
+    ) -> dict[str, Any]:
+        """The owner adds tags to a document and removes any (a removed tag stays removed)."""
+        from caixa.documents.tags import change_tags
+
+        box = self._require_box()
+        with box.master() as master:
+            try:
+                document_records.get_document(master, item_id)
+            except KeyError:
+                raise ServiceError("not_found", f"There is no document {item_id}.") from None
+            return {"item_id": item_id, "tags": change_tags(master, item_id, add, remove)}
+
+    @method("documents.tags.starter", write=True)
+    def documents_tags_starter(
+        self, add: Optional[list[str]] = None, remove: Optional[list[str]] = None
+    ) -> dict[str, Any]:
+        """Grow or shrink the starter set of tags the model is shown."""
+        from caixa.documents.tags import change_starter
+
+        box = self._require_box()
+        with box.master() as master:
+            return {"starter": change_starter(master, add, remove)}
+
     @method("documents.reprocess", write=True)
     def documents_reprocess(
         self,

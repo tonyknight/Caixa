@@ -123,6 +123,14 @@ def build_parser() -> argparse.ArgumentParser:
     listing.add_argument("--status", help="only documents with this status (needs_review, …)")
     listing.add_argument("--tag", help="only documents with this tag")
     _box_argument(listing)
+    tags = document_commands.add_parser(
+        "tags", help="a document's tags (--add, --remove), or with --starter the starter set"
+    )
+    tags.add_argument("item_id", nargs="?", help="the document's id")
+    tags.add_argument("--add", nargs="+", default=[], help="tags to add")
+    tags.add_argument("--remove", nargs="+", default=[], help="tags to take off")
+    tags.add_argument("--starter", action="store_true", help="change the starter set instead")
+    _box_argument(tags)
     who = document_commands.add_parser(
         "authors", help="the authors documents are filed under: list, rename ID NAME, merge FROM TO"
     )
@@ -752,6 +760,18 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "tags":
+        service = _open(args)
+        if args.starter:
+            starter = service.documents_tags_starter(args.add, args.remove)
+            print(json.dumps(starter, indent=2) if args.json else ", ".join(starter["starter"]))
+            return 0
+        if not args.item_id:
+            raise ServiceError("invalid_params", "Give a document's id, or --starter.")
+        changed = service.documents_tags(args.item_id, args.add, args.remove)
+        print(json.dumps(changed, indent=2) if args.json else
+              ", ".join(t["tag"] for t in changed["tags"]) or "No tags.")  # fmt: skip
+        return 0
     if args.action == "authors":
         service = _open(args, read_only=args.verb == "list")
         if args.verb == "list":

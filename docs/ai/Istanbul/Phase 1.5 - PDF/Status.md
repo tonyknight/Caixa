@@ -8,8 +8,8 @@ Documents as a domain of the box, PDF first: import PDFs without touching the or
 
 ## In progress (1)
 
-- **20261124-13-summaries-and-tags** Summaries and tags [medium] — plan in-progress · T02/T02
-  - checkboxes: 1/4
+- **20261124-13-summaries-and-tags** Summaries and tags [medium] — plan done · 2/2
+  - checkboxes: 2/4
 
 ## Blocked (7)
 

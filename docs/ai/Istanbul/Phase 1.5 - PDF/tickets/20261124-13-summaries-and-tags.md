@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-10-ai-classification
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -35,8 +34,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** the classification answer already carries a summary and tags (ticket 10). This
 ticket makes them right and puts them on the document.
@@ -87,7 +86,7 @@ ticket makes them right and puts them on the document.
   - extending and trimming the starter set;
   - the service and the command.
 - Verify: `python -m pytest -q tests/test_documents_tags.py tests/test_worker_protocol.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
