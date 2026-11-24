@@ -84,7 +84,7 @@ sources (mail, PDFs, photos, home videos, Obsidian vaults), **Stage 2** the pers
 | 2026-11-21 | Conversation pages, the person-page entry and overlay, local summaries, Attachments folders. First real mbox: hot fixes 16–21, Apple Intelligence. |
 | 2026-11-22 | Hot fixes from daily use: redraws on new templates, selection and nested categories, the AI benchmark, Apple Intelligence first, merge by drag, mail by account and folder, undecodable characters. |
 | 2026-11-23 | Deleted people's mail, the calendar at the top, merging anywhere, an attachment race, the work bar, and the redraw made fast and batched. |
-| 2026-11-24 | Phase 1.5 complete: 46 tickets. Merged to `working` and `main`. Next: PDF support. |
+| 2026-11-24 | Phase 1.5 complete: 46 tickets, **release 0.5.1** merged to `working` and `main`. Next: PDF support. |
 
 ---
 
@@ -268,8 +268,7 @@ took (`-10`), and the Workers setting is visible in Settings.
 
 ## Where things stand
 
-- **Version** 0.5.0 (Phase 1's release); Chattr 2.0.0. Phase 1.5 has not been given a version
-  number of its own.
+- **Version** 0.5.1 (Phase 1.5's release, tagged `v0.5.1`; Phase 1 was 0.5.0); Chattr 2.0.0.
 - **Tests**: 1,532 Caixa and 912 Chattr Python tests; 277 tests of the window (unit and end-to-end
   against the real `caixa serve` in Chromium). About 64,000 lines of Python, TypeScript, HTML and CSS.
 - **Tried on real data by the maintainer**: iMessage, Messenger, Google Voice, iPhone voicemail, Mac
@@ -316,7 +315,6 @@ Items to plan into future projects. Each names where it came from.
   to be set from real mail (Phase 1.5 open question).
 - **Undo after Reduce** leaves the reduced mails only in the source they were reduced from (known,
   explained in the dialog).
-- **A version for Phase 1.5**: decide whether it is released as its own version.
 
 ### To confirm with the maintainer (from Phase 1)
 

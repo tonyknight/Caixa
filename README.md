@@ -204,7 +204,7 @@ logged. A read-only mode (`caixa worker --read-only`) already exists as the grou
 
 ## Where the project is
 
-Caixa is in early development; version 0.5.0 closed its first project (Phase 1, the collectors), and Phase 1.5 (mail without the noise) was completed on 2026-11-24. This is what exists today, and what does not. The story so far, the issues met along the way and the backlog are in [`Development.md`](Development.md).
+Caixa is in early development; version 0.5.0 closed its first project (Phase 1, the collectors), and version 0.5.1 its second (Phase 1.5, mail without the noise, 2026-11-24). This is what exists today, and what does not. The story so far, the issues met along the way and the backlog are in [`Development.md`](Development.md).
 
 | | Status |
 | --- | --- |
@@ -263,7 +263,7 @@ installs `chattr-cli`, Chattr's own command, which works without Caixa.
 Check it worked:
 
 ```bash
-caixa --version         # caixa 0.5.0
+caixa --version         # caixa 0.5.1
 caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
 ```
 
