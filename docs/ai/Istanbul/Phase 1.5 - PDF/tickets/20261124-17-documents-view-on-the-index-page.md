@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-16-author-pages-and-the-unrecognized-page
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -36,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** the Documents ▸ PDF view is a page Caixa draws, `Documents/PDF/PDF.html` (named like
 the other document pages: after its folder). The box's index reaches it from its sidebar. Chattr
@@ -74,7 +74,7 @@ Without the script everything shows. The page is drawn by `draw_documents` with 
     `Documents/PDF/PDF.html`;
   - a box without documents gets none.
 - Verify: `python -m pytest -q tools/chattr/tests/test_render_pages.py tests/test_documents_view.py`
-- [ ] done
+- [x] done
 
 ### T02: The view page
 

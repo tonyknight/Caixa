@@ -180,7 +180,6 @@ def test_the_year_bar_goes_to_each_year_on_the_page(site) -> None:
     assert 'href="#end">Latest</a>' in text and 'id="end"' in text
 
 
-
 def test_the_calendar_is_at_the_top_not_between_the_messages(site) -> None:
     """One calendar block under the year bar, a fold for each year (the newest open); none among
     the messages."""
@@ -502,3 +501,25 @@ def test_the_index_script_is_exactly_its_template(site) -> None:
     text = (out / "index.html").read_text(encoding="utf-8")
     (script,) = re.findall(r"<script>(.*?)</script>", text, re.S)
     assert script == _template("index.js")
+
+
+def test_the_index_draws_the_links_it_is_given(full_archive, tmp_path: Path) -> None:
+    """Links a program using Chattr adds to the index's sidebar (Caixa's documents), as given."""
+    from chattr.pages import render_index
+
+    links = [
+        {
+            "group": "Documents",
+            "links": [{"label": "PDF", "href": "Documents/PDF/PDF.html", "count": 15}],
+        }
+    ]
+    with DatabaseManager(full_archive.database) as db:
+        render_index(Renderer(db), tmp_path / "with", links=links)
+        render_index(Renderer(db), tmp_path / "without")
+    text = (tmp_path / "with" / "index.html").read_text(encoding="utf-8")
+    assert '<div class="sep">Documents</div>' in text
+    assert (
+        '<a class="out" href="Documents/PDF/PDF.html">' in text
+        and 'PDF <span class="n">15</span>' in text
+    )
+    assert "Documents/PDF" not in (tmp_path / "without" / "index.html").read_text(encoding="utf-8")

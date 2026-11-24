@@ -820,9 +820,11 @@ def _index(
     categories: Optional[Mapping[str, str]] = None,
     title: str = "Chattr archive",
     subcategories: Optional[Mapping[str, Any]] = None,
+    links: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> str:
     """The index: people as tiles sorted into categories (and their subcategories), groups, mail,
-    and the box's numbers."""
+    and the box's numbers; `links` (`[{group, links: [{label, href, count}]}]`) are plain links a
+    program using Chattr adds to the sidebar, under their group."""
     renderer = site.renderer
     chosen = {name.casefold(): category for name, category in (categories or {}).items()}
     placed = {
@@ -884,6 +886,7 @@ def _index(
         mail=_mail_lists(mail),
         mail_count=len(mail),
         mail_tree=_mail_tree(mail),
+        links=[dict(group) for group in (links or [])],
         stats=_stats(site),
     )
 
@@ -1163,6 +1166,7 @@ def render_index(
     title: str = "Chattr archive",
     summaries: Optional[Mapping[str, tuple[str, str]]] = None,
     subcategories: Optional[Mapping[str, Any]] = None,
+    links: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Path:
     """Write the index alone (who is in which category and subcategory changed, nothing else):
     the same index `render_pages` writes, without touching any other page."""
@@ -1170,7 +1174,7 @@ def render_index(
     site.summaries = dict(summaries or {})
     index = site.out_root / "index.html"
     index.parent.mkdir(parents=True, exist_ok=True)
-    index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
+    index.write_text(_index(site, categories, title, subcategories, links), encoding="utf-8")
     return index
 
 
@@ -1188,6 +1192,7 @@ def render_pages(
     progress: Optional[Callable[[int, int], None]] = None,
     parallel_from: int = PARALLEL_FROM,
     stats: Optional[dict[str, Any]] = None,
+    links: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> list[Path]:
     """Write every page and the index under `out_root`; returns the files written.
 
@@ -1230,7 +1235,7 @@ def render_pages(
                 progress(number, total)
     index = site.out_root / "index.html"
     index.parent.mkdir(parents=True, exist_ok=True)
-    index.write_text(_index(site, categories, title, subcategories), encoding="utf-8")
+    index.write_text(_index(site, categories, title, subcategories, links), encoding="utf-8")
     written.append(index)
     _forget_old_pages(site.out_root, record, written)
     if pages_list:

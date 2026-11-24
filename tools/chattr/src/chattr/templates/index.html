@@ -16,7 +16,7 @@
 .sidebar .dot { width:.65rem; height:.65rem; border-radius:50%; flex:none; background:var(--muted); }
 .dot.c-all { background:var(--accent); } .sidebar a.current .dot.c-all { background:var(--on-accent); } .dot.c-family { background:#d08770; } .dot.c-friends { background:#5e81ac; } .dot.c-business { background:#4c566a; }
 .dot.c-acquaintance { background:#b48ead; } .dot.c-unrecognized { background:#bf616a; } .dot.c-unassigned { background:transparent; border:2px solid var(--muted); }
-.dot.c-groups { background:#81a1c1; border-radius:.2rem; } .dot.c-mail { background:#ebcb8b; border-radius:.2rem; }
+.dot.c-groups { background:#81a1c1; border-radius:.2rem; } .dot.c-mail { background:#ebcb8b; border-radius:.2rem; } .dot.c-out { background:#b48ead; border-radius:.2rem; }
 .sep { margin:1.1rem .6rem .3rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); }
 .dragging .sidebar a[data-category] { border-color:var(--accent); }
 .sidebar a.drop { background:var(--accent); color:var(--on-accent); }
@@ -128,7 +128,9 @@ section.list h2 { font-size:1.05rem; margin:1.6rem 0 .6rem; }
 {% endfor %}</ul>{% endif %}</li>{% endfor %}
 </ul>
 {% else %}<a href="#mail" data-view="mail"><span class="dot c-mail"></span>Mail <span class="n">{{ mail_count }}</span></a>{% endif %}
-</nav>
+{% for group in links %}<div class="sep">{{ group.group }}</div>
+{% for l in group.links %}<a class="out" href="{{ l.href }}"><span class="dot c-out"></span>{{ l.label }} <span class="n">{{ l.count }}</span></a>
+{% endfor %}{% endfor %}</nav>
 <main class="content">
 <h1 id="view-title">All people</h1>
 <p class="hint browse">Click someone to open everything from them. Hover to see where it came from.</p>

@@ -486,6 +486,7 @@ def publish(
     workers: int = 1,
     page_progress: Optional[Callable[[int, int], None]] = None,
     on_filed: Optional[Callable[[Filed], None]] = None,
+    links: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Optional[Published]:
     """File every attachment beside the person it came from, then draw every page (with several
     `workers`, shared out among worker processes; `page_progress(done, total)` follows them).
@@ -519,7 +520,7 @@ def publish(
         pages = render_pages(
             renderer, folder, roots, pages_list, categories, title, summaries, subcategories,
             workers=workers, database=central_database(settings), progress=page_progress,
-            stats=drawn,
+            stats=drawn, links=links,
         )  # fmt: skip
     return Published(folder / "index.html", pages, filed, drawn)
 
@@ -532,6 +533,7 @@ def publish_index(
     title: str = "Chattr archive",
     summaries: Optional[Mapping[str, tuple[str, str]]] = None,
     subcategories: Optional[Mapping[str, Any]] = None,
+    links: Optional[Sequence[Mapping[str, Any]]] = None,
 ) -> Optional[Path]:
     """Draw the index alone (people sorted into other categories or subcategories): no filing,
     no other page. None when the archive is empty."""
@@ -541,7 +543,7 @@ def publish_index(
     roots = attachment_roots(settings, attachments_dirs)
     with DatabaseManager(central_database(settings)) as db:
         return render_index(
-            Renderer(db), folder, roots, categories, title, summaries, subcategories
+            Renderer(db), folder, roots, categories, title, summaries, subcategories, links
         )
 
 
