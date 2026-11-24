@@ -3,11 +3,12 @@ id: 20261124-08-page-text-and-full-text-index
 title: Page text and full-text index
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: full-text search with snippets, pages and filters; documents.search
+  and caixa documents search.'
 parent:
 depends_on:
 - 20261124-04-the-pdf-collector
@@ -21,10 +22,10 @@ Each page's text (PDF or OCR) stored and indexed in FTS5; `documents.search` and
 
 ## Acceptance criteria
 
-- [ ] A word printed only on a scanned page finds that document and page
-- [ ] Phrases, prefixes, a cheque number, an amount and an account suffix are found
-- [ ] Filters by type, category, author, date range, tag, status
-- [ ] Accents are ignored in matching
+- [x] A word printed only on a scanned page finds that document and page
+- [x] Phrases, prefixes, a cheque number, an amount and an account suffix are found
+- [x] Filters by type, category, author, date range, tag, status
+- [x] Accents are ignored in matching
 
 ## Context
 
@@ -88,10 +89,40 @@ adds searching them, in `caixa/documents/search.py`:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/search.py`:
+  - `fts_query` makes what a person types safe: phrases, quoted terms (so `450.00`,
+    `FT 2024/118` and `HZ-55120` match), a trailing `*` for a prefix, operators treated as words;
+  - `search` returns matching pages by BM25, each with its document, page, source (PDF or OCR)
+    and a snippet with the words marked;
+  - filters: type, category, author (alias, accents aside), date range (a month or year
+    document overlaps the range), tag, processing and OCR status;
+  - without words, the filters list their documents.
+
+  Words only on scanned pages are found through their OCR text. Also the `documents.search`
+  service method and `caixa documents search`.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/search.py`, `tests/test_documents_search.py`;
+  - changed: `caixa/service.py`, `caixa/cli.py`, `tests/test_worker_protocol.py`.
+- **Errors:** FTS5 marks a matched phrase as one span (`[Supermercado Sol]`); the test now
+  expects that.
 - **Verify:**
+  - `python -m pytest -q`: 1743 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: b85fd4a..b2b44fd (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** one hit per matching page, so a long document can fill the limit; the window
+  (ticket 18) may group hits by document.
+- **Minor:** the date-range filter treats a month as days 1–31 by string comparison, which is
+  right for comparing and simple.
+- **Spec:** D10 and D21 (service and command line) met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.search`; the service and command tests
+  before T02) before each GREEN.
+- **Commits:** `20261124-08 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
