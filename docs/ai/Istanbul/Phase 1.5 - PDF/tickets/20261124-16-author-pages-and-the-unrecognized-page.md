@@ -3,11 +3,12 @@ id: 20261124-16-author-pages-and-the-unrecognized-page
 title: Author pages and the Unrecognized page
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: author pages and the Unrecognized page with cards; drawn when documents
+  change.'
 parent:
 depends_on:
 - 20261124-12-reconciliation-confidence-and-apply
@@ -21,9 +22,9 @@ Caixa draws the author pages (`<YYYY>/<Author>/<Author>.html`) and the Unrecogni
 
 ## Acceptance criteria
 
-- [ ] Each card shows archival name, title, date at its precision, author, type, category, tags, original filename, summary (marked), statuses and Open
-- [ ] Pages open from disk without a script; Chattr's templates know nothing of documents
-- [ ] Pages are redrawn when their documents change, behind Update the pages
+- [x] Each card shows archival name, title, date at its precision, author, type, category, tags, original filename, summary (marked), statuses and Open
+- [x] Pages open from disk without a script; Chattr's templates know nothing of documents
+- [x] Pages are redrawn when their documents change, behind Update the pages
 
 ## Context
 
@@ -98,10 +99,48 @@ and dark. Chattr's templates are not changed; the index page's slot is ticket 17
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/pages.py` draws, with Caixa's own template on Chattr's base (Nord,
+  light and dark):
+  - an author page for each year and author, `Documents/PDF/<YYYY>/<Author>/<Author>.html`;
+  - `Documents/PDF/Unrecognized/Unrecognized.html`.
+
+  Each card shows the title, the date at its precision, author, type, category and pages; tags;
+  the box name and the name it came with; the summary marked *Summary by <model>*; OCR,
+  validation, model and review statuses in words; and **Open** (the overlay, or a plain relative
+  link without scripts or from disk).
+
+  Pages are written only when they changed, removed when they have no documents, and recorded
+  for reset and undo. They are drawn at the end of an import, enrich, reprocess, author change or
+  tag change, and with every full redraw. Chattr's templates are unchanged.
 - **Files:**
+  - new: `caixa/documents/pages.py`, `caixa/documents/templates/author.html`,
+    `tests/test_documents_pages.py`;
+  - changed: `caixa/collectors/pdfImport.py`, `caixa/service.py`, `caixa/reset.py`.
 - **Errors:**
+  - A test's date pattern assumed `datetime` came first in `<time>`; loosened.
+  - **Update the pages** starts a job only when changes wait, so the test starts the same refresh
+    job directly.
 - **Verify:**
+  - `python -m pytest -q`: 1916 passed, 1 skipped.
+  - vitest: 279 passed.
+  - mypy (3.12 target): only the 8 baseline errors.
+  - A screenshot of an author page in Chromium was checked by eye.
+
+## Review
+
+### 2026-11-24: c4bb1da..4f2f675 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** pages are drawn at once after a tag or author change rather than batched behind
+  **Update the pages**. They are few and quick to draw; corrections (ticket 19) follow the
+  batching.
+- **Minor:** a document page has no calendar heat map of its own; the heat map is the index view's
+  (ticket 17).
+- **Spec:** D20 (pages) met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.pages`; the drawing-on-change tests before
+  T02) before each GREEN.
+- **Commits:** `20261124-16 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 

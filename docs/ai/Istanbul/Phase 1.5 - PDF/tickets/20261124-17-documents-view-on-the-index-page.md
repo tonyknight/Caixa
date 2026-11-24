@@ -1,19 +1,18 @@
 ---
 id: 20261124-17-documents-view-on-the-index-page
-title: "Documents view on the index page"
+title: Documents view on the index page
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-24
 updated: 2026-11-24
 closed:
-notes: ""
+notes: ''
 parent:
 depends_on:
 - 20261124-16-author-pages-and-the-unrecognized-page
 subtasks: []
 ---
-
 ## Description
 
 Documents ▸ PDF on the index page: a heat map of document dates with a year range, years and author tiles, Unrecognized, To review, and an in-page card filter.
