@@ -82,3 +82,97 @@ def test_answers_that_break_a_schema_are_named() -> None:
         )
     )
     assert type_problems("invoice", "nonsense")
+
+
+# --- Asking for a type's fields (T02) ----------------------------------------------------------
+
+
+@pytest.fixture
+def stand_in(pdf_family: Any) -> Iterator[Any]:
+    from stand_in_documents import DocumentModel
+    from stub_server import StubServer
+
+    server = StubServer()
+    server.model = DocumentModel(pdf_family)  # type: ignore[attr-defined]
+    server.respond = server.model.respond  # type: ignore[attr-defined]
+    yield server
+    server.close()
+
+
+def _imported(pdf_family: Any, tmp_path: Path, server: Any) -> dict[str, dict[str, Any]]:
+    from caixa import settings
+    from caixa.box import Box
+    from caixa.collectors.pdfImport import PdfCollector
+    from caixa.documents import records
+
+    source = tmp_path / "pdfs"
+    shutil.copytree(pdf_family.root, source)
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(
+        box,
+        {
+            "documents.ocr": False,
+            "summaries.provider": "endpoint",
+            "summaries.endpoint": server.endpoint,
+            "summaries.model": "stand-in-documents",
+        },
+    )
+    PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
+    with box.master() as master:
+        return {
+            d["original_filename"]: records.get_document(master, d["item_id"])
+            for d in records.list_documents(master)
+        }
+
+
+def _model_fields(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {f["field"]: f for f in document["fields"] if f["source"] == "ai_inference"}
+
+
+def test_a_statements_fields(pdf_family: Any, tmp_path: Path, stand_in: Any) -> None:
+    found = _imported(pdf_family, tmp_path, stand_in)
+    fields = _model_fields(found["2024-11 Banco Atlântico Checking Statement.pdf"])
+    assert fields["institution"]["value"] == "Banco Atlântico"
+    assert fields["account_suffix"]["value"] == "4821" and fields["account_suffix"]["verified"] == 1
+    assert fields["opening_balance"]["number"] == pytest.approx(2310.55)
+    assert fields["closing_balance"]["number"] == pytest.approx(1987.20)
+    assert (
+        fields["closing_balance"]["evidence"] == "1,987.20"
+        and fields["closing_balance"]["page"] == 1
+    )
+    assert fields["period_start"]["value"] == "2024-11-01"
+
+
+def test_a_bill_an_invoice_and_a_tax_document(
+    pdf_family: Any, tmp_path: Path, stand_in: Any
+) -> None:
+    found = _imported(pdf_family, tmp_path, stand_in)
+    bill = _model_fields(found["2022 Car Insurance.pdf"])
+    assert bill["provider"]["value"] == "Energia do Norte"
+    assert bill["amount_due"]["number"] == pytest.approx(88.15)
+    invoice = _model_fields(found["download.pdf"])
+    assert invoice["number"]["value"] == "FT 2024/118" and invoice["total"][
+        "number"
+    ] == pytest.approx(37.80)
+    tax = _model_fields(found["2023 Property Tax Bill.pdf"])
+    assert tax["tax_year"]["value"] == "2022" and tax["tax_year"]["verified"] == 1
+
+
+def test_a_type_without_fields_asks_nothing_more(
+    pdf_family: Any, tmp_path: Path, stand_in: Any
+) -> None:
+    _imported(pdf_family, tmp_path, stand_in)
+    assert stand_in.model.asked["Exame Ana Costa 2020.pdf"] == 1  # classified, nothing more
+    assert stand_in.model.asked["2022 Car Insurance.pdf"] == 2  # classified, then its bill fields
+
+
+def test_a_type_answer_never_valid_keeps_the_classification(
+    pdf_family: Any, tmp_path: Path, stand_in: Any
+) -> None:
+    stand_in.model.misbehave["type:2022 Car Insurance.pdf"] = "schema"
+    found = _imported(pdf_family, tmp_path, stand_in)
+    bill = found["2022 Car Insurance.pdf"]
+    assert bill["ai_status"] == "completed"
+    assert "provider" not in _model_fields(bill) and _model_fields(bill)["type"]["value"] == "bill"
+    run = next(r for r in bill["runs"] if r["stage"] == "enrich")
+    assert "provider" in (run["report"] or {}).get("type_error", "")

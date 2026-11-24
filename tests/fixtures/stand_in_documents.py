@@ -121,12 +121,50 @@ class DocumentModel:
             "summary": summary,
         }
 
+    def fields_for(self, name: str, kind: str, pages: dict[int, str]) -> dict[str, Any]:
+        """A type's fields, from the fixture's known fields, each with its quote and page."""
+        from caixa.documents.types import FIELDS, LISTS
+
+        known = dict(self.family.get(name).fields)
+        for period, (start, end) in (
+            ("period", ("period_start", "period_end")),
+            ("billing_period", ("period_start", "period_end")),
+            ("coverage_period", ("coverage_start", "coverage_end")),
+        ):
+            if period in known:
+                known[start], known[end] = known.pop(period)
+        answer: dict[str, Any] = {}
+        for field in FIELDS[kind]:
+            value = known.get(field)
+            if value is None:
+                answer[field] = [] if field in LISTS else None
+            elif isinstance(value, list):
+                answer[field] = [
+                    {"value": v, "evidence": _quote(pages, v)[0], "page": _quote(pages, v)[1]}
+                    for v in value
+                ]
+            else:
+                text = str(value)
+                quote, page = (
+                    _date_quote(pages, text) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text)
+                    else _quote(pages, text)
+                )  # fmt: skip
+                answer[field] = {"value": text, "evidence": quote, "page": page}
+        return answer
+
     def respond(self, request: dict[str, Any]) -> dict[str, Any]:
         prompt = request["messages"][-1]["content"]
         first = next(m for m in request["messages"] if m["role"] == "user")["content"]
         found = re.search(r"^File name: (.+)$", first, re.M)
         name = found.group(1).strip() if found else ""
         self.asked[name] = self.asked.get(name, 0) + 1
+        kind = re.search(r"^Document type: (\w+)$", first, re.M)
+        if kind:
+            mode = self.misbehave.get(f"type:{name}", "")
+            if mode == "schema":
+                return {"choices": [{"message": {"content": json.dumps({"provider": "x"})}}]}
+            fields = self.fields_for(name, kind.group(1), pages_of(first))
+            return {"choices": [{"message": {"content": json.dumps(fields, ensure_ascii=False)}}]}
         mode = self.misbehave.get(name, "")
         if mode == "twice" and self.asked[name] == 1:
             mode = "not_json"

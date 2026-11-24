@@ -37,6 +37,7 @@ from caixa import settings, summaries
 from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.documents import evidence, records
+from caixa.documents import types as document_types
 from caixa.naming import NamingDate, NamingError
 
 PROMPT_VERSION = "1"
@@ -369,29 +370,38 @@ def _checked(answer: dict[str, Any], pages: Mapping[int, str]) -> dict[str, Any]
     return answer
 
 
-def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
-    """Ask the model about one document; once more, naming the problem, when its answer cannot
-    be used. A failing provider raises (Chattr's `TranslationError`)."""
-    instruction = INSTRUCTION
+def ask(
+    client: Any,
+    instruction: str,
+    prompt: str,
+    schema: dict[str, Any],
+    check: Callable[[Any], list[str]],
+) -> Classified:
+    """Ask once, and once more naming what was wrong when the answer cannot be used. An
+    endpoint is given the schema as `response_format`; any other model finds it in its
+    instructions. A failing provider raises (Chattr's `TranslationError`)."""
     if getattr(client, "server_name", "") != "summary server":  # not an endpoint: no schema mode
-        instruction += "\n\nThe JSON object follows this JSON Schema:\n" + json.dumps(SCHEMA)
+        instruction += "\n\nThe JSON object follows this JSON Schema:\n" + json.dumps(schema)
+    response_format = {
+        "type": "json_schema",
+        "json_schema": {"name": "caixa_document", "strict": True, "schema": schema},
+    }
     messages = [
         {"role": "system", "content": instruction},
-        {"role": "user", "content": prepare(document, budget)},
+        {"role": "user", "content": prompt},
     ]
-    pages = dict(document.pages)
     result = Classified(ok=False)
     for attempt in (1, 2):
         result.attempts = attempt
-        reply, _ = client.chat(messages, temperature=0, response_format=RESPONSE_FORMAT)
+        reply, _ = client.chat(messages, temperature=0, response_format=response_format)
         result.raw = reply
         try:
             answer = parse_answer(reply)
-            wrong = problems(answer)
+            wrong = check(answer)
         except ValueError as error:
             answer, wrong = None, [str(error) or "it is not JSON"]
         if not wrong:
-            result.ok, result.answer, result.error = True, _checked(answer, pages), None
+            result.ok, result.answer, result.error = True, answer, None
             return result
         result.error = "; ".join(wrong)
         messages += [
@@ -401,16 +411,59 @@ def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
     return result
 
 
+def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
+    """Ask the model what a document is (the classification schema), its quotes verified."""
+    found = ask(client, INSTRUCTION, prepare(document, budget), SCHEMA, problems)
+    if found.ok:
+        found.answer = _checked(found.answer, dict(document.pages))
+    return found
+
+
+TYPE_INSTRUCTION = (
+    "You read one document from a family archive, already known to be a {kind}, and give its "
+    "facts as one JSON object: {meaning}. Use only what the document says. For each fact give "
+    "its value as written (dates as YYYY-MM-DD), words copied exactly from one page that show "
+    "it, and that page's number; write null for what the document does not say. Answer with "
+    "the JSON object alone."
+)
+
+
+def classify_type(client: Any, document: DocumentInput, kind: str, budget: int) -> Classified:
+    """Ask for a type's fields (`caixa.documents.types`), each quote verified, amounts given a
+    number read by Caixa."""
+    from caixa.documents import types
+
+    instruction = TYPE_INSTRUCTION.format(kind=kind, meaning=types.MEANINGS[kind])
+    prompt = f"Document type: {kind}\n" + prepare(document, budget - 40)
+    found = ask(
+        client, instruction, prompt, types.TYPE_SCHEMAS[kind],
+        lambda answer: types.type_problems(kind, answer),
+    )  # fmt: skip
+    if not found.ok:
+        return found
+    pages = dict(document.pages)
+    for name, value in found.answer.items():
+        for one in value if isinstance(value, list) else [value]:
+            if not isinstance(one, dict):
+                continue
+            one["verified"], one["page"] = verify_quote(one.get("evidence"), one.get("page"), pages)
+            if name in types.AMOUNTS:
+                one["number"] = types.parse_amount(one.get("value"))
+    return found
+
+
 __all__ = [
     "APPLE_BUDGET", "BUDGET", "CATEGORIES", "Classified", "DATE_KINDS", "DocumentInput",
     "EnrichUnavailable", "PROMPT_VERSION", "SCHEMA", "SCHEMA_VERSION", "TYPES", "classify",
-    "close", "enrich_documents", "parse_answer", "prepare", "problems", "provider",
+    "ask", "classify_type", "close", "enrich_documents", "parse_answer", "prepare", "problems", "provider",
     "verify_quote",
 ]  # fmt: skip
 
 
 # --- The stage ------------------------------------------------------------------------------------
 
+#: The types that have fields of their own (`caixa.documents.types`).
+TYPE_FIELDS = set(document_types.FIELDS)
 #: Review reasons that keep a document from being read (its pages cannot be opened).
 UNREADABLE = ("locked",)
 #: After this many documents in a row the provider failed on, the stage stops: the rest wait.
@@ -477,6 +530,18 @@ def _record(master: Any, item_id: str, answer: Mapping[str, Any], run: int) -> N
     add("summary", answer.get("summary"))
 
 
+def _record_type(master: Any, item_id: str, answer: Mapping[str, Any], run: int) -> None:
+    """A type's fields as proposals, amounts with the number Caixa read."""
+    for name, value in answer.items():
+        for one in value if isinstance(value, list) else [value]:
+            if isinstance(one, dict) and one.get("value"):
+                records.add_field(
+                    master, item_id, name, str(one["value"]), "ai_inference",
+                    evidence=one.get("evidence"), page=one.get("page"),
+                    verified=one.get("verified"), number=one.get("number"), run_id=run,
+                )  # fmt: skip
+
+
 def _set_status(master: Any, item_id: str, status: str) -> None:
     from dataclasses import replace
 
@@ -534,11 +599,19 @@ def enrich_documents(
                 _set_status(master, item_id, "processing")
             progress(Progress("enriching", number, len(chosen), document.filename))
             found: Optional[Classified] = None
+            typed: Optional[Classified] = None
             problem: Optional[str] = None
+            type_problem: Optional[str] = None
             try:
                 found = classify(client, document, int(info["budget"]))
             except TranslationError as failure:
                 problem = str(failure)
+            kind = str(found.answer.get("type")) if found is not None and found.ok else ""
+            if kind in TYPE_FIELDS:
+                try:
+                    typed = classify_type(client, document, kind, int(info["budget"]))
+                except TranslationError as failure:
+                    type_problem = str(failure)
             with box.master() as master:
                 if found is None:
                     status = "failed"
@@ -550,11 +623,18 @@ def enrich_documents(
                     master, item_id, "enrich", status, tool=info["provider"],
                     model=info["model"], provider=info["provider"],
                     prompt_version=PROMPT_VERSION, schema_version=SCHEMA_VERSION,
-                    report={"attempts": found.attempts if found else 0, "error": problem},
+                    report={
+                        "attempts": found.attempts if found else 0,
+                        "error": problem,
+                        "type_attempts": typed.attempts if typed else 0,
+                        "type_error": typed.error if typed and not typed.ok else type_problem,
+                    },
                 )  # fmt: skip
                 if found is not None and found.ok:
                     records.clear_fields(master, item_id, "ai_inference")
                     _record(master, item_id, found.answer, run)
+                    if typed is not None and typed.ok:
+                        _record_type(master, item_id, typed.answer, run)
                 _set_status(master, item_id, status)
             result["enriched" if status == "completed" else status] += 1
             in_a_row = in_a_row + 1 if status == "failed" else 0

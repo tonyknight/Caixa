@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-10-ai-classification
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -35,8 +34,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/types.py` holds the eight type schemas (version 1). Each field is
 `{value, evidence, page}`, or a list of them for parties:
@@ -87,7 +86,7 @@ Current task: T02
   - a type without a schema (medical) asks nothing more;
   - a type answer never valid leaves the classification completed and is noted in the run.
 - Verify: `python -m pytest -q tests/test_documents_types.py tests/test_documents_enrich.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
