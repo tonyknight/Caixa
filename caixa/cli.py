@@ -114,6 +114,19 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("target", type=int, help="the person who stays")
     _box_argument(merge)
 
+    documents = commands.add_parser("documents", help="the documents (PDFs) filed in the box")
+    document_commands = documents.add_subparsers(dest="action", metavar="action", required=True)
+    listing = document_commands.add_parser("list", help="every document, by date")
+    listing.add_argument("--type", help="only documents of this type (statement, bill, …)")
+    listing.add_argument("--author", help="only documents by this author")
+    listing.add_argument("--year", type=int, help="only documents of this year")
+    listing.add_argument("--status", help="only documents with this status (needs_review, …)")
+    listing.add_argument("--tag", help="only documents with this tag")
+    _box_argument(listing)
+    show = document_commands.add_parser("show", help="everything known about one document")
+    show.add_argument("item_id", help="the document's id, as `caixa documents list` shows it")
+    _box_argument(show)
+
     mail = commands.add_parser("mail", help="read, clean and sort mail before importing it")
     mail_commands = mail.add_subparsers(dest="action", metavar="action", required=True)
     read = mail_commands.add_parser(
@@ -703,6 +716,45 @@ def _cmd_people(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_documents(args: argparse.Namespace) -> int:
+    service = _open(args, read_only=True)
+    if args.action == "list":
+        listing = service.documents_list(
+            type=args.type, author=args.author, year=args.year, status=args.status, tag=args.tag
+        )
+        if args.json:
+            _print_json(listing)
+            return 0
+        if not listing["documents"]:
+            print("No documents.")
+        for document in listing["documents"]:
+            when = document["date"] or "undated"
+            title = document["title"] or document["original_filename"]
+            author = f" - {document['author']}" if document["author"] else ""
+            status = (
+                f"  [{document['processing_status']}]"
+                if document["processing_status"] != "archived"
+                else ""
+            )
+            print(f"{when:<10}  {title}{author}{status}\n            {document['item_id']}")
+        return 0
+    found = service.documents_get(args.item_id)
+    if args.json:
+        _print_json(found)
+        return 0
+    for key in ("title", "author", "type", "category", "date", "date_precision", "file_path",
+                "original_filename", "processing_status", "ocr_status", "validation_status",
+                "ai_status"):  # fmt: skip
+        print(f"{key.replace('_', ' '):<18} {found[key] if found[key] is not None else ''}")
+    if found["tags"]:
+        print(f"{'tags':<18} {', '.join(t['tag'] for t in found['tags'])}")
+    for source in found["sources"]:
+        print(f"{'found at':<18} {source['path']}")
+    if found["summary"]:
+        print(f"\n{found['summary']}")
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from caixa import serve
     from caixa.box import Box, BoxError
@@ -787,6 +839,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "import": _cmd_import,
         "jobs": _cmd_jobs,
         "mail": _cmd_mail,
+        "documents": _cmd_documents,
         "benchmark": _cmd_benchmark,
         "people": _cmd_people,
         "serve": _cmd_serve,

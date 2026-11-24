@@ -43,6 +43,7 @@ from caixa import apple_intelligence, settings, summaries, translation, undo
 from caixa.box import LAYOUT, Box, BoxError
 from caixa.collectors.base import Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
+from caixa.documents import records as document_records
 from caixa.collectors.messages import alias_kind
 from caixa.collectors.options import OptionsError, validate
 from caixa.collectors.registry import Registry, discover
@@ -1703,6 +1704,35 @@ class Service:
             if isinstance(collector, PeopleAware):
                 chosen.setdefault(collector.work_key, collector)
         return list(chosen.values())
+
+    # --- Documents --------------------------------------------------------------------------
+
+    @method("documents.list")
+    def documents_list(
+        self,
+        type: Optional[str] = None,
+        author: Optional[str] = None,
+        year: Optional[int] = None,
+        status: Optional[str] = None,
+        tag: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """The box's documents by date (undated last), optionally only some."""
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            found = document_records.list_documents(
+                master, type=type, author=author, year=year, status=status, tag=tag
+            )
+        return {"documents": found}
+
+    @method("documents.get")
+    def documents_get(self, item_id: str) -> dict[str, Any]:
+        """Everything known about one document: facts, sources, tags, fields, runs."""
+        box = self._require_box()
+        with box.master(read_only=self.read_only) as master:
+            try:
+                return document_records.get_document(master, item_id)
+            except KeyError:
+                raise ServiceError("not_found", f"There is no document {item_id}.") from None
 
     @method("people.list")
     def people_list(self) -> dict[str, Any]:

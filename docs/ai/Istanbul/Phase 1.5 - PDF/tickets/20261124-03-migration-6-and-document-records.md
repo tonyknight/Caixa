@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-01-synthetic-pdf-fixtures
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -38,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** Migration 6 in `caixa/schema.py` adds the tables of the Requirements' *Data model*:
 
@@ -103,7 +102,7 @@ Reset deletes `caixa.sqlite` whole and undo snapshots copy it whole, so both cov
   - the service methods and the commands;
   - an undo snapshot brings document rows back.
 - Verify: `python -m pytest -q tests/test_documents_records.py tests/test_documents_schema.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
