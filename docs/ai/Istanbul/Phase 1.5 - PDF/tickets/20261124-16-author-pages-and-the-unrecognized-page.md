@@ -13,8 +13,8 @@ depends_on:
 - 20261124-12-reconciliation-confidence-and-apply
 - 20261124-15-serving-pdfs-and-the-overlay
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** `caixa/documents/pages.py` draws the document pages with Caixa's own templates
 (`caixa/documents/templates/`), which extend Chattr's `base.html`: the same Nord palette, light
@@ -83,7 +83,7 @@ and dark. Chattr's templates are not changed; the index page's slot is ticket 17
   - reset removes the pages;
   - Chattr's templates are unchanged.
 - Verify: `python -m pytest -q tests/test_documents_pages.py tests/test_reset.py`
-- [ ] done
+- [x] done
 
 ### T02: Drawn when documents change
 

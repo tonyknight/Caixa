@@ -48,6 +48,7 @@ STATE = (
     "logs",
     "pages.json",
     "pages.fingerprints.json",
+    "documents-pages.json",
     "jobs.sqlite",
     "caixa.sqlite",
 )
@@ -68,7 +69,14 @@ def _written_files(box: Box) -> set[Path]:
         pages = json.loads((box.caixa_dir / "pages.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         pages = []
-    for relative in pages if isinstance(pages, list) else []:
+    try:
+        drawn = json.loads((box.caixa_dir / "documents-pages.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        drawn = []
+    for relative in [
+        *(pages if isinstance(pages, list) else []),
+        *(drawn if isinstance(drawn, list) else []),
+    ]:
         if isinstance(relative, str):
             found.add((root / relative).resolve())
     database = box.caixa_dir / "work" / "chattr" / "Database" / "chattr.sqlite"

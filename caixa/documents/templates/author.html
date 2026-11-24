@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block head %}<style>
+{{ overlay_css }}
+.cards { display:flex; flex-direction:column; gap:.8rem; margin:1rem 0 3rem; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:.6rem; padding:.8rem 1rem; box-shadow:0 1px 2px var(--shadow); }
+.card h2 { margin:0 0 .2rem; font-size:1.15rem; }
+.card .when { color:var(--date); font-weight:600; }
+.card .facts, .card .names { display:flex; flex-wrap:wrap; gap:.3rem .9rem; font-size:.85rem; color:var(--muted); margin:.2rem 0; }
+.card .tag { display:inline-block; font-size:.75rem; padding:0 .5rem; border-radius:.7rem; background:var(--panel); border:1px solid var(--line); color:var(--fg); }
+.card .summary { margin:.5rem 0 .2rem; }
+.card .by { font-size:.75rem; color:var(--muted); font-style:italic; }
+.card .status { font-size:.8rem; color:var(--muted); margin:.3rem 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:.3rem .8rem; }
+.card .status .attention { color:var(--date); }
+.card .open { display:inline-block; margin-top:.5rem; padding:.2rem .9rem; border-radius:.4rem; background:var(--accent); color:var(--on-accent); text-decoration:none; font-weight:600; }
+</style>{% endblock %}
+{% block content %}
+<header>
+<a class="home-button" href="{{ home }}">&larr; The box</a>
+<h1>{{ heading }}</h1>
+<p class="summary">{{ count }}{% if span %}, {{ span }}{% endif %}.</p>
+</header>
+<main>
+<section class="cards">
+{% for c in cards %}<article class="card" id="d-{{ c.id }}">
+<h2>{{ c.title }}</h2>
+<div class="facts">{% if c.iso %}<time class="when" datetime="{{ c.iso }}">{{ c.when }}</time>{% else %}<span class="when">Undated</span>{% endif %}{% if c.author %}<span class="who">{{ c.author }}</span>{% endif %}{% if c.type %}<span class="kind">{{ c.type }}</span>{% endif %}{% if c.category %}<span class="category">{{ c.category }}</span>{% endif %}<span class="pages">{{ c.pages }}</span></div>
+{% if c.tags %}<div class="tags">{% for t in c.tags %}<span class="tag">{{ t }}</span> {% endfor %}</div>{% endif %}
+{% if c.summary %}<p class="summary">{{ c.summary }}</p><p class="by">Summary by {{ c.model }}</p>{% endif %}
+<div class="names"><span class="file" title="Its name in the box">{{ c.file }}</span>{% if c.original != c.file %}<span class="original" title="The name it came with">Came as {{ c.original }}</span>{% endif %}</div>
+{% if c.statuses %}<ul class="status">{% for s in c.statuses %}<li{% if s.attention %} class="attention"{% endif %}>{{ s.text }}</li>{% endfor %}</ul>{% endif %}
+<a class="open open-document" href="{{ c.href }}" data-title="{{ c.title }}">Open</a>
+</article>
+{% endfor %}</section>
+</main>
+<script>{% include "document.js" %}</script>
+{% endblock %}
