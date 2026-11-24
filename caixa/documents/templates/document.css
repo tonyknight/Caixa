@@ -1,0 +1,11 @@
+/* The document overlay (document.js): the PDF in a frame over the page, as for conversations. */
+.document-overlay { display:none; position:fixed; inset:0; z-index:50; background:rgba(46,52,64,.55); }
+.document-overlay.open { display:flex; align-items:center; justify-content:center; }
+html.do-open { overflow:hidden; }
+.do-panel { display:flex; flex-direction:column; width:min(1100px, 94vw); height:92vh; background:var(--bg, #eceff4); border-radius:10px; box-shadow:0 10px 40px rgba(0,0,0,.35); overflow:hidden; }
+.do-bar { display:flex; align-items:center; gap:1rem; padding:.5rem .8rem; border-bottom:1px solid var(--line, #d8dee9); }
+.do-title { flex:1; font-weight:600; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.do-away { font-size:.9rem; }
+.do-close { font-size:1.6rem; line-height:1; border:0; background:none; cursor:pointer; color:inherit; }
+.do-panel iframe { flex:1; width:100%; border:0; background:#fff; }
+@media (prefers-color-scheme: dark) { .do-panel { background:var(--bg, #2e3440); } }

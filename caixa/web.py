@@ -63,8 +63,13 @@ HEARTBEAT = 15.0
 CHUNK = 1 << 20
 #: Files shown in the browser; anything else is offered as a download.
 INLINE = re.compile(
-    r"^(text/html|text/plain|image/(png|jpeg|gif|webp|bmp|avif)|audio/[\w.+-]+|video/[\w.+-]+)$"
+    r"^(text/html|text/plain|application/pdf|image/(png|jpeg|gif|webp|bmp|avif)|audio/[\w.+-]+|"
+    r"video/[\w.+-]+)$"
 )
+#: A PDF is not one of the box's pages: it is drawn by the browser's own viewer, which a page's
+#: policy (no plugins, no scripts but the pages') would stop. It may be shown only by the box's own
+#: pages (in the document overlay) and on its own.
+PDF_CSP = "frame-ancestors 'self'"
 
 APP_CSP = "; ".join(
     [
@@ -78,9 +83,10 @@ APP_CSP = "; ".join(
 #: The scripts the box's pages carry inline (Chattr's templates), and how each begins: its first
 #: words have not changed between versions, so a page drawn with an older one is recognised.
 PAGE_SCRIPTS = (
-    ("lightbox.js", b"/* Pictures, full size"),
-    ("index.js", b"/* The box's index:"),
-    ("conversation.js", b"/* Conversations, over the page"),
+    ("lightbox.js", b"/* Pictures, full size", "chattr"),
+    ("index.js", b"/* The box's index:", "chattr"),
+    ("conversation.js", b"/* Conversations, over the page", "chattr"),
+    ("document.js", b"/* Documents, over the page", "caixa"),
 )
 #: The scripts sit at the end of a page; only this much of its end is looked at.
 SCRIPT_TAIL = 512 * 1024
@@ -91,17 +97,20 @@ def page_scripts() -> list[tuple[bytes, bytes]]:
     includes it, without its last newline."""
     import chattr
 
-    templates = Path(chattr.__file__).resolve().parent / "templates"
+    folders = {
+        "chattr": Path(chattr.__file__).resolve().parent / "templates",
+        "caixa": Path(__file__).resolve().parent / "documents" / "templates",
+    }
     found = []
-    for name, start in PAGE_SCRIPTS:
-        text = (templates / name).read_bytes()
+    for name, start, where in PAGE_SCRIPTS:
+        text = (folders[where] / name).read_bytes()
         found.append((start, text[:-1] if text.endswith(b"\n") else text))
     return found
 
 
 def page_script_hashes() -> list[str]:
     """The SHA-256 of each script the box's pages carry (Chattr's lightbox, index and conversation
-    scripts), in the form a Content-Security-Policy takes."""
+    scripts, Caixa's document overlay), in the form a Content-Security-Policy takes."""
     return [
         "sha256-" + base64.b64encode(hashlib.sha256(text).digest()).decode()
         for _, text in page_scripts()
@@ -471,7 +480,8 @@ class _Handler(BaseHTTPRequestHandler):
             info.get("mime") or mimetypes.guess_type(file.name)[0] or "application/octet-stream"
         )
         size = int(info["size"])
-        extra = {"Content-Security-Policy": self.server.box_policy, "Accept-Ranges": "bytes"}
+        policy = PDF_CSP if mime == "application/pdf" else self.server.box_policy
+        extra = {"Content-Security-Policy": policy, "Accept-Ranges": "bytes"}
         if not INLINE.match(mime):
             extra["Content-Disposition"] = "attachment; filename*=UTF-8''" + quote(
                 str(info["name"])

@@ -29,7 +29,10 @@ where = ["."]
 include = ["caixa*"]
 
 [tool.setuptools.package-data]
-caixa = ["data/web/index.html", "data/web/app.js", "data/web/app.css", "data/web/build.json"]
+caixa = [
+    "data/web/index.html", "data/web/app.js", "data/web/app.css", "data/web/build.json",
+    "documents/templates/*",
+]
 
 [tool.black]
 line-length = 100

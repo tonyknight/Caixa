@@ -213,11 +213,15 @@ def test_page_script_hashes_are_those_of_the_templates_the_pages_carry() -> None
 
     import chattr
 
-    templates = Path(chattr.__file__).resolve().parent / "templates"
-    for name, listed in zip(
-        ("lightbox.js", "index.js", "conversation.js"), web.page_script_hashes(), strict=True
-    ):
-        text = (templates / name).read_text(encoding="utf-8").removesuffix("\n")
+    chattrs = Path(chattr.__file__).resolve().parent / "templates"
+    caixas = Path(web.__file__).resolve().parent / "documents" / "templates"
+    for (folder, name), listed in zip(
+        ((chattrs, "lightbox.js"), (chattrs, "index.js"), (chattrs, "conversation.js"),
+         (caixas, "document.js")),
+        web.page_script_hashes(),
+        strict=True,
+    ):  # fmt: skip
+        text = (folder / name).read_text(encoding="utf-8").removesuffix("\n")
         digest = base64.b64encode(hashlib.sha256(text.encode()).digest()).decode()
         assert listed == f"sha256-{digest}"
 
@@ -329,3 +333,45 @@ def test_a_connection_the_browser_closes_is_not_printed(running, capsys) -> None
     except ValueError:
         server.handle_error(None, ("127.0.0.1", 50094))
     assert "something else went wrong" in capsys.readouterr().err
+
+
+# --- PDFs (ticket 20261124-15) ---------------------------------------------------------------------
+
+
+def test_a_pdf_is_shown_by_the_browser(running, tmp_path: Path) -> None:
+    _, browser, _ = running
+    folder = tmp_path / "Box" / "Documents" / "PDF" / "2024" / "Banco Atlântico"
+    folder.mkdir(parents=True)
+    pdf = b"%PDF-1.4\n" + bytes(range(256)) * 8
+    (folder / "(2024-11-30) Checking Statement - Banco Atlântico.pdf").write_bytes(pdf)
+    path = "/box/Documents/PDF/2024/Banco%20Atl%C3%A2ntico/(2024-11-30)%20Checking%20Statement%20-%20Banco%20Atl%C3%A2ntico.pdf"
+    status, headers, body = browser.ask("GET", path)
+    assert status == 200 and body == pdf
+    assert headers["content-type"] == "application/pdf"
+    assert "content-disposition" not in headers  # shown, not downloaded
+    assert headers["content-security-policy"] == web.PDF_CSP
+    assert "frame-ancestors 'self'" in web.PDF_CSP and "script-src" not in web.PDF_CSP
+    assert headers["x-content-type-options"] == "nosniff" and headers["accept-ranges"] == "bytes"
+    status, headers, part = browser.ask("GET", path, headers={"Range": "bytes=0-7"})
+    assert status == 206 and part == b"%PDF-1.4"
+
+
+def test_the_document_script_begins_as_listed() -> None:
+    names = [name for name, *_ in web.PAGE_SCRIPTS]
+    assert names[-1] == "document.js"
+    for name, start, text in zip(
+        names, (s for _, s, *_ in web.PAGE_SCRIPTS), (t for _, t in web.page_scripts())
+    ):
+        assert text.startswith(start), name
+
+
+def test_a_page_with_an_older_document_script_gets_the_current_one(running, tmp_path: Path) -> None:
+    _, browser, _ = running
+    box = tmp_path / "Box" / "Documents" / "PDF" / "2024"
+    box.mkdir(parents=True, exist_ok=True)
+    old = "/* Documents, over the page: an older version */ var x = 1;"
+    (box / "Banco.html").write_text(f"<p>cards</p><script>{old}</script>", encoding="utf-8")
+    status, headers, page = browser.ask("GET", "/box/Documents/PDF/2024/Banco.html")
+    assert status == 200 and old.encode() not in page
+    current = dict(web.page_scripts())[b"/* Documents, over the page"]
+    assert current in page
