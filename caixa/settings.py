@@ -170,6 +170,25 @@ SCHEMA: dict[str, Any] = {
                 "When summaries use the translation endpoint, translation's yes is enough."
             ),
         },
+        "documents.ocr": {
+            "type": "boolean",
+            "default": True,
+            "title": "Make scanned PDFs searchable",
+            "description": (
+                "Pages that are pictures (scans) get an invisible text layer, on this computer, "
+                "so their words can be searched; the pages look as before and the original file "
+                "is never changed. Needs OCRmyPDF and Tesseract (on a Mac: brew install ocrmypdf)."
+            ),
+        },
+        "documents.ocr_languages": {
+            "type": "string",
+            "default": "eng",
+            "title": "Languages of scanned documents",
+            "description": (
+                "Tesseract's language codes, joined with + (eng, por, spa, fra, deu…), for "
+                "example eng+por. Each needs its language data installed."
+            ),
+        },
         "workers": {
             "type": "integer",
             "default": min(os.cpu_count() or 1, 12),

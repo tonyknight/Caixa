@@ -29,6 +29,9 @@ PROGRAMS = (
     ("ffmpeg", "voicemail transcription"),
     ("whisper-cli", "voicemail transcription"),
     ("exiftool", "photo and video dates (optional)"),
+    ("ocrmypdf", "making scanned PDFs searchable (brew install ocrmypdf)"),
+    ("tesseract", "making scanned PDFs searchable (comes with ocrmypdf)"),
+    ("gs", "OCR of some PDFs (Ghostscript, comes with ocrmypdf; optional)"),
 )
 
 
@@ -55,6 +58,11 @@ def _programs() -> list[str]:
             continue
         version = _run([found, "--version"] if name != "ffmpeg" else [found, "-version"])
         lines.append(f"{name}: {found}" + (f" ({version[:60]})" if version else ""))
+        if name == "tesseract":
+            from caixa.documents.pdf.ocr import tools
+
+            languages = tools().languages
+            lines.append(f"tesseract languages: {', '.join(languages) or 'none found'}")
     return lines
 
 

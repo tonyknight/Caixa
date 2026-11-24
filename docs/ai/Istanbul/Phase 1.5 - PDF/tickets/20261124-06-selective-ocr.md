@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-05-inspection-page-by-page
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/pdf/ocr.py`.
 
@@ -97,7 +96,7 @@ Current task: T02
   - no working output is left;
   - the doctor lists the OCR programs.
 - Verify: `python -m pytest -q tests/test_pdf_ocr.py tests/test_pdf_collector.py tests/test_pdf_inspect.py tests/test_diagnostics.py tests/test_service_box.py && python -m mypy --python-version 3.12 caixa && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`
-- [ ] done
+- [x] done
 
 ## Completion report
 

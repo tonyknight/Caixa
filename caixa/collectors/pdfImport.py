@@ -19,6 +19,7 @@ Named for its format: the documents domain (`caixa.documents`) is shared, and ea
 from __future__ import annotations
 
 import concurrent.futures
+import functools
 import hashlib
 import multiprocessing
 from dataclasses import dataclass, field, replace
@@ -30,6 +31,7 @@ from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
 from caixa.documents.pdf.inspect import inspect_pdf, text_hash
+from caixa.documents.pdf.ocr import ocr_document
 
 FORMAT = "pdf"
 COLLECTOR = "pdf"
@@ -75,6 +77,8 @@ class Examined:
     #: Each page as inspected (`caixa.documents.pdf.inspect`): number, class, poor, text, quality.
     inspection: tuple[dict[str, Any], ...] = ()
     text_hash: Optional[str] = None
+    #: What OCR did (`caixa.documents.pdf.ocr.OcrOutcome` as plain values), when it was asked to.
+    ocr: Optional[dict[str, Any]] = None
 
     @property
     def ocr_pages(self) -> int:
@@ -98,8 +102,9 @@ def _empty(page: Any) -> bool:
     return not page.get_text().strip() and not page.get_images() and not page.get_drawings()
 
 
-def examine(path: Path) -> Examined:
-    """Read one file, never writing to it."""
+def examine(path: Path, ocr: Optional[Mapping[str, Any]] = None) -> Examined:
+    """Read one file, never writing to it; with `ocr` (`enabled`, `languages`, `workdir`), also
+    OCR the pages that need it into the working folder."""
     import pymupdf
 
     pymupdf.TOOLS.mupdf_display_errors(False)  # a damaged file says so in `error`, not on stderr
@@ -140,34 +145,56 @@ def examine(path: Path) -> Examined:
             }
             for page in pages
         )
-        return replace(
-            seen,
-            pages=doc.page_count,
-            properties=properties,
-            inspection=inspection,
-            text_hash=text_hash(page.text for page in pages),
-        )
+        seen = replace(seen, pages=doc.page_count, properties=properties, inspection=inspection)
     finally:
         doc.close()
+    texts = [page["text"] for page in seen.inspection]
+    if ocr is not None:
+        outcome = ocr_document(
+            path,
+            Path(ocr["workdir"]) / f"{seen.sha256}.pdf",
+            seen.inspection,
+            str(ocr.get("languages") or "eng"),
+            bool(ocr.get("enabled", True)),
+        )
+        done = {
+            "status": outcome.status,
+            "output": str(outcome.output) if outcome.output else None,
+            "sha256": _hash(outcome.output) if outcome.output else None,
+            "texts": outcome.texts,
+            "mode": outcome.mode,
+            "tool": outcome.tool,
+            "versions": outcome.versions,
+            "settings": outcome.settings,
+            "error": outcome.error,
+        }
+        texts = [outcome.texts.get(page["number"], page["text"]) for page in seen.inspection]
+        seen = replace(seen, ocr=done)
+    return replace(seen, text_hash=text_hash(texts))
 
 
 def _examine_all(
-    files: list[Path], workers: int, progress: Callable[[Progress], None]
+    files: list[Path],
+    workers: int,
+    progress: Callable[[Progress], None],
+    ocr: Optional[Mapping[str, Any]] = None,
 ) -> list[Examined]:
-    """Every file examined, in the order given, by up to `workers` processes."""
+    """Every file examined (and, with `ocr`, OCR'd where it needs it), in the order given, by up
+    to `workers` processes."""
     total = len(files)
     progress(Progress("reading", 0, total, f"Reading {total} PDFs"))
+    work = functools.partial(examine, ocr=dict(ocr) if ocr is not None else None)
     if workers <= 1 or total <= 1:
         found = []
         for number, file in enumerate(files, start=1):
-            found.append(examine(file))
+            found.append(work(file))
             progress(Progress("reading", number, total, file.name))
         return found
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=min(workers, total), mp_context=multiprocessing.get_context("spawn")
     ) as pool:
         found = []
-        for number, seen in enumerate(pool.map(examine, files, chunksize=4), start=1):
+        for number, seen in enumerate(pool.map(work, files, chunksize=2), start=1):
             found.append(seen)
             progress(Progress("reading", number, total, seen.name))
         return found
@@ -280,9 +307,17 @@ class PdfCollector:
     ) -> RunResult:
         from caixa.documents.importing import import_examined
 
+        from caixa import settings
+
         workdir = self._workdir(box, source)
         files = self.locate(source, workdir)
-        seen = _examine_all(files, self._workers(box, options), progress)
+        saved = settings.load(box)
+        ocr = {
+            "enabled": bool(saved.get("documents.ocr", True)),
+            "languages": str(saved.get("documents.ocr_languages") or "eng"),
+            "workdir": str(box.work_dir("documents") / "ocr"),
+        }
+        seen = _examine_all(files, self._workers(box, options), progress, ocr)
         return import_examined(box, source, seen, progress, FORMAT, workdir)
 
 

@@ -149,7 +149,9 @@ def test_an_import_archives_every_readable_pdf_byte_for_byte(family: Path, box: 
         assert document["file_path"].startswith("Documents/PDF/Unrecognized/")
         with box.master() as master:
             found = records.get_document(master, document["item_id"])
-        assert _sha(archived) == found["source_sha256"] == found["archived_sha256"]
+        assert _sha(archived) == found["archived_sha256"]
+        if found["ocr_status"] in ("not_needed", "needs_ocr"):  # OCR did not change it
+            assert found["archived_sha256"] == found["source_sha256"]
     names = {Path(d["file_path"]).name for d in documents}
     assert "scan_00482.pdf" in names and "Document1.pdf" in names
     with sqlite3.connect(box.master_path) as db:

@@ -12,7 +12,7 @@ const MAC_PROBLEMS: Readonly<Record<string, CaixaKey>> = {
   no_access: 'contacts.mac.no_access', empty: 'contacts.mac.empty', not_a_mac: 'contacts.mac.not_a_mac',
 }
 
-const GROUPS = ['privacy', 'contacts', 'translation', 'summaries', 'speech', 'performance']
+const GROUPS = ['privacy', 'contacts', 'translation', 'summaries', 'speech', 'documents', 'performance']
 /** A setting with no group in its name (`workers`) goes under Performance. */
 const inGroup = (name: string, group: string) => group === 'performance' ? !name.includes('.') : name.startsWith(`${group}.`)
 

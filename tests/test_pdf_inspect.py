@@ -96,9 +96,12 @@ def imported(pdf_family: PdfFamily, tmp_path: Path) -> dict[str, Any]:
     from caixa.collectors.pdfImport import PdfCollector
     from caixa.documents import records
 
+    from caixa import settings
+
     source = tmp_path / "pdfs"
     shutil.copytree(pdf_family.root, source)
     box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {"documents.ocr": False})  # what inspection alone decides
     PdfCollector().run(box, source, {}, lambda step: None)
     with box.master() as master:
         found = {

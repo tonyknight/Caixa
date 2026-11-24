@@ -5,8 +5,10 @@ The collector examines files (in worker processes); this one writer then records
 - a file the box already has (the same SHA-256) gains the place it was found again, nothing else;
 - a file that cannot be used is named in the warnings and left where it is;
 - a new file is placed (`archive.place`), copied byte for byte (`archive.copy_into`) and recorded:
-  its document, its pages as inspected (text, class, quality), whether it needs OCR, where it was
-  found, and an `import` run. A file locked with a password is kept as it is and waits for review
+  its document, its pages as inspected (text, class, quality; OCR's text where OCR read a page),
+  what OCR did (an `ocr` run, with the tools' versions and settings), where it was found, and an
+  `import` run. When OCR gave a page a text layer the box holds the OCR'd copy (its own SHA-256);
+  otherwise a byte-for-byte copy of the original. A file locked with a password is kept as it is and waits for review
   (`locked`); one whose text is the same as a document's already in the box waits too
   (`probable_duplicate`): both stay.
 
@@ -73,21 +75,28 @@ def import_examined(
                 master.commit()
                 result.unchanged += 1
                 continue
+            done = one.ocr or {}
+            output = Path(done["output"]) if done.get("output") else None
+            archived = str(done["sha256"]) if output is not None else one.sha256
             relative = place(box, one.name, one.sha256, facts(one) if facts else None, format)
-            copy_into(box, Path(one.path), relative, one.sha256)
+            copy_into(box, output or Path(one.path), relative, archived)
             review = ["locked"] if one.locked else []
             if one.text_hash and records.find_by_text(master, one.text_hash):
                 review.append("probable_duplicate")
+            status = str(done.get("status") or ("needs_ocr" if one.ocr_pages else "not_needed"))
+            if status == "failed":
+                review.append("ocr_failed")
+            texts = {int(number): text for number, text in (done.get("texts") or {}).items()}
             record = records.DocumentRecord(
                 format=format,
                 original_filename=one.name,
                 source_sha256=one.sha256,
                 size=one.size,
                 file_path=relative,
-                archived_sha256=one.sha256,
+                archived_sha256=archived,
                 pages=one.pages,
                 processing_status="needs_review" if review else "archived",
-                ocr_status="needs_ocr" if one.ocr_pages else "not_needed",
+                ocr_status=status,
                 review=review,
                 text_hash=one.text_hash,
             )
@@ -97,11 +106,24 @@ def import_examined(
                 item_id,
                 [
                     records.PageText(
-                        page["number"], page["text"], "pdf", page["page_class"], page["quality"]
+                        page["number"],
+                        texts.get(page["number"], page["text"]),
+                        "ocr" if page["number"] in texts else "pdf",
+                        page["page_class"],
+                        page["quality"],
                     )
                     for page in one.inspection
                 ],
             )
+            if done and status != "not_needed":
+                records.add_run(
+                    master, item_id, "ocr", status, tool=done.get("tool"),
+                    version=(done.get("versions") or {}).get("ocrmypdf"),
+                    settings={**(done.get("settings") or {}), "versions": done.get("versions")},
+                    report={"error": done["error"]} if done.get("error") else None,
+                )  # fmt: skip
+            if output is not None:
+                output.unlink(missing_ok=True)  # the working copy, now in the box
             records.add_source(master, item_id, where, one.size, one.modified, import_id)
             records.add_run(
                 master, item_id, "import", "ok", tool="caixa", version=__version__,
