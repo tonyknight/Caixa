@@ -13,8 +13,7 @@ depends_on:
 - 20261124-12-reconciliation-confidence-and-apply
 - 20261124-17-documents-view-on-the-index-page
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -38,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/corrections.py`.
 
@@ -98,7 +97,7 @@ page is served by Caixa:
     lists it under its new path) and say so;
   - Correct on a filed card shows its candidates.
 - Verify: `python -m pytest -q tests/test_documents_pages.py tests/test_web_server.py && cd web && pnpm exec vitest run tests/e2e-documents.test.ts && pnpm exec tsc --noEmit`
-- [ ] done
+- [x] done
 
 ## Completion report
 

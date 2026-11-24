@@ -181,6 +181,37 @@ run('Searching documents in Caixa', () => {
     }
   }, 120_000)
 
+  it('files a document from its card, and offers what is known', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      await page.goto(`${running.base}/box/Documents/PDF/Unrecognized/Unrecognized.html`, { waitUntil: 'networkidle' })
+      const card = page.locator('article.card', { hasText: 'scan_00482.pdf' })
+      const form = card.getByRole('form', { name: /Correct/ })
+      await form.getByLabel('Author').fill('Águas do Vale')
+      await form.getByLabel('Date').fill('2024-03-12')
+      await form.getByRole('button', { name: 'Apply' }).click()
+      await card.getByText(/Filed as Documents\/PDF\/2024\/Águas do Vale\//).waitFor()
+      const listed = (await running.rpc('documents.list', {})).result.documents
+      const scan = listed.find((d: any) => d.original_filename === 'scan_00482.pdf')
+      expect(scan.file_path.startsWith('Documents/PDF/2024/Águas do Vale/(2024-03-12) ')).toBe(true)
+      expect(scan.file_path.endsWith(' - Águas do Vale.pdf')).toBe(true)
+
+      await page.goto(`${running.base}/box/Documents/PDF/2024/Banco%20Atl%C3%A2ntico/Banco%20Atl%C3%A2ntico.html`, { waitUntil: 'networkidle' })
+      const statement = page.locator('article.card').first()
+      expect(await statement.getByRole('form', { name: /Correct/ }).isHidden()).toBe(true)
+      await statement.getByRole('button', { name: 'Correct' }).click()
+      const author = statement.getByLabel('Author')
+      await author.waitFor()
+      const list = await author.getAttribute('list')
+      expect(list).toBeTruthy()
+      const offered = await page.locator(`datalist#${list} option`).evaluateAll((options: HTMLOptionElement[]) => options.map(o => o.value))
+      expect(offered).toContain('Banco Atlântico')
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+
   it('keeps the search hidden from disk', async () => {
     const browser = await playwright()!.chromium.launch()
     try {
@@ -189,6 +220,8 @@ run('Searching documents in Caixa', () => {
       await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'PDF.html')).href)
       expect(await page.locator('form.search').isHidden()).toBe(true)
       expect(await page.getByLabel('Find documents by their words').isVisible()).toBe(true)
+      await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'Unrecognized', 'Unrecognized.html')).href)
+      expect(await page.locator('form.edit').first().isHidden()).toBe(true)  // reading only, from disk
     } finally {
       await browser.close()
     }

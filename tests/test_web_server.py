@@ -217,7 +217,7 @@ def test_page_script_hashes_are_those_of_the_templates_the_pages_carry() -> None
     caixas = Path(web.__file__).resolve().parent / "documents" / "templates"
     for (folder, name), listed in zip(
         ((chattrs, "lightbox.js"), (chattrs, "index.js"), (chattrs, "conversation.js"),
-         (caixas, "document.js"), (caixas, "documents-index.js")),
+         (caixas, "document.js"), (caixas, "documents-index.js"), (caixas, "document-edit.js")),
         web.page_script_hashes(),
         strict=True,
     ):  # fmt: skip
@@ -358,7 +358,7 @@ def test_a_pdf_is_shown_by_the_browser(running, tmp_path: Path) -> None:
 
 def test_the_document_script_begins_as_listed() -> None:
     names = [name for name, *_ in web.PAGE_SCRIPTS]
-    assert names[-2:] == ["document.js", "documents-index.js"]
+    assert names[-3:] == ["document.js", "documents-index.js", "document-edit.js"]
     for name, start, text in zip(
         names, (s for _, s, *_ in web.PAGE_SCRIPTS), (t for _, t in web.page_scripts())
     ):

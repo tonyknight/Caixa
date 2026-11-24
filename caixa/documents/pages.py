@@ -121,8 +121,14 @@ def _statuses(document: dict[str, Any]) -> list[dict[str, Any]]:
     return found
 
 
-def card(document: dict[str, Any], tags: list[str], page_dir: PurePosixPath) -> dict[str, Any]:
-    """What one card shows (paths relative to the page's folder)."""
+def card(
+    document: dict[str, Any],
+    tags: list[str],
+    page_dir: PurePosixPath,
+    known: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
+    """What one card shows (paths relative to the page's folder); `known` is what the owner can
+    choose from when correcting it (`caixa.documents.corrections.candidates`)."""
     path = PurePosixPath(document["file_path"])
     iso, when = _when(document["date"])
     href = quote(os.path.relpath(path, page_dir).replace(os.sep, "/"), safe="/()")
@@ -145,6 +151,15 @@ def card(document: dict[str, Any], tags: list[str], page_dir: PurePosixPath) -> 
         "original": document["original_filename"],
         "statuses": _statuses(document),
         "href": href,
+        "item": document["item_id"],
+        "candidates": json.dumps(
+            {
+                name: [{"value": c["value"], "label": c["label"]} for c in values[:8]]
+                for name, values in (known or {}).items()
+                if values
+            },
+            ensure_ascii=False,
+        ),
     }
 
 
@@ -168,8 +183,12 @@ def _tidy(box: Box, folder: Path) -> None:
 
 def draw_documents(box: Box) -> Drawn:
     """Draw every document page that changed, remove those no longer needed (see the module)."""
+    from caixa.documents.corrections import candidates
+    from caixa.documents.enrich import TYPES
+
     with box.master(read_only=True) as master:
         documents = records.list_documents(master)
+        known = {d["item_id"]: candidates(master, d["item_id"]) for d in documents}
         tags: dict[str, list[str]] = defaultdict(list)
         for item_id, tag in master.connection.execute(
             "SELECT item_id, tag FROM document_tags ORDER BY tag"
@@ -203,8 +222,16 @@ def draw_documents(box: Box) -> Drawn:
             count=f"{len(members)} document{'' if len(members) == 1 else 's'}",
             span=span,
             home=quote(os.path.relpath("index.html", folder).replace(os.sep, "/"), safe="/"),
-            cards=[card(d, tags.get(d["item_id"], []), folder) for d in members],
+            cards=[
+                card(d, tags.get(d["item_id"], []), folder, known.get(d["item_id"]))
+                for d in members
+            ],
             overlay_css=css,
+            unrecognized=unrecognized,
+            types=[
+                {"value": t, "label": TYPE_LABELS.get(t, t.replace("_", " ").capitalize())}
+                for t in TYPES
+            ],
         )
         target = box.root / page
         wanted.append(page.as_posix())

@@ -162,8 +162,8 @@ def test_the_controls_wait_for_their_script(viewed: Box) -> None:
 def test_the_view_script_is_in_the_policy() -> None:
     from caixa import web
 
-    assert [name for name, *_ in web.PAGE_SCRIPTS][-1] == "documents-index.js"
-    assert len(web.page_script_hashes()) == 5
+    assert "documents-index.js" in [name for name, *_ in web.PAGE_SCRIPTS]
+    assert len(web.page_script_hashes()) == len(web.PAGE_SCRIPTS)
 
 
 def test_a_box_of_documents_alone_gets_an_index(tmp_path: Path, pdf_family: Any) -> None:

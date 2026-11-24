@@ -2,6 +2,7 @@
 {% block title %}{{ title }}{% endblock %}
 {% block head %}<style>
 {{ overlay_css }}
+[hidden] { display:none !important; }
 .cards { display:flex; flex-direction:column; gap:.8rem; margin:1rem 0 3rem; }
 .card { background:var(--card); border:1px solid var(--line); border-radius:.6rem; padding:.8rem 1rem; box-shadow:0 1px 2px var(--shadow); }
 .card h2 { margin:0 0 .2rem; font-size:1.15rem; }
@@ -12,6 +13,10 @@
 .card .by { font-size:.75rem; color:var(--muted); font-style:italic; }
 .card .status { font-size:.8rem; color:var(--muted); margin:.3rem 0 0; padding:0; list-style:none; display:flex; flex-wrap:wrap; gap:.3rem .8rem; }
 .card .status .attention { color:var(--date); }
+.card form.edit { display:flex; flex-wrap:wrap; gap:.4rem .8rem; align-items:center; margin:.5rem 0 0; padding:.5rem; border:1px dashed var(--line); border-radius:.5rem; }
+.card form.edit input, .card form.edit select { font:inherit; padding:.15rem .4rem; border:1px solid var(--line); border-radius:.3rem; background:var(--bg); color:var(--fg); }
+.card form.edit button, .card button.correct { font:inherit; padding:.15rem .7rem; border-radius:.3rem; border:1px solid var(--accent); background:var(--card); color:var(--fg); cursor:pointer; }
+.card form.edit .said { flex-basis:100%; font-size:.85rem; color:var(--muted); }
 .card .open { display:inline-block; margin-top:.5rem; padding:.2rem .9rem; border-radius:.4rem; background:var(--accent); color:var(--on-accent); text-decoration:none; font-weight:600; }
 </style>{% endblock %}
 {% block content %}
@@ -29,9 +34,17 @@
 {% if c.summary %}<p class="summary">{{ c.summary }}</p><p class="by">Summary by {{ c.model }}</p>{% endif %}
 <div class="names"><span class="file" title="Its name in the box">{{ c.file }}</span>{% if c.original != c.file %}<span class="original" title="The name it came with">Came as {{ c.original }}</span>{% endif %}</div>
 {% if c.statuses %}<ul class="status">{% for s in c.statuses %}<li{% if s.attention %} class="attention"{% endif %}>{{ s.text }}</li>{% endfor %}</ul>{% endif %}
-<a class="open open-document" href="{{ c.href }}" data-title="{{ c.title }}">Open</a>
+<a class="open open-document" href="{{ c.href }}" data-title="{{ c.title }}">Open</a>{% if not unrecognized %} <button type="button" class="correct" hidden>Correct</button>{% endif %}
+<form class="edit" hidden data-item="{{ c.item }}" data-candidates="{{ c.candidates }}"{% if unrecognized %} data-unrecognized="1"{% endif %} aria-label="Correct {{ c.title }}">
+<label>Author <input name="author" autocomplete="off"></label>
+<label>Date <input name="date" placeholder="YYYY, YYYY-MM or YYYY-MM-DD" autocomplete="off"></label>
+{% if not unrecognized %}<label>Title <input name="title" autocomplete="off"></label>
+<label>Type <select name="type"><option value="">as it is</option>{% for t in types %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}</select></label>{% endif %}
+<button type="submit">Apply</button><span class="said" role="status"></span>
+</form>
 </article>
 {% endfor %}</section>
 </main>
 <script>{% include "document.js" %}</script>
+<script>{% include "document-edit.js" %}</script>
 {% endblock %}
