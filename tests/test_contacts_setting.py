@@ -54,7 +54,11 @@ def _voicemail(box: Box, fixture_family, options: dict | None = None):
 
 
 def test_every_source_offers_the_contacts_file_from_settings(box: Box, fixture_family) -> None:
-    for collector in discover().all():
+    registry = discover()
+    message_sources = {d["id"] for d in registry.describe() if d["source"] == "chattr"}
+    for collector in registry.all():
+        if collector.info.id not in message_sources:  # documents have no contacts to read
+            continue
         assert (
             collector.info.options_schema["properties"]["contacts"]["x-setting"] == "contacts.file"
         )
@@ -62,6 +66,8 @@ def test_every_source_offers_the_contacts_file_from_settings(box: Box, fixture_f
     service.box_open(str(box.root))
     service.settings_set({"contacts.file": str(fixture_family.paths["contacts"])})
     for described in service.collectors_list():
+        if described["id"] not in message_sources:
+            continue
         # the wizard starts with the saved file already filled in: nothing to ask
         saved = described["options_schema"]["properties"]["contacts"]["default"]
         assert saved == str(fixture_family.paths["contacts"])
