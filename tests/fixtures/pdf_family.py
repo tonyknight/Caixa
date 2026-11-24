@@ -6,6 +6,11 @@ page, the document's type, title, author and naming date, its key fields, the wo
 find and on which page, and whether its filename contradicts its contents. The same answers are
 written to `answers.json` beside the files.
 
+Beside them are the files an import must survive (`_awkward`): a statement locked with a password
+(`PASSWORD`), a policy with only an owner password, a damaged scan, a text file named `.pdf`, an
+exact copy of the statement in `Arquivo/2024/`, the same statement saved again (same text,
+different bytes) and a `notes.txt`. `zip_family` puts the whole folder in a zip.
+
 How each kind of page is made:
 
 - **text**: a digital page, drawn with the base-14 fonts (WinAnsi: Portuguese letters, no "€").
@@ -25,6 +30,8 @@ Pereira); every institution is invented. Two builds are byte-identical, except e
 from __future__ import annotations
 
 import json
+import shutil
+import zipfile
 import zlib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -36,6 +43,9 @@ import pymupdf
 #: Fixed dates and producer, so a build does not depend on the clock.
 FIXED_DATE = "D:20241201120000Z"
 PRODUCER = "Caixa test fixtures"
+#: The password of the locked statement (its owner password is `OWNER_PASSWORD`).
+PASSWORD = "segredo"
+OWNER_PASSWORD = "dono-da-caixa"
 #: Page size (A4, points) and the scan resolution.
 A4 = (595, 842)
 SCAN_DPI = 200
@@ -80,6 +90,8 @@ class PdfFixture:
     words: dict[str, int] = field(default_factory=dict)  # word or phrase → page index (from 0)
     conflicts: tuple[str, ...] = ()  # what the filename gets wrong ("year", "type", …)
     filename_informative: bool = True
+    duplicate_of: Optional[str] = None  # the same bytes as this fixture's path
+    same_text_as: Optional[str] = None  # different bytes, the same text
 
     @property
     def category(self) -> Optional[str]:
@@ -625,6 +637,124 @@ def _family() -> list[tuple[PdfFixture, Sequence[_Page], dict[str, str]]]:
     ]
 
 
+def _awkward(out_dir: Path) -> list[PdfFixture]:
+    """The files an import must survive: locked, damaged, false, copied, saved twice."""
+    found: list[PdfFixture] = []
+
+    locked = PdfFixture(
+        path="extrato_protegido.pdf",
+        kind="encrypted",
+        pages=("text",),
+        language="pt",
+        type="statement",
+        title="Extrato de Conta",
+        author="Banco Atlântico",
+        date="2024-02-29",
+        precision="day",
+        date_kind="statement_end",
+        filename_informative=False,
+    )
+    doc = _document([_page("Banco Atlântico", "Extrato de conta", "Fevereiro de 2024")])
+    _save(
+        doc, out_dir / locked.path, encryption=pymupdf.PDF_ENCRYPT_AES_256,
+        user_pw=PASSWORD, owner_pw=OWNER_PASSWORD,
+    )  # fmt: skip
+    found.append(locked)
+
+    restricted = PdfFixture(
+        path="apolice_restrita.pdf",
+        kind="owner_password",
+        pages=("text",),
+        language="pt",
+        type="insurance",
+        title="Apólice de Seguro Automóvel",
+        author="Seguradora Horizonte",
+        date="2023-03-01",
+        precision="day",
+        date_kind="coverage_start",
+        words={"HZ-20877": 0},
+        filename_informative=False,
+    )
+    doc = _document(
+        [
+            _page(
+                "Seguradora Horizonte",
+                "Apólice de seguro automóvel HZ-20877",
+                "Tomador: Maria Costa",
+                "Início: 1 de março de 2023",
+            )
+        ]
+    )
+    _save(
+        doc, out_dir / restricted.path, encryption=pymupdf.PDF_ENCRYPT_AES_256,
+        owner_pw=OWNER_PASSWORD, user_pw="",
+        permissions=int(pymupdf.PDF_PERM_ACCESSIBILITY | pymupdf.PDF_PERM_PRINT),
+    )  # fmt: skip
+    found.append(restricted)
+
+    damaged = PdfFixture(path="damaged_scan.pdf", kind="corrupted", pages=())
+    scan = _document([_page("Recibo", "Ref 1", kind="needs_ocr")])
+    good = scan.tobytes(garbage=3, deflate=True, no_new_id=True)
+    scan.close()
+    noise = np.random.default_rng(11).integers(0, 256, 4096, dtype=np.uint8).tobytes()
+    (out_dir / damaged.path).write_bytes(good[:300] + noise)
+    found.append(damaged)
+
+    false = PdfFixture(path="not_really.pdf", kind="not_pdf", pages=())
+    (out_dir / false.path).write_text("A note saved with the wrong extension.\n", encoding="utf-8")
+    found.append(false)
+
+    archive = out_dir / "Arquivo" / "2024"
+    archive.mkdir(parents=True, exist_ok=True)
+    copy = PdfFixture(
+        path="Arquivo/2024/statement copy.pdf",
+        kind="duplicate",
+        pages=STATEMENT.pages,
+        type=STATEMENT.type,
+        title=STATEMENT.title,
+        author=STATEMENT.author,
+        date=STATEMENT.date,
+        precision=STATEMENT.precision,
+        date_kind=STATEMENT.date_kind,
+        duplicate_of=STATEMENT.path,
+    )
+    shutil.copyfile(out_dir / STATEMENT.path, out_dir / copy.path)
+    found.append(copy)
+
+    again = PdfFixture(
+        path="Banco Atlântico November 2024 (1).pdf",
+        kind="same_text",
+        pages=STATEMENT.pages,
+        type=STATEMENT.type,
+        title=STATEMENT.title,
+        author=STATEMENT.author,
+        date=STATEMENT.date,
+        precision=STATEMENT.precision,
+        date_kind=STATEMENT.date_kind,
+        same_text_as=STATEMENT.path,
+    )
+    downloaded = {"producer": "Banco Atlântico Online 7", "modDate": "D:20241205093000Z"}
+    _save(_document(STATEMENT_PAGES, downloaded), out_dir / again.path)
+    found.append(again)
+
+    (out_dir / "Arquivo" / "notes.txt").write_text(
+        "Papers to keep: the house deed, the insurance, the statements.\n", encoding="utf-8"
+    )
+    return found
+
+
+def zip_family(folder: Path, zip_path: Path) -> Path:
+    """The family's files (not `answers.json`) in a zip, with their folders, as an owner would
+    send them; entries in a fixed order with a fixed date."""
+    files = sorted(p for p in folder.rglob("*") if p.is_file() and p.name != "answers.json")
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipped:
+        for file in files:
+            entry = zipfile.ZipInfo(file.relative_to(folder).as_posix(), (2024, 12, 1, 12, 0, 0))
+            entry.compress_type = zipfile.ZIP_DEFLATED
+            zipped.writestr(entry, file.read_bytes())
+    return zip_path
+
+
 def build_pdf_family(out_dir: Path) -> PdfFamily:
     """Write every PDF of the family into `out_dir`, with `answers.json`."""
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -632,6 +762,7 @@ def build_pdf_family(out_dir: Path) -> PdfFamily:
     for fixture, pages, properties in _family():
         _save(_document(pages, properties), out_dir / fixture.path)
         documents.append(fixture)
+    documents.extend(_awkward(out_dir))
     answers = [fixture.answers() for fixture in documents]
     (out_dir / "answers.json").write_text(
         json.dumps(answers, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

@@ -8,14 +8,18 @@ every word the known answers place on a page is really there.
 from __future__ import annotations
 
 import json
+import zipfile
 from pathlib import Path
 
 import pymupdf
 import pytest
 
-from pdf_family import PdfFamily, build_pdf_family
+from pdf_family import PASSWORD, PdfFamily, build_pdf_family, zip_family
+
+STATEMENT_NAME = "2024-11 Banco Atlântico Checking Statement.pdf"
 
 PRIVATE_USE = range(0xE000, 0xF900)
+UNREADABLE = ("corrupted", "not_pdf")
 
 
 def _text(path: Path, page: int) -> str:
@@ -26,7 +30,11 @@ def _text(path: Path, page: int) -> str:
 def test_every_fixture_has_its_pages(pdf_family: PdfFamily) -> None:
     assert len(pdf_family.documents) >= 12
     for fixture in pdf_family.documents:
+        if fixture.kind in UNREADABLE:
+            continue
         with pymupdf.open(pdf_family.root / fixture.path) as doc:
+            if doc.needs_pass:
+                doc.authenticate(PASSWORD)
             assert doc.page_count == len(fixture.pages), fixture.path
 
 
@@ -123,7 +131,7 @@ def test_two_builds_are_byte_identical(tmp_path: Path) -> None:
     first = build_pdf_family(tmp_path / "a")
     second = build_pdf_family(tmp_path / "b")
     for one in first.documents:
-        if one.kind == "encrypted":
+        if one.kind in ("encrypted", "owner_password"):
             continue
         a = (first.root / one.path).read_bytes()
         b = (second.root / one.path).read_bytes()
@@ -133,3 +141,65 @@ def test_two_builds_are_byte_identical(tmp_path: Path) -> None:
 @pytest.mark.parametrize("language", ["en", "pt"])
 def test_both_languages_are_present(pdf_family: PdfFamily, language: str) -> None:
     assert any(f.language == language for f in pdf_family.documents)
+
+
+# --- The awkward files (T02) -------------------------------------------------------------------
+
+
+def test_a_password_protected_pdf_needs_its_password(pdf_family: PdfFamily) -> None:
+    locked = pdf_family.get("extrato_protegido.pdf")
+    with pymupdf.open(pdf_family.root / locked.path) as doc:
+        assert doc.needs_pass
+        assert doc.authenticate(PASSWORD)
+        assert doc.page_count == len(locked.pages)
+
+
+def test_an_owner_password_only_pdf_opens_without_one(pdf_family: PdfFamily) -> None:
+    restricted = pdf_family.get("apolice_restrita.pdf")
+    with pymupdf.open(pdf_family.root / restricted.path) as doc:
+        assert not doc.needs_pass and doc.metadata["encryption"]
+        assert "Seguradora Horizonte" in doc[0].get_text()
+
+
+def test_a_damaged_pdf_opens_only_repaired_and_empty(pdf_family: PdfFamily) -> None:
+    damaged = pdf_family.get("damaged_scan.pdf")
+    assert damaged.kind == "corrupted"
+    with pymupdf.open(pdf_family.root / damaged.path) as doc:
+        assert doc.is_repaired  # MuPDF rebuilt it: what was on it is gone
+        assert all(not p.get_text().strip() and not p.get_images() for p in doc)
+
+
+def test_a_false_pdf_does_not_open(pdf_family: PdfFamily) -> None:
+    false = pdf_family.get("not_really.pdf")
+    assert false.kind == "not_pdf"
+    with pytest.raises(pymupdf.FileDataError):
+        pymupdf.open(pdf_family.root / false.path)
+
+
+def test_an_exact_duplicate_lives_in_a_subfolder(pdf_family: PdfFamily) -> None:
+    copy = pdf_family.get("statement copy.pdf")
+    assert copy.path.startswith("Arquivo/2024/")
+    original = pdf_family.root / STATEMENT_NAME
+    assert (pdf_family.root / copy.path).read_bytes() == original.read_bytes()
+    assert copy.duplicate_of == STATEMENT_NAME
+
+
+def test_the_same_text_in_different_bytes(pdf_family: PdfFamily) -> None:
+    again = pdf_family.get("Banco Atlântico November 2024 (1).pdf")
+    original = pdf_family.root / STATEMENT_NAME
+    assert (pdf_family.root / again.path).read_bytes() != original.read_bytes()
+    with pymupdf.open(original) as a, pymupdf.open(pdf_family.root / again.path) as b:
+        assert [p.get_text() for p in a] == [p.get_text() for p in b]
+    assert again.same_text_as == STATEMENT_NAME
+
+
+def test_a_file_that_is_not_a_pdf_is_beside_them(pdf_family: PdfFamily) -> None:
+    assert (pdf_family.root / "Arquivo" / "notes.txt").is_file()
+
+
+def test_the_family_zips_with_its_folders(pdf_family: PdfFamily, tmp_path: Path) -> None:
+    archive = zip_family(pdf_family.root, tmp_path / "pdfs.zip")
+    with zipfile.ZipFile(archive) as zipped:
+        names = set(zipped.namelist())
+    assert {f.path for f in pdf_family.documents} <= names
+    assert "answers.json" not in names

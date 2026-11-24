@@ -11,8 +11,7 @@ notes: ''
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `tests/fixtures/pdf_family.py`. Caixa's own fixtures (PDFs are not Chattr's) go in this
 folder, per its README. The conftest puts the folder on `sys.path` (the name `fixtures` is Chattr's)
@@ -109,7 +108,7 @@ dependency of Caixa (it is needed at run time from ticket 04 on), and OCRmyPDF a
 - Tests: encryption states, a corrupted file fails to open, duplicate bytes equal, same-text pair
   differs in bytes but not in text, the zip holds the family.
 - Verify: `python -m pytest -q tests/test_pdf_family.py && python -m black --check tests`
-- [ ] done
+- [x] done
 
 ## Completion report
 
