@@ -11,8 +11,7 @@ notes: ''
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/naming.py`, with no dependencies on documents, so a future photo or video
 collector can use it. Chattr's attachment names (`safe_name`, `_free_name`) stay as they are; this
@@ -95,7 +94,7 @@ module is the general convention they already follow.
   the examples table. README link.
 - Tests: every row of the document's examples table gives its name.
 - Verify: `python -m pytest -q tests/test_naming.py && python -m black --check caixa tests/test_naming.py && python -m mypy caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

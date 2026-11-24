@@ -101,7 +101,9 @@ attachments, reactions); its **attachments are filed** under dated names next to
 **stored under stable IDs**; handles (phone numbers, addresses, usernames) are **matched to people**;
 **pages are drawn**, one per person and year; and the **master database** is updated to say which page
 shows each item. How each step works, and what happens to attachments in particular, is described in
-[`docs/Documentation/Collector.md`](docs/Documentation/Collector.md).
+[`docs/Documentation/Collector.md`](docs/Documentation/Collector.md). How Caixa names the files it
+files in a box (`(DATE) Title - Author.ext`) is set out in
+[`docs/Archival names.md`](docs/Archival%20names.md).
 
 **Two databases, on purpose.** Chattr keeps its own working store (`chattr.sqlite`), so it can run
 standalone and iterate quickly. Caixa's **master database** (`caixa.sqlite`) is the source of truth: one

@@ -7,6 +7,7 @@ say the same thing.
 from __future__ import annotations
 
 import hashlib
+import re
 from pathlib import Path
 
 import pytest
@@ -21,6 +22,9 @@ from caixa.naming import (
     free_path,
     original_name,
 )
+
+DOCUMENT = Path(__file__).resolve().parents[1] / "docs" / "Archival names.md"
+
 
 # --- Dates ---------------------------------------------------------------------------------------
 
@@ -204,3 +208,31 @@ def test_the_same_file_is_recognised(tmp_path: Path) -> None:
 def test_without_a_hash_any_existing_file_is_a_clash(tmp_path: Path) -> None:
     (tmp_path / "Document1.pdf").write_bytes(b"one")
     assert free_path(tmp_path, "Document1.pdf") == tmp_path / "Document1 (2).pdf"
+
+
+# --- The document --------------------------------------------------------------------------
+
+
+def _examples() -> list[tuple[str, str, str, str]]:
+    text = DOCUMENT.read_text(encoding="utf-8")
+    table = text.split("<!-- examples -->")[1]
+    rows = []
+    for line in table.strip().splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) != 4 or set(cells[0]) <= {"-", " ", ":"} or cells[0] == "Date":
+            continue
+        rows.append(tuple(re.sub(r"^`|`$", "", c) for c in cells))
+    return rows  # type: ignore[return-value]
+
+
+def test_the_document_has_examples() -> None:
+    assert len(_examples()) >= 8
+
+
+@pytest.mark.parametrize("row", _examples() if DOCUMENT.exists() else [])
+def test_every_example_of_the_document_is_what_the_code_names(
+    row: tuple[str, str, str, str],
+) -> None:
+    date, title, author, expected = row
+    made = archival_name(NamingDate.parse(date), title, author if author != "—" else None)
+    assert made == expected
