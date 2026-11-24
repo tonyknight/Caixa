@@ -137,3 +137,61 @@ run('The documents view, from disk', () => {
   }, 120_000)
 })
 
+run('Searching documents in Caixa', () => {
+  let running: Running
+  beforeAll(async () => {
+    running = await startCaixa()
+    const box = buildDocumentsBox(running.work)
+    expect((await running.rpc('box.open', { path: box })).ok).toBe(true)
+  }, 300_000)
+  afterAll(async () => { await running?.stop() })
+
+  it('finds pages by their words and opens them at the page', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      await page.goto(`${running.base}/box/Documents/PDF/PDF.html`, { waitUntil: 'networkidle' })
+      const search = page.getByRole('searchbox', { name: 'Search every page' })
+      await search.fill('Supermercado')
+      await page.getByRole('button', { name: 'Search' }).click()
+      const hit = page.locator('ol.hits li').first()
+      await hit.locator('mark').first().waitFor()
+      expect(await hit.locator('mark').first().textContent()).toBe('Supermercado')
+      expect(await hit.textContent()).toContain('page 2')
+      await hit.getByRole('link', { name: 'Open at page 2' }).click()
+      await page.getByRole('dialog', { name: 'Document' }).waitFor()
+      expect((await page.locator('.document-overlay iframe').getAttribute('src'))!.endsWith('#page=2')).toBe(true)
+      await page.getByRole('dialog', { name: 'Document' }).getByRole('button', { name: 'Close' }).click()
+      await page.getByRole('dialog', { name: 'Document' }).waitFor({ state: 'hidden' })
+
+      await search.fill('Maria')
+      await page.getByRole('combobox', { name: 'Of the type' }).selectOption('statement')
+      await page.getByRole('button', { name: 'Search' }).click()
+      await page.waitForFunction(() => !document.querySelector('ol.hits')?.textContent?.includes('Searching'))
+      const titles = await page.locator('ol.hits li strong').allTextContents()
+      expect(titles.length).toBeGreaterThan(0)
+      expect(titles.every((t: string) => /Statement|Extrato/i.test(t))).toBe(true)
+
+      await search.fill('nowhere-to-be-found')
+      await page.getByRole('combobox', { name: 'Of the type' }).selectOption('')
+      await page.getByRole('button', { name: 'Search' }).click()
+      await page.getByText('Nothing found.').waitFor()
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+
+  it('keeps the search hidden from disk', async () => {
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await browser.newPage()
+      const box = join(running.work, 'Box')
+      await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'PDF.html')).href)
+      expect(await page.locator('form.search').isHidden()).toBe(true)
+      expect(await page.getByLabel('Find documents by their words').isVisible()).toBe(true)
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+})
+

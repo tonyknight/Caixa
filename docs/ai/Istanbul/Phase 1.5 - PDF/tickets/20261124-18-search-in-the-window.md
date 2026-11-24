@@ -13,8 +13,7 @@ depends_on:
 - 20261124-08-page-text-and-full-text-index
 - 20261124-17-documents-view-on-the-index-page
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** the view page (`Documents/PDF/PDF.html`) carries a search form, hidden until its
 script finds the page served by Caixa (`/box/` over http). It then searches every page's words
@@ -78,7 +77,7 @@ Both live in `documents.html` and `documents-index.js` (its hash in the policy, 
   - a search finding nothing says so;
   - from disk the form stays hidden.
 - Verify: `cd web && pnpm exec vitest run tests/e2e-documents.test.ts && pnpm exec tsc --noEmit`
-- [ ] done
+- [x] done
 
 ## Completion report
 
