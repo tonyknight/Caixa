@@ -3,11 +3,12 @@ id: 20261124-07-validation-and-failure-handling
 title: Validation and failure handling
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: validation of OCR output, unchanged-copy fallback, failed artifacts,
+  undoable reprocess.'
 parent:
 depends_on:
 - 20261124-06-selective-ocr
@@ -20,9 +21,9 @@ Validate every processed PDF (structure with PyMuPDF and pikepdf, content, appea
 
 ## Acceptance criteria
 
-- [ ] Every OCR'd fixture passes; page count, order, sizes, rotation and appearance match within tolerance
-- [ ] A forced failure archives the unchanged copy (archived hash = source hash), keeps output and report in `.caixa/work/documents/failed/<id>/`, and puts the document in To review
-- [ ] `caixa documents reprocess` (and `documents.reprocess`) succeeds once the cause is gone, without a duplicate record
+- [x] Every OCR'd fixture passes; page count, order, sizes, rotation and appearance match within tolerance
+- [x] A forced failure archives the unchanged copy (archived hash = source hash), keeps output and report in `.caixa/work/documents/failed/<id>/`, and puts the document in To review
+- [x] `caixa documents reprocess` (and `documents.reprocess`) succeeds once the cause is gone, without a duplicate record
 
 ## Context
 
@@ -110,10 +111,51 @@ It runs as a job (`documents.reprocess`, `caixa documents reprocess [ids…] [--
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/pdf/validate.py` checks every OCR'd file against its
+  original before it is accepted:
+  - structure: exists, opens unrepaired, unlocked, and pikepdf's `check_pdf_syntax` (errors fail,
+    warnings are noted);
+  - content: page count, sizes and rotation, the text of untouched pages on the same page, text
+    where OCR ran, no lost pictures;
+  - appearance: 40 dpi grey renders, by mean and by 16-pixel blocks.
+
+  `caixa/documents/pdf/process.py` runs OCR then validation in the workers. A failing output goes
+  with its `report.json` to `.caixa/work/documents/failed/<sha256>/`, the unchanged copy is
+  archived (`unchanged_copy`, `ocr_failed` for review), and a `validate` run records the checks.
+  `caixa/documents/reprocess.py` (job `documents.reprocess`, `caixa documents reprocess [ids]
+  [--failed] [--languages]`) works from the archived copy and replaces it only with a validated
+  file. The record and identity are kept, the review is cleared, and a `reprocess` run is added.
+  The job is undoable: `undo.keep_file` saves a file before it is replaced.
 - **Files:**
+  - new: `caixa/documents/pdf/validate.py`, `caixa/documents/pdf/process.py`,
+    `caixa/documents/reprocess.py`, `tests/test_pdf_validate.py`, `tests/test_pdf_reprocess.py`;
+  - changed: `caixa/collectors/pdfImport.py`, `caixa/documents/importing.py`,
+    `caixa/documents/records.py` (`load_record`), `caixa/undo.py` (`keep_file`),
+    `caixa/service.py`, `caixa/cli.py`, `tests/test_worker_protocol.py`.
 - **Errors:**
+  - pikepdf 10 names its check `check_pdf_syntax` (not `check`), which is used when present.
+  - Undo did not restore a file replaced in place, so `keep_file` was added.
+  - The protocol's lists of methods and write methods gained `documents.reprocess`.
 - **Verify:**
+  - `python -m pytest -q`: 1711 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 5c43a58..85e833f (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the appearance tolerances (mean 2.0, block 24 of 255 at 40 dpi) were set on
+  synthetic scans; real colour scans may need them revisited.
+- **Minor:** the text check skips OCR'd pages (their old invisible text may be replaced), so a
+  poor layer redone is judged by `ocr_text` and appearance only.
+- **Minor:** reprocessing writes `<name>.new` beside the archived file for a moment before
+  replacing it.
+- **Spec:** D6 and D7 met; every acceptance criterion met (including undo of a reprocess).
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.pdf.validate`, then
+  `caixa.documents.reprocess`) before each GREEN.
+- **Commits:** `20261124-07 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
