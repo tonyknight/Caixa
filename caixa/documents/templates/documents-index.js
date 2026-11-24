@@ -1,7 +1,9 @@
 /* The documents' index: the filter box keeps the documents, and the authors, whose words hold every
    word typed (accents and case aside), and the year range hides the years outside it. Opened in
    Caixa (under /box/), the search form searches every page's words through Caixa (documents.search)
-   and lists the pages found, each opening at its page. Without this script everything shows. */
+   and lists the pages found, each opening at its page; the Ask box asks the documents (documents.ask)
+   and shows the model's answer, marked as a model's, with the passages it cites, each opening its
+   PDF at its page. Without this script everything shows. */
 (function () {
   var controls = document.querySelector(".controls");
   if (!controls) return;
@@ -94,5 +96,66 @@
         show(reply.result.hits);
       })
       .catch(function (error) { say("The search could not be done: " + error.message); });
+  });
+
+  var ask = document.querySelector("form.ask"), answer = document.querySelector("section.answer");
+  if (!ask || !answer) return;
+  ask.hidden = false;
+  function add(parent, tag, kind, text) {
+    var made = document.createElement(tag);
+    if (kind) made.className = kind;
+    if (text !== undefined) made.textContent = text;
+    parent.appendChild(made);
+    return made;
+  }
+  function tell(text, kind) {
+    answer.hidden = false;
+    answer.textContent = "";
+    add(answer, "p", kind || "said", text);
+  }
+  function cites(parent, text) {  // [n] becomes a link to its passage, everything else is text
+    String(text || "").split(/(\[\d+\])/).forEach(function (part) {
+      var number = /^\[(\d+)\]$/.exec(part);
+      if (number) {
+        var link = add(parent, "a", "cite", part);
+        link.href = "#cite-" + number[1];
+      } else if (part) parent.appendChild(document.createTextNode(part));
+    });
+  }
+  function answered(reply) {
+    if (reply.reason || reply.refused) { tell(reply.message, "refused"); return; }
+    if (!reply.answer) { tell(reply.message || "Nothing was found."); return; }
+    answer.hidden = false;
+    answer.textContent = "";
+    cites(add(answer, "p", "text"), reply.answer);
+    add(answer, "p", "by", "Written by a model (" + reply.written_by.model + ") from " + reply.passages +
+      " passages; check it against the pages it cites.");
+    var list = add(answer, "ol", "cited");
+    reply.citations.forEach(function (cited) {
+      var item = add(list, "li");
+      item.id = "cite-" + cited.n;
+      var title = cited.title || cited.original_filename;
+      add(item, "strong", "", "[" + cited.n + "] " + title);
+      add(item, "span", "where", " · " + [cited.author, cited.date, "page " + cited.page +
+        (cited.source === "ocr" ? " (read by OCR)" : "")].filter(Boolean).join(" · "));
+      add(item, "blockquote", "", cited.passage);
+      var open = add(item, "a", "open-document", "Open at page " + cited.page);
+      open.href = link(cited.file_path) + "#page=" + cited.page;
+      open.setAttribute("data-title", title);
+    });
+  }
+  ask.addEventListener("submit", function (event) {
+    event.preventDefault();
+    var question = ask.querySelector(".doc-ask").value.trim();
+    if (!question) { answer.hidden = true; return; }
+    tell("Asking… (a model on this computer reads the pages found)");
+    fetch("/api/caixa/rpc", { method: "POST", credentials: "same-origin", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ method: "documents.ask", params: { question: question } }) })
+      .then(function (response) { return response.json(); })
+      .then(function (reply) {
+        if (!reply.ok) throw new Error((reply.error && reply.error.message) || "Caixa refused.");
+        answered(reply.result);
+      })
+      .catch(function (error) { tell("The question could not be asked: " + error.message, "refused"); });
   });
 })();

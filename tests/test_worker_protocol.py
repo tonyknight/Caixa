@@ -61,6 +61,7 @@ ALL_METHODS = {
     "documents.authors.merge",
     "documents.enrich",
     "documents.search",
+    "documents.ask",
     "documents.reprocess",
     "documents.embed",
     "people.link",

@@ -1784,6 +1784,15 @@ class Service:
             except KeyError:
                 raise ServiceError("not_found", f"There is no document {item_id}.") from None
 
+    @method("documents.ask")
+    def documents_ask(self, question: str) -> dict[str, Any]:
+        """A question answered by the model on this computer from the passages search finds,
+        citing each as `[n]` with its document and page; an answer citing a passage it was not
+        given is refused (`caixa.documents.ask`)."""
+        from caixa.documents.ask import ask_documents
+
+        return ask_documents(self._require_box(), question)
+
     @method("documents.embed", write=True)
     def documents_embed(self) -> dict[str, Any]:
         """Embed the documents' passages, as a job, so search finds them by meaning too: the

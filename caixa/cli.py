@@ -148,6 +148,11 @@ def build_parser() -> argparse.ArgumentParser:
     who.add_argument("verb", nargs="?", default="list", choices=["list", "rename", "merge"])
     who.add_argument("values", nargs="*", help="rename: ID NAME; merge: FROM_ID TO_ID")
     _box_argument(who)
+    asking = document_commands.add_parser(
+        "ask", help="ask the documents; a model on this computer answers, citing document and page"
+    )
+    asking.add_argument("question", help="the question, in words")
+    _box_argument(asking)
     vectors = document_commands.add_parser(
         "embed", help="embed the documents' passages, so search finds them by meaning"
     )
@@ -894,6 +899,27 @@ def _cmd_documents(args: argparse.Namespace) -> int:
             )
         return 0
     service = _open(args, read_only=True)
+    if args.action == "ask":
+        answered = service.documents_ask(args.question)
+        if args.json:
+            _print_json(answered)
+            return 0 if not (answered.get("reason") or answered.get("refused")) else 1
+        if answered.get("reason") or answered.get("refused"):
+            print(f"caixa: {answered['message']}", file=sys.stderr)
+            return 1
+        if not answered["answer"]:
+            print(answered.get("message") or "Nothing was found.")
+            return 0
+        print(answered["answer"], end="\n\n")
+        for cited in answered["citations"]:
+            said = ", ".join(filter(None, [cited["title"] or cited["original_filename"],
+                                           cited["author"], cited["date"]]))  # fmt: skip
+            print(f"[{cited['n']}] {said}, page {cited['page']}: {cited['file_path']}")
+        print(
+            f"\nWritten by a model ({answered['written_by']['model']}) from "
+            f"{answered['passages']} passages; check it against the pages it cites."
+        )
+        return 0
     if args.action == "search":
         found = service.documents_search(
             args.query, type=args.type, category=args.category, author=args.author,

@@ -114,3 +114,41 @@ def test_nothing_is_logged(box: Box, caplog: pytest.LogCaptureFixture) -> None:
         ask.ask_documents(box, QUESTION)
     for words in ("electricity", "88.15", "maria"):
         assert words not in caplog.text.casefold()
+
+
+# --- The method and the command (T02) -------------------------------------------------------------
+
+
+@pytest.fixture
+def service(box: Box) -> Iterator[Any]:
+    from caixa.service import Service
+
+    made = Service(roots=[box.root.parent])
+    made.box_open(str(box.root))
+    yield made
+    made.close()
+
+
+def test_the_service_answers(service: Any) -> None:
+    answered = service.call("documents.ask", {"question": QUESTION})
+    assert answered["found"] is True
+    assert any(c["original_filename"] == BILL for c in answered["citations"])
+
+
+def test_the_command_answers_with_its_citations(
+    box: Box, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from caixa import cli
+
+    assert cli.main(["documents", "ask", QUESTION, "--box", str(box.root)]) == 0
+    out = capsys.readouterr().out
+    assert "[1] " in out and ", page 1" in out and ".pdf" in out
+    assert "Written by a model (stand-in-documents)" in out
+
+
+def test_the_command_says_why_not(box: Box, capsys: pytest.CaptureFixture[str]) -> None:
+    from caixa import cli
+
+    settings.save(box, {"summaries.endpoint": "https://api.example.com/v1"})
+    assert cli.main(["documents", "ask", QUESTION, "--box", str(box.root)]) == 1
+    assert "internet" in capsys.readouterr().err

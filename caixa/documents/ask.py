@@ -214,7 +214,10 @@ def ask_documents(
             passages = retrieve(master, question, count, embed, model)
         if not passages:
             return _said(question, message="No page holds any of the question's words.")
-        written_by = {"provider": info["provider"], "model": info["model"]}
+        written_by = {
+            "provider": info["provider"],
+            "model": "Apple Intelligence" if info["provider"] == "apple" else info["model"],
+        }
         try:
             result = enrich.ask(
                 client, INSTRUCTION, prompt(question, passages, int(info["budget"])), SCHEMA,

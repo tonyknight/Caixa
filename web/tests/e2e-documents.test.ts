@@ -212,6 +212,53 @@ run('Searching documents in Caixa', () => {
     }
   }, 120_000)
 
+  it('asks the documents, says the answer is a model\'s, and opens what it cites', async () => {
+    const listed = (await running.rpc('documents.list', {})).result.documents
+    const bill = listed.find((d: any) => d.original_filename === '2022 Car Insurance.pdf')
+    const answered = {
+      question: 'How much was the electricity bill?', found: true, answer: 'Amount due: 88.15 EUR [1].',
+      written_by: { provider: 'endpoint', model: 'stand-in-documents' }, passages: 3,
+      citations: [{ n: 1, item_id: bill.item_id, title: 'Electricity Bill', author: 'Energia do Norte', date: '2024-01-10',
+        page: 1, source: 'pdf', file_path: bill.file_path, original_filename: bill.original_filename,
+        passage: 'Energia do Norte Electricity Bill Amount due: 88.15 EUR' }],
+    }
+    const refused = { question: 'x', found: false, answer: '', citations: [], refused: true,
+      message: "The model's answer was not shown: it cites [9], a passage it was not given." }
+    const browser = await playwright()!.chromium.launch()
+    try {
+      const page = await openCaixa(browser, running)
+      let asked: any = null
+      await page.route('**/api/caixa/rpc', async (route: any) => {
+        const body = JSON.parse(route.request().postData() || '{}')
+        if (body.method !== 'documents.ask') return route.continue()
+        asked = body.params
+        await route.fulfill({ contentType: 'application/json',
+          body: JSON.stringify({ ok: true, result: asked.question === 'x' ? refused : answered }) })
+      })
+      await page.goto(`${running.base}/box/Documents/PDF/PDF.html`, { waitUntil: 'networkidle' })
+      await page.getByRole('searchbox', { name: 'Ask the documents' }).fill('How much was the electricity bill?')
+      await page.getByRole('button', { name: 'Ask', exact: true }).click()
+      const answer = page.getByRole('region', { name: 'Answer' })
+      await answer.locator('p.text', { hasText: '88.15 EUR' }).waitFor()
+      expect(asked).toEqual({ question: 'How much was the electricity bill?' })
+      expect(await answer.textContent()).toContain('Written by a model (stand-in-documents)')
+      expect(await answer.locator('a.cite').first().textContent()).toBe('[1]')
+      const cited = answer.locator('ol.cited li').first()
+      expect(await cited.textContent()).toContain('Electricity Bill')
+      await cited.getByRole('link', { name: 'Open at page 1' }).click()
+      await page.getByRole('dialog', { name: 'Document' }).waitFor()
+      expect((await page.locator('.document-overlay iframe').getAttribute('src'))!.endsWith('#page=1')).toBe(true)
+      await page.getByRole('dialog', { name: 'Document' }).getByRole('button', { name: 'Close' }).click()
+
+      await page.getByRole('searchbox', { name: 'Ask the documents' }).fill('x')
+      await page.getByRole('button', { name: 'Ask', exact: true }).click()
+      await answer.getByText(/a passage it was not given/).waitFor()
+      expect(await answer.locator('ol.cited li').count()).toBe(0)
+    } finally {
+      await browser.close()
+    }
+  }, 120_000)
+
   it('keeps the search hidden from disk', async () => {
     const browser = await playwright()!.chromium.launch()
     try {
@@ -219,6 +266,7 @@ run('Searching documents in Caixa', () => {
       const box = join(running.work, 'Box')
       await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'PDF.html')).href)
       expect(await page.locator('form.search').isHidden()).toBe(true)
+      expect(await page.locator('form.ask').isHidden()).toBe(true)
       expect(await page.getByLabel('Find documents by their words').isVisible()).toBe(true)
       await page.goto(pathToFileURL(join(box, 'Documents', 'PDF', 'Unrecognized', 'Unrecognized.html')).href)
       expect(await page.locator('form.edit').first().isHidden()).toBe(true)  // reading only, from disk

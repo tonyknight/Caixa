@@ -31,6 +31,17 @@
 .hits .snippet { margin:.25rem 0; }
 .hits mark { background:var(--l2); color:inherit; border-radius:.15rem; padding:0 .1rem; }
 .hits .said { color:var(--muted); font-style:italic; }
+.ask { display:flex; gap:.6rem; align-items:center; margin:.4rem 0 .8rem; }
+.doc-ask { flex:1; min-width:14rem; font:inherit; padding:.35rem .6rem; border:1px solid var(--line); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.ask button { font:inherit; padding:.25rem .6rem; border:1px solid var(--accent); border-radius:.4rem; background:var(--accent); color:var(--on-accent); font-weight:600; cursor:pointer; }
+.answer { background:var(--card); border:1px solid var(--line); border-left:4px solid var(--accent); border-radius:.5rem; padding:.6rem .9rem; margin:0 0 1rem; }
+.answer .text { margin:.1rem 0 .4rem; }
+.answer .by, .answer .said { font-size:.85rem; color:var(--muted); font-style:italic; margin:.2rem 0; }
+.answer .refused { color:var(--muted); margin:.2rem 0; }
+.answer .cite { text-decoration:none; font-weight:600; }
+.answer .cited { margin:.5rem 0 0; padding-left:1.4rem; display:flex; flex-direction:column; gap:.35rem; }
+.answer .cited .where { font-size:.85rem; color:var(--muted); }
+.answer .cited blockquote { margin:.2rem 0; padding-left:.6rem; border-left:2px solid var(--line); font-size:.9rem; }
 </style>{% endblock %}
 {% block content %}
 <header>
@@ -48,6 +59,11 @@
 <button type="submit">Search</button>
 </form>
 <ol class="hits" aria-label="Pages found"></ol>
+<form class="ask" hidden role="search" aria-label="Ask">
+<input type="search" class="doc-ask" placeholder="Ask a question: a model on this computer answers from the pages" aria-label="Ask the documents">
+<button type="submit">Ask</button>
+</form>
+<section class="answer" aria-label="Answer" hidden></section>
 </header>
 {% if calendars %}<section class="calendars" aria-label="Calendar">
 {% for y in calendars %}<details class="calendar" data-year-block="{{ y.year }}"{% if loop.first %} open{% endif %}><summary>{{ y.year }} <span class="count">{{ y.count }}</span></summary><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="{{ cell.href }}" class="d l{{ cell.level }}" title="{{ cell.count }} document{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></details>
