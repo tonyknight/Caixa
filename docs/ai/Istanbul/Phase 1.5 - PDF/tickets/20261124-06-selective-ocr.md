@@ -3,11 +3,11 @@ id: 20261124-06-selective-ocr
 title: Selective OCR
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: selective OCR with OCRmyPDF, broken pages read only, settings, doctor.'
 parent:
 depends_on:
 - 20261124-05-inspection-page-by-page
@@ -20,10 +20,10 @@ OCR with OCRmyPDF on only the pages that need it; broken-text pages' OCR text st
 
 ## Acceptance criteria
 
-- [ ] Scanned and mixed fixtures get a text layer on exactly their scanned pages; digital pages are not rasterized; a good OCR layer is kept
-- [ ] A broken-text page looks the same and its OCR text is stored as `ocr`
-- [ ] Without OCRmyPDF or Tesseract the import succeeds and those pages are `needs_ocr`; `caixa doctor` names what to install
-- [ ] Engine, version and settings recorded in `document_runs`
+- [x] Scanned and mixed fixtures get a text layer on exactly their scanned pages; digital pages are not rasterized; a good OCR layer is kept
+- [x] A broken-text page looks the same and its OCR text is stored as `ocr`
+- [x] Without OCRmyPDF or Tesseract the import succeeds and those pages are `needs_ocr`; `caixa doctor` names what to install
+- [x] Engine, version and settings recorded in `document_runs`
 
 ## Context
 
@@ -100,10 +100,48 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/pdf/ocr.py` OCRs only the pages inspection says need it, with
+  OCRmyPDF: `pages=`, `skip_text`, or `redo_ocr` for a poor layer, a plain PDF output, no
+  recompression. On the mixed file the digital page keeps its text and gains no picture.
+  Broken-text pages are read by Tesseract through PyMuPDF and their file is not rewritten.
+  Without the tools, or with OCR off, pages stay `needs_ocr` and the import goes on.
+  - The collector's workers run OCR after inspection.
+  - The import files the OCR'd copy (with its own SHA-256) or a byte-for-byte copy, stores OCR
+    text as `ocr` pages, sets `ocr_status`, records an `ocr` run with versions and settings, and
+    removes working outputs.
+  - New settings `documents.ocr` (on) and `documents.ocr_languages` (`eng`) appear in a Documents
+    group in Settings.
+  - `caixa doctor` lists OCRmyPDF, Tesseract with its languages, and Ghostscript.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/pdf/ocr.py`, `tests/test_pdf_ocr.py`;
+  - changed: `caixa/collectors/pdfImport.py`, `caixa/documents/importing.py`,
+    `caixa/settings.py`, `caixa/diagnostics.py`, `web/src/client/pages/SettingsPage.tsx`,
+    `web/src/client/locales.ts`, the built window;
+  - adjusted for OCR being on by default: `tests/test_pdf_collector.py`,
+    `tests/test_pdf_inspect.py`.
+- **Errors:** none in the code. Five earlier tests assumed no OCR ran; the inspection tests now
+  import with OCR off, and the collector's byte-for-byte check applies where OCR changed nothing.
 - **Verify:**
+  - `python -m pytest -q`: 1684 passed, 1 skipped.
+  - vitest: 277 passed; tsc clean; window rebuilt.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 0fb4185..f25c760 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** whether Ghostscript is needed for plain PDF output with OCRmyPDF 17 is not settled
+  here, since it was installed. The doctor calls it optional; check on the Mac without it.
+- **Minor:** OCRmyPDF reads the original and writes only into the job's working folder; no
+  separate working copy of the original is made, since nothing writes to it.
+- **Minor:** OCR runs in the same worker processes as inspection, one OCRmyPDF job each, so a
+  large scanned PDF holds one worker for its whole OCR.
+- **Spec:** D5, D17 and D27 (doctor) met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.pdf.ocr`; the import tests failing before
+  the wiring) before each GREEN.
+- **Commits:** `20261124-06 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
