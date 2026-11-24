@@ -3,11 +3,11 @@ id: 20261124-14-benchmark-documents-task
 title: Benchmark documents task
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: documents task in caixa benchmark, scored against known answers.'
 parent:
 depends_on:
 - 20261124-11-type-schemas
@@ -21,8 +21,8 @@ A documents task in `caixa benchmark`: the fixtures enriched by Apple Intelligen
 
 ## Acceptance criteria
 
-- [ ] `caixa benchmark` reports time and accuracy (type, author, date, title) for each provider
-- [ ] Nothing from a box is sent; the synthetic PDFs only
+- [x] `caixa benchmark` reports time and accuracy (type, author, date, title) for each provider
+- [x] Nothing from a box is sent; the synthetic PDFs only
 
 ## Context
 
@@ -83,10 +83,39 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa benchmark` gains a `documents` task. Twelve synthetic documents
+  (`tools/ai-benchmark/documents.json`, written from the fixtures and checked against them by a
+  test) are read exactly as an import reads them: classification, then the type's fields. They
+  are timed per worker count and scored for type, author, date and title, with verified quotes
+  counted. The report has a documents table, and the verdict names the more accurate side as
+  well as the faster. The default `--tasks` runs all three. Also `enrich.ask` now tells an
+  endpoint from Apple Intelligence by its client's type, not its name.
 - **Files:**
+  - new: `tools/ai-benchmark/documents.json`;
+  - changed: `caixa/benchmark.py`, `caixa/cli.py`, `caixa/documents/enrich.py`,
+    `tools/ai-benchmark/README.md`, `tests/fixtures/pdf_family.py` (`benchmark_documents`),
+    `tests/fixtures/stand_in_documents.py`, `tests/test_benchmark.py`.
 - **Errors:**
+  - The stand-in model crashed on the warm-up request, which has no system message; fixed.
+  - The existing run test now names its two tasks.
 - **Verify:**
+  - `python -m pytest -q`: 1898 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: d6f0b7e..977fc21 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only (one for the Mac).
+
+- **Minor (for the Mac):** only the stand-in was scored here. Running `caixa benchmark --tasks
+  documents` with Apple Intelligence and with the maintainer's endpoint is the real comparison
+  the draft asks for, and its report should be kept with the completion.
+- **Minor:** the documents' pages hold their written lines (as OCR would read a clean scan), so
+  the benchmark does not measure OCR errors.
+- **Spec:** D18 met; every acceptance criterion met.
+- **TDD:** RED (5 failing; then 3 run tests failing) before each GREEN.
+- **Commits:** `20261124-14 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
