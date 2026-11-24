@@ -21,6 +21,16 @@ from caixa.schema import CURRENT_VERSION, apply_migrations, current_version
 PathLike = Union[str, Path]
 ALIAS_KINDS = ("phone", "email", "username", "name")
 OPERATIONS = ("insert", "update", "link", "delete")
+#: The tables that hold a document's rows by item, children first (they go with the item).
+DOCUMENT_TABLES = (
+    "document_fields",
+    "document_runs",
+    "document_tags",
+    "document_pages",
+    "document_sources",
+    "chunks",
+    "documents",
+)
 
 
 def _now() -> str:
@@ -443,6 +453,8 @@ class Master:
             self._db.execute("DELETE FROM item_people WHERE item_id = ?", (item_id,))
             self._db.execute("DELETE FROM mail_accounts WHERE item_id = ?", (item_id,))
             self._db.execute("DELETE FROM mail WHERE item_id = ?", (item_id,))
+            for table in DOCUMENT_TABLES:
+                self._db.execute(f"DELETE FROM {table} WHERE item_id = ?", (item_id,))
             self._db.execute("DELETE FROM items WHERE id = ?", (item_id,))
             self.log_change(item_id, "delete", int(row[0]), import_id)
             gone += 1

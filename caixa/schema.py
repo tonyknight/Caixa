@@ -14,6 +14,11 @@ which a collector's adapter reads the collector's database and upserts here by s
   anything built on top (an index, a knowledge store) can ask "what changed since N".
 - `accounts`, `mail`, `mail_accounts`, `mail_threads`: the mail imported through Caixa's mail
   workflow (Phase 1.5), each mail with its facts and account, each conversation with its summary.
+- `documents` and around it (Phase 1.5 - PDF): every document filed in the box (one `items` row
+  each, type `document`), where it was found (`document_sources`), the text of each page and its
+  full-text index (`document_pages`, `documents_fts`), every fact with where it came from
+  (`document_fields`), what was done to it (`document_runs`), its tags, its author (`authors`,
+  `author_aliases`), and the passages semantic search reads (`chunks`).
 """
 
 from __future__ import annotations
@@ -182,12 +187,165 @@ CREATE UNIQUE INDEX subcategories_unique ON subcategories (category, COALESCE(pa
 ALTER TABLE people ADD COLUMN subcategory_id INTEGER REFERENCES subcategories (id);
 """
 
+# Version 6: documents (Phase 1.5 - PDF). A document is an `items` row (type `document`, id
+# `<format>:<source sha256>`); its facts are in `documents`, each fact's sources and evidence in
+# `document_fields`. Page text is indexed by `documents_fts` (external content, kept in step by
+# triggers), accents ignored. `chunks` is keyed by item so other domains can add theirs later.
+MIGRATION_6 = """
+CREATE TABLE authors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    kind TEXT NOT NULL DEFAULT 'organization' CHECK (kind IN ('organization', 'person')),
+    person_id INTEGER REFERENCES people (id) ON DELETE SET NULL,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE author_aliases (
+    author_id INTEGER NOT NULL REFERENCES authors (id) ON DELETE CASCADE,
+    alias TEXT NOT NULL,
+    normalized TEXT NOT NULL UNIQUE
+);
+CREATE INDEX author_aliases_by_author ON author_aliases (author_id);
+
+CREATE TABLE documents (
+    item_id TEXT PRIMARY KEY REFERENCES items (id),
+    format TEXT NOT NULL,
+    original_filename TEXT NOT NULL,
+    source_sha256 TEXT NOT NULL UNIQUE,
+    archived_sha256 TEXT,
+    size INTEGER NOT NULL,
+    pages INTEGER,
+    title TEXT,
+    author_id INTEGER REFERENCES authors (id),
+    category TEXT,
+    type TEXT,
+    date TEXT,
+    date_precision TEXT CHECK (date_precision IN ('day', 'month', 'year')),
+    date_kind TEXT,
+    summary TEXT,
+    summary_model TEXT,
+    processing_status TEXT NOT NULL DEFAULT 'archived'
+        CHECK (processing_status IN ('archived', 'needs_review', 'failed')),
+    ocr_status TEXT NOT NULL DEFAULT 'not_needed'
+        CHECK (ocr_status IN ('not_needed', 'done', 'partial', 'needs_ocr', 'failed')),
+    validation_status TEXT NOT NULL DEFAULT 'passed'
+        CHECK (validation_status IN ('passed', 'unchanged_copy', 'failed')),
+    ai_status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (ai_status IN ('pending', 'processing', 'completed', 'needs_review', 'failed')),
+    review TEXT NOT NULL DEFAULT '[]',
+    text_hash TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE INDEX documents_by_author ON documents (author_id);
+CREATE INDEX documents_by_date ON documents (date);
+CREATE INDEX documents_by_text ON documents (text_hash);
+
+CREATE TABLE document_sources (
+    item_id TEXT NOT NULL REFERENCES items (id),
+    path TEXT NOT NULL,
+    filename TEXT NOT NULL,
+    size INTEGER,
+    modified TEXT,
+    first_seen TEXT NOT NULL,
+    import_id INTEGER REFERENCES imports (id),
+    PRIMARY KEY (item_id, path)
+);
+
+CREATE TABLE document_pages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL REFERENCES items (id),
+    page INTEGER NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'pdf' CHECK (source IN ('pdf', 'ocr')),
+    class TEXT,
+    quality TEXT,
+    UNIQUE (item_id, page)
+);
+CREATE VIRTUAL TABLE documents_fts USING fts5(
+    text, content = 'document_pages', content_rowid = 'id',
+    tokenize = 'unicode61 remove_diacritics 2'
+);
+CREATE TRIGGER document_pages_indexed AFTER INSERT ON document_pages BEGIN
+    INSERT INTO documents_fts (rowid, text) VALUES (new.id, new.text);
+END;
+CREATE TRIGGER document_pages_unindexed AFTER DELETE ON document_pages BEGIN
+    INSERT INTO documents_fts (documents_fts, rowid, text) VALUES ('delete', old.id, old.text);
+END;
+CREATE TRIGGER document_pages_reindexed AFTER UPDATE OF text ON document_pages BEGIN
+    INSERT INTO documents_fts (documents_fts, rowid, text) VALUES ('delete', old.id, old.text);
+    INSERT INTO documents_fts (rowid, text) VALUES (new.id, new.text);
+END;
+
+CREATE TABLE document_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL REFERENCES items (id),
+    stage TEXT NOT NULL
+        CHECK (stage IN ('import', 'inspect', 'ocr', 'validate', 'enrich', 'reprocess', 'correct')),
+    tool TEXT,
+    version TEXT,
+    settings TEXT,
+    model TEXT,
+    provider TEXT,
+    prompt_version TEXT,
+    schema_version TEXT,
+    result TEXT NOT NULL,
+    report TEXT,
+    at TEXT NOT NULL
+);
+CREATE INDEX document_runs_by_item ON document_runs (item_id);
+
+CREATE TABLE document_fields (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL REFERENCES items (id),
+    field TEXT NOT NULL,
+    value TEXT,
+    number REAL,
+    source TEXT NOT NULL CHECK (source IN (
+        'original_filename', 'pdf_metadata', 'pdf_content', 'ocr', 'ai_inference', 'user_verified'
+    )),
+    evidence TEXT,
+    page INTEGER,
+    state TEXT NOT NULL DEFAULT 'proposed'
+        CHECK (state IN ('proposed', 'applied', 'conflict', 'rejected')),
+    run_id INTEGER REFERENCES document_runs (id) ON DELETE SET NULL
+);
+CREATE INDEX document_fields_by_item ON document_fields (item_id, field);
+
+CREATE TABLE tags (
+    name TEXT PRIMARY KEY COLLATE NOCASE,
+    starter INTEGER NOT NULL DEFAULT 0 CHECK (starter IN (0, 1))
+);
+INSERT INTO tags (name, starter) VALUES
+    ('banking', 1), ('statement', 1), ('bill', 1), ('utilities', 1), ('receipt', 1),
+    ('invoice', 1), ('cheque', 1), ('tax', 1), ('insurance', 1), ('medical', 1), ('legal', 1),
+    ('property', 1), ('correspondence', 1), ('pension', 1), ('car', 1), ('home', 1);
+CREATE TABLE document_tags (
+    item_id TEXT NOT NULL REFERENCES items (id),
+    tag TEXT NOT NULL COLLATE NOCASE,
+    source TEXT NOT NULL DEFAULT 'ai_inference' CHECK (source IN ('ai_inference', 'user_verified')),
+    PRIMARY KEY (item_id, tag)
+);
+
+CREATE TABLE chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id TEXT NOT NULL REFERENCES items (id),
+    page INTEGER,
+    start INTEGER,
+    end INTEGER,
+    text TEXT NOT NULL,
+    embedding BLOB,
+    embedding_model TEXT
+);
+CREATE INDEX chunks_by_item ON chunks (item_id);
+"""
+
 MIGRATIONS: list[tuple[int, str]] = [
     (1, MIGRATION_1),
     (2, MIGRATION_2),
     (3, MIGRATION_3),
     (4, MIGRATION_4),
     (5, MIGRATION_5),
+    (6, MIGRATION_6),
 ]
 CURRENT_VERSION = MIGRATIONS[-1][0]
 
