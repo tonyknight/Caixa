@@ -3,11 +3,12 @@ id: 20261124-12-reconciliation-confidence-and-apply
 title: Reconciliation, confidence and apply
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: reconciliation rules, confident documents named and filed (undoable),
+  review reasons, authors rename/merge.'
 parent:
 depends_on:
 - 20261124-10-ai-classification
@@ -20,10 +21,10 @@ Reconciliation of every field's candidates, provenance, conflicts, the confidenc
 
 ## Acceptance criteria
 
-- [ ] Descriptive fixtures are applied: renamed and moved to `<YYYY>/<Author>/`
-- [ ] A misleading filename produces a conflict and To review; no filename fact is dropped without contradicting evidence
-- [ ] Date kinds stay separate; re-enriching creates no duplicate and keeps `user_verified`
-- [ ] Undo puts moved files back; authors can be renamed and merged with folders following
+- [x] Descriptive fixtures are applied: renamed and moved to `<YYYY>/<Author>/`
+- [x] A misleading filename produces a conflict and To review; no filename fact is dropped without contradicting evidence
+- [x] Date kinds stay separate; re-enriching creates no duplicate and keeps `user_verified`
+- [x] Undo puts moved files back; authors can be renamed and merged with folders following
 
 ## Context
 
@@ -134,10 +135,56 @@ follow: each document's file moves, and its aliases are kept. Also `documents.au
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/reconcile.py` decides by Caixa's rules:
+  - the owner's word wins;
+  - a filename date agrees (by prefix), is *explained* by another date written in the document
+    (kept as that kind), or conflicts;
+  - type words conflict only when none is close to the model's type;
+  - an author is matched to known authors and aliases, and a different filename author
+    conflicts;
+  - confident means every condition met.
+
+  Confident documents are named and filed, their files moved, and each move kept for undo (an
+  import's or the enrich job's). Fields are marked `applied` or `conflict`. Anything else goes to
+  review with its reasons. On the family:
+  - the statement goes to `2024/Banco Atlântico/(2024-11-30) …`;
+  - the scan to `2024/Águas do Vale/…`;
+  - the tax bill to `2022/Câmara Municipal de Vila Nova/(2022) …`, its filename's 2023 kept as
+    another date;
+  - the renewal is renamed to its cover start;
+  - the misleading name and the authorless contract wait in Unrecognized for review.
+
+  `caixa/documents/authors.py` renames and merges authors, with folders and archival names
+  following and old names kept as aliases. Also the `documents.authors[.rename|.merge]` methods
+  and `caixa documents authors`.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/reconcile.py`, `caixa/documents/authors.py`,
+    `tests/test_documents_reconcile.py`;
+  - changed: `caixa/documents/enrich.py`, `caixa/collectors/pdfImport.py`, `caixa/service.py`,
+    `caixa/cli.py`, `tests/test_worker_protocol.py`.
+- **Errors:** a test read the `moved` key, which the service keeps on the undo snapshot and out
+  of the job's result; corrected.
 - **Verify:**
+  - `python -m pytest -q`: 1876 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 3be285b..ba35c4a (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a title ending with the author's name loses it in the archival name
+  (`Carta de João Costa - João Costa` becomes `Carta de - João Costa`); `naming` could keep the
+  title whole when what is left ends in a joining word.
+- **Minor:** renaming or merging authors notes its moves on the newest undo snapshot, as person
+  renames do; undoing that import would move them back too.
+- **Minor:** an author is a `person` only when the model also names them among the people; a
+  link to the box's people comes in ticket 22.
+- **Spec:** D13–D15 met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.reconcile`; 12 import tests failing before
+  `apply_decision`; four author tests before T03) before each GREEN.
+- **Commits:** `20261124-12 T01–T03: …`, authored by Tony Knight.
 
 ## Notes
 
