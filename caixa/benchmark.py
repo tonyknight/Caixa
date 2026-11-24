@@ -1,11 +1,15 @@
-"""A bake-off: Apple Intelligence against an OpenAI-compatible endpoint, on 100 made-up emails.
+"""A bake-off: Apple Intelligence against an OpenAI-compatible endpoint, on 100 made-up emails
+and twelve made-up documents.
 
 `caixa benchmark` times the two jobs Caixa gives a model, done exactly as an import does them:
 
 - **summaries**: one per conversation (35 of them), each `summaries.prepare`d (6,000 characters
   for Apple Intelligence, 12,000 for an endpoint) and `summaries.summarize`d (30–50 words, with its
   one retry);
-- **translations**: each of the 20 Portuguese emails into English, with Chattr's instruction.
+- **translations**: each of the 20 Portuguese emails into English, with Chattr's instruction;
+- **documents**: each of the twelve synthetic PDF documents (`tools/ai-benchmark/documents.json`)
+  read as a PDF import reads it (`caixa.documents.enrich`: classification, then its type's
+  fields), and scored against what is known about it (type, author, date, title).
 
 Each side runs at several worker counts (requests at once). Every setting is warmed up first (one
 small request per worker, not timed: a model loading, helpers starting), then every item goes
@@ -95,7 +99,19 @@ def score(answer: Optional[dict[str, Any]], expected: dict[str, Any]) -> dict[st
 
 def _items(conversations: list[dict[str, Any]], task: str, budget: int) -> list[dict[str, Any]]:
     """What one task sends: a prepared conversation per summary, a mail's own words per
-    translation (Portuguese only, as Caixa translates only what is not in English)."""
+    translation (Portuguese only, as Caixa translates only what is not in English), a document
+    as an import reads it."""
+    if task == "documents":
+        return [
+            {
+                "id": d["filename"],
+                "language": "",
+                "title": d["answers"]["title"],
+                "input": {**d, "budget": budget},
+                "answers": d["answers"],
+            }
+            for d in load_documents()
+        ]
     if task == "summaries":
         return [
             {
@@ -121,10 +137,31 @@ def _items(conversations: list[dict[str, Any]], task: str, budget: int) -> list[
     ]
 
 
-def _once(client: Any, task: str, text: str) -> str:
+def _read_document(client: Any, document: dict[str, Any]) -> str:
+    """A document read as an import reads it (classification, then its type's fields); the
+    answer as JSON. An answer that cannot be used raises `ValueError`."""
+    from caixa.documents import enrich
+
+    pages = [(int(p["page"]), str(p["text"])) for p in document["pages"]]
+    given = enrich.DocumentInput(
+        document["filename"], dict(document["properties"]), pages, len(pages)
+    )
+    found = enrich.classify(client, given, int(document["budget"]))
+    if not found.ok:
+        raise ValueError(f"no usable answer: {found.error}")
+    answer = dict(found.answer)
+    if answer.get("type") in enrich.TYPE_FIELDS:
+        typed = enrich.classify_type(client, given, str(answer["type"]), int(document["budget"]))
+        answer["fields"] = typed.answer if typed.ok else {"error": typed.error}
+    return json.dumps(answer, ensure_ascii=False)
+
+
+def _once(client: Any, task: str, given: Any) -> str:
+    if task == "documents":
+        return _read_document(client, given)
     if task == "summaries":
-        return str(summaries.summarize(client, text))
-    return str(client.translate(text).text)
+        return str(summaries.summarize(client, given))
+    return str(client.translate(given).text)
 
 
 def _close(client: Any) -> None:
@@ -178,6 +215,16 @@ def _row(provider: str, label: str, workers: int, task: str, items: list[dict[st
             {r["error"] for r in results if r["error"]} | ({error} if error else set())
         )[:3],
     }
+    if task == "documents":
+        marks = [
+            score(json.loads(r["output"]) if r["output"] else None, r["answers"]) for r in results
+        ]
+        row["accuracy"] = {
+            key: round(sum(bool(m[key]) for m in marks) / len(items), 3) if items else None
+            for key in ("type", "author", "date", "title")
+        }
+        row["verified"] = sum(int(m["verified"]) for m in marks)
+        row["accurate"] = round(sum(row["accuracy"].values()) / 4, 3) if items else None
     if task == "summaries":
         words = [len(r["output"].split()) for r in done]
         row["words"] = round(sum(words) / len(words)) if words else None
@@ -223,6 +270,10 @@ def _verdict(rows: list[dict[str, Any]]) -> dict[str, Any]:
             other = ranked[1]
             entry["slower"] = f"{other['label']} ({other['workers']} at once)"
             entry["times_faster"] = round(top["per_second"] / other["per_second"], 2)
+        if task == "documents":
+            sure = max(best.values(), key=lambda r: r.get("accurate") or 0)
+            entry["most_accurate"] = f"{sure['label']} ({sure['workers']} at once)"
+            entry["accurate"] = sure.get("accurate")
         found[task] = entry
     return found
 
@@ -241,6 +292,25 @@ def _report(settings: dict[str, Any], rows: list[dict[str, Any]], verdict: dict[
         if not mine:
             continue
         lines += [f"## {task.capitalize()}", ""]
+        if task == "documents":
+            lines.append(
+                "| Who | At once | Done | Seconds | Each (s) | Type | Author | Date | Title | Verified | Problems |"
+            )
+            lines.append(
+                "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |"
+            )
+            for r in mine:
+                share = r.get("accuracy") or {}
+                cells = [
+                    r["label"], str(r["workers"]), f"{r['done']}/{r['items']}",
+                    f"{r['seconds']:.1f}", f"{r['per_item']:.2f}" if r["per_item"] else "–",
+                    *(f"{(share.get(k) or 0) * 100:.0f}%" for k in ("type", "author", "date", "title")),
+                    str(r.get("verified", 0)),
+                    "; ".join([*([f"{r['failed']} failed"] if r["failed"] else []), *r["errors"][:1]]) or "none",
+                ]  # fmt: skip
+                lines.append("| " + " | ".join(cells) + " |")
+            lines.append("")
+            continue
         if task == "summaries":
             lines.append(
                 "| Who | At once | Done | Seconds | Each (s) | A second | Slowest (s) | Words | Portuguese kept | Problems |"
@@ -354,6 +424,7 @@ def run(
         "apple_workers": list(apple_workers),
         "endpoint_workers": list(endpoint_workers),
         "tasks": chosen,
+        "documents": len(load_documents()) if "documents" in chosen else 0,
     }
     report = {"settings": settings, "results": rows, "verdict": verdict}
     (out / "report.json").write_text(
@@ -365,4 +436,6 @@ def run(
         if "slower" in said:
             line += f", {said['times_faster']}× {said['slower']}"
         say(line)
+        if "most_accurate" in said:
+            say(f"More accurate at {task}: {said['most_accurate']} ({said['accurate'] * 100:.0f}%)")
     return report

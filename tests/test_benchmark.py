@@ -197,3 +197,55 @@ def test_an_unknown_author_is_right_when_there_is_none() -> None:
         "date": "2021-09-30",
     }
     assert benchmark.score(answer, expected)["author"] is True
+
+
+@pytest.fixture
+def reader(pdf_family: Any) -> Iterator[StubServer]:
+    from stand_in_documents import DocumentModel
+
+    made = StubServer()
+    made.model = DocumentModel(pdf_family)  # type: ignore[attr-defined]
+    made.respond = made.model.respond  # type: ignore[attr-defined]
+    yield made
+    made.close()
+
+
+def test_the_documents_task_is_timed_and_scored(reader: StubServer, tmp_path: Path) -> None:
+    said: list[str] = []
+    report = benchmark.run(
+        endpoint=reader.endpoint, model="stand-in-documents", api_key=None, only="endpoint",
+        endpoint_workers=[1, 2], tasks=["documents"], out=tmp_path / "out", say=said.append,
+    )  # fmt: skip
+    rows = report["results"]
+    assert [(r["task"], r["workers"]) for r in rows] == [("documents", 1), ("documents", 2)]
+    for row in rows:
+        assert row["items"] == 12 and row["done"] == 12 and row["failed"] == 0
+        assert row["accuracy"] == {"type": 1.0, "author": 1.0, "date": 1.0, "title": 1.0}
+        assert row["verified"] > 12
+    assert report["verdict"]["documents"]["most_accurate"].startswith("stand-in-documents")
+    assert any(line.startswith("More accurate at documents") for line in said)
+    text = (tmp_path / "out" / "report.md").read_text(encoding="utf-8")
+    assert "## Documents" in text and "| Type | Author | Date | Title |" in text
+    assert report["settings"]["documents"] == 12
+
+
+def test_a_model_that_answers_prose_scores_nothing(server: StubServer, tmp_path: Path) -> None:
+    report = benchmark.run(
+        endpoint=server.endpoint, model="chatty", api_key=None, only="endpoint",
+        endpoint_workers=[1], tasks=["documents"], out=tmp_path / "out", say=lambda line: None,
+    )  # fmt: skip
+    (row,) = report["results"]
+    assert row["done"] == 0 and row["failed"] == 12
+    assert row["accuracy"] == {"type": 0.0, "author": 0.0, "date": 0.0, "title": 0.0}
+
+
+def test_the_command_runs_the_documents_task(
+    reader: StubServer, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "report"
+    code = cli.main([
+        "benchmark", "--endpoint", reader.endpoint, "--model", "stand-in-documents",
+        "--only", "endpoint", "--endpoint-workers", "1", "--tasks", "documents", "--out", str(out),
+    ])  # fmt: skip
+    assert code == 0 and (out / "report.json").is_file()
+    assert "documents" in capsys.readouterr().out

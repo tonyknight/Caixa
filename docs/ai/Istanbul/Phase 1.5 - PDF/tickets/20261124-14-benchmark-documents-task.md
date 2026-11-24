@@ -13,8 +13,7 @@ depends_on:
 - 20261124-11-type-schemas
 - 20261124-12-reconciliation-confidence-and-apply
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -36,8 +35,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:**
 
@@ -80,7 +79,7 @@ Current task: T02
   - the report and the verdict name accuracy;
   - `caixa benchmark --tasks documents --only endpoint` writes the report.
 - Verify: `python -m pytest -q tests/test_benchmark.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

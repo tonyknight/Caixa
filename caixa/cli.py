@@ -226,8 +226,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     bench = commands.add_parser(
         "benchmark",
-        help="time summaries and translations: Apple Intelligence against your own model",
-        description="Times summaries and translations of 100 made-up emails (tools/ai-benchmark) "
+        help="time summaries, translations and documents: Apple Intelligence against your model",
+        description="Times summaries and translations of 100 made-up emails, and readings of 12 "
+        "made-up documents (tools/ai-benchmark), "
         "through Apple Intelligence and through an OpenAI-compatible endpoint, at several worker "
         "counts, and writes a report. Nothing from a box is sent.",
     )
@@ -243,7 +244,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bench.add_argument("--only", choices=["apple", "endpoint"], help="time only one side")
     bench.add_argument(
-        "--tasks", default="summaries,translations", help="summaries, translations or both"
+        "--tasks",
+        default="summaries,translations,documents",
+        help="any of summaries, translations, documents (default: all three)",
     )
     bench.add_argument("--emails", help="another emails file in the same form")
     bench.add_argument(

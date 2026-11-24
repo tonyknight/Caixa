@@ -31,7 +31,12 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional, Sequence
 
-from chattr.translation import TranslationError, TranslationUnavailable, is_local_endpoint
+from chattr.translation import (
+    OpenAICompatibleTranslator,
+    TranslationError,
+    TranslationUnavailable,
+    is_local_endpoint,
+)
 
 from caixa import settings, summaries
 from caixa.box import Box
@@ -384,7 +389,7 @@ def ask(
     """Ask once, and once more naming what was wrong when the answer cannot be used. An
     endpoint is given the schema as `response_format`; any other model finds it in its
     instructions. A failing provider raises (Chattr's `TranslationError`)."""
-    if getattr(client, "server_name", "") != "summary server":  # not an endpoint: no schema mode
+    if not isinstance(client, OpenAICompatibleTranslator):  # no schema mode: say it in words
         instruction += "\n\nThe JSON object follows this JSON Schema:\n" + json.dumps(schema)
     response_format = {
         "type": "json_schema",

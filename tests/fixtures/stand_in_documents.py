@@ -171,9 +171,8 @@ class DocumentModel:
             fields = self.fields_for(name, kind.group(1), pages_of(first))
             return {"choices": [{"message": {"content": json.dumps(fields, ensure_ascii=False)}}]}
         mode = self.misbehave.get(name, "")
-        self.prompts[name] = (
-            next(m for m in request["messages"] if m["role"] == "system")["content"] + "\n" + first
-        )
+        system = next((m["content"] for m in request["messages"] if m["role"] == "system"), "")
+        self.prompts[name] = system + "\n" + first
         if mode == "twice" and self.asked[name] == 1:
             mode = "not_json"
         if mode == "not_json":
