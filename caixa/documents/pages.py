@@ -216,6 +216,28 @@ def draw_documents(box: Box) -> Drawn:
         part.write_text(html, encoding="utf-8")
         part.replace(target)
         drawn.written.append(page.as_posix())
+    if documents:  # the view of them all, Documents/PDF/PDF.html
+        from caixa.documents.view import VIEW, view_context
+
+        html = environment.get_template("documents.html").render(
+            overlay_css=css, **view_context(documents, tags)
+        )
+        wanted.append(VIEW)
+        drawn.pages += 1
+        target = box.root / VIEW
+        if not (target.is_file() and target.read_text(encoding="utf-8") == html):
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(html, encoding="utf-8")
+            drawn.written.append(VIEW)
+        index = box.root / "index.html"
+        if not index.exists() and not (box.caixa_dir / "pages.json").exists():
+            # no conversations yet, so Chattr has drawn no index: a small one leads to the documents
+            index.write_text(
+                environment.get_template("box-index.html").render(
+                    title=box.name, view=VIEW, count=len(documents)
+                ),
+                encoding="utf-8",
+            )
     for old in _record(box):
         if old not in wanted:
             gone = box.root / old

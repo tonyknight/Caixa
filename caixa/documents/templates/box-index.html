@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<header>
+<h1>{{ title }}</h1>
+<p class="summary">This box holds documents so far; people and their conversations come with their first import.</p>
+</header>
+<main>
+<p><a href="{{ view }}">Documents ▸ PDF</a> ({{ count }})</p>
+</main>
+{% endblock %}

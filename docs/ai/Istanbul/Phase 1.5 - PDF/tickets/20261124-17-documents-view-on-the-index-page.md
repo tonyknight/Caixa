@@ -13,7 +13,7 @@ depends_on:
 - 20261124-16-author-pages-and-the-unrecognized-page
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -37,7 +37,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:** the Documents ▸ PDF view is a page Caixa draws, `Documents/PDF/PDF.html` (named like
 the other document pages: after its folder). The box's index reaches it from its sidebar. Chattr
@@ -91,7 +91,7 @@ Without the script everything shows. The page is drawn by `draw_documents` with 
   - links relative;
   - the script's hash in the policy.
 - Verify: `python -m pytest -q tests/test_documents_view.py tests/test_documents_pages.py tests/test_web_server.py`
-- [ ] done
+- [x] done
 
 ### T03: Filtering and the year range in a browser
 

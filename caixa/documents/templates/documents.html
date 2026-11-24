@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}PDF documents{% endblock %}
+{% block head %}<style>
+{{ overlay_css }}
+[hidden] { display:none !important; }
+.controls { display:flex; flex-wrap:wrap; gap:.6rem 1rem; align-items:center; margin:.8rem 0; }
+.doc-filter { flex:1; min-width:14rem; font:inherit; padding:.35rem .6rem; border:1px solid var(--line); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.controls select { font:inherit; padding:.2rem .4rem; border:1px solid var(--line); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.year-block h2, .review h2, .entries h2, .unrecognized h2 { font-size:1.2rem; margin:1.6rem 0 .5rem; }
+.tiles { display:grid; grid-template-columns:repeat(auto-fill,minmax(13rem,1fr)); gap:.6rem; }
+.tile { display:flex; align-items:center; gap:.6rem; padding:.55rem .7rem; background:var(--card); border:1px solid var(--line); border-radius:.6rem; text-decoration:none; color:var(--fg); }
+.tile .initials { flex:none; width:2.2rem; height:2.2rem; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; font-size:.85rem; }
+.tile .name { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; }
+.tile .n { color:var(--muted); font-size:.85rem; }
+.review ul, .entries ul { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.35rem; }
+.review li, .entry-doc { background:var(--card); border:1px solid var(--line); border-radius:.5rem; padding:.45rem .7rem; }
+.review .why { color:var(--date); font-size:.85rem; }
+.entry-doc { display:flex; flex-wrap:wrap; gap:.2rem .8rem; align-items:baseline; }
+.entry-doc time { color:var(--date); font-weight:600; font-size:.9rem; }
+.entry-doc .title { font-weight:600; }
+.entry-doc .more { color:var(--muted); font-size:.85rem; }
+.entry-doc .tag { font-size:.72rem; padding:0 .45rem; border-radius:.6rem; background:var(--panel); border:1px solid var(--line); }
+.entry-doc a.open-document { margin-left:auto; font-weight:600; }
+</style>{% endblock %}
+{% block content %}
+<header>
+<a class="home-button" href="{{ home }}">&larr; The box</a>
+<h1>PDF documents</h1>
+<p class="summary">{{ count }}{% if span %}, {{ span }}{% endif %}.</p>
+<div class="controls" hidden>
+<input type="search" class="doc-filter" placeholder="Find by their words" aria-label="Find documents by their words">
+<label>From <select class="year-from" aria-label="From the year"><option value="">the first</option>{% for y in years_list %}<option>{{ y }}</option>{% endfor %}</select></label>
+<label>to <select class="year-to" aria-label="To the year"><option value="">the last</option>{% for y in years_list %}<option>{{ y }}</option>{% endfor %}</select></label>
+</div>
+</header>
+{% if calendars %}<section class="calendars" aria-label="Calendar">
+{% for y in calendars %}<details class="calendar" data-year-block="{{ y.year }}"{% if loop.first %} open{% endif %}><summary>{{ y.year }} <span class="count">{{ y.count }}</span></summary><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="{{ cell.href }}" class="d l{{ cell.level }}" title="{{ cell.count }} document{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></details>
+{% endfor %}</section>{% endif %}
+<main>
+{% for y in years %}<section class="year-block" data-year-block="{{ y.year }}">
+<h2>{{ y.year }} <span class="count">{{ y.count }}</span></h2>
+<div class="tiles">{% for a in y.authors %}<a class="tile" data-year="{{ y.year }}" data-words="{{ a.words }}" href="{{ a.href }}"><span class="initials" style="background:{{ a.hue }}">{{ a.initials }}</span><span class="name">{{ a.name }}</span><span class="n">{{ a.count }}</span></a>{% endfor %}</div>
+</section>
+{% endfor %}{% if unrecognized %}<section class="unrecognized"><h2>Unrecognized</h2>
+<div class="tiles"><a class="tile" href="{{ unrecognized.href }}"><span class="initials" style="background:#4c566a">?</span><span class="name">Unrecognized</span><span class="n">{{ unrecognized.count }}</span></a></div>
+</section>{% endif %}
+{% if review %}<section class="review"><h2>To review <span class="count">{{ review | length }}</span></h2>
+<ul>{% for r in review %}<li data-words="{{ r.words }}" data-year="{{ r.year }}"><a href="{{ r.href }}">{{ r.title }}</a> <span class="why">{{ r.reasons }}</span></li>{% endfor %}</ul>
+</section>{% endif %}
+<section class="entries"><h2>Every document</h2>
+<ul>{% for e in entries %}<li class="entry-doc" data-words="{{ e.words }}" data-year="{{ e.year }}">{% if e.iso %}<time datetime="{{ e.iso }}">{{ e.when }}</time>{% else %}<time>Undated</time>{% endif %}<a class="title" href="{{ e.card }}">{{ e.title }}</a><span class="more">{{ e.more }}</span>{% for t in e.tags %}<span class="tag">{{ t }}</span>{% endfor %}<a class="open-document" href="{{ e.href }}" data-title="{{ e.title }}">Open</a></li>
+{% endfor %}</ul></section>
+</main>
+<script>{% include "document.js" %}</script>
+<script>{% include "documents-index.js" %}</script>
+{% endblock %}

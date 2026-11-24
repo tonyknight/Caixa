@@ -87,6 +87,7 @@ PAGE_SCRIPTS = (
     ("index.js", b"/* The box's index:", "chattr"),
     ("conversation.js", b"/* Conversations, over the page", "chattr"),
     ("document.js", b"/* Documents, over the page", "caixa"),
+    ("documents-index.js", b"/* The documents' index", "caixa"),
 )
 #: The scripts sit at the end of a page; only this much of its end is looked at.
 SCRIPT_TAIL = 512 * 1024
