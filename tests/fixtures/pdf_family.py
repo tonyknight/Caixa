@@ -493,7 +493,6 @@ def _family() -> list[tuple[PdfFixture, Sequence[_Page], dict[str, str]]]:
                 },
                 people=("Maria Costa", "Rui Pereira"),
                 words={"Rental Agreement": 0},
-                filename_informative=False,
             ),
             [
                 _page(
@@ -531,7 +530,6 @@ def _family() -> list[tuple[PdfFixture, Sequence[_Page], dict[str, str]]]:
                 },
                 people=("Maria Costa",),
                 words={"4821": 0},
-                filename_informative=False,
             ),
             [
                 _page(
@@ -591,7 +589,6 @@ def _family() -> list[tuple[PdfFixture, Sequence[_Page], dict[str, str]]]:
                 date_kind="issue",
                 fields={"vendor": "Café Central", "number": "0093", "total": "6.40"},
                 words={"Receipt 0093": 0},
-                filename_informative=False,
             ),
             [
                 _page(

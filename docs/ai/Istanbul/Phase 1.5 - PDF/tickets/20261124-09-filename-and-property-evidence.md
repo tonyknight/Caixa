@@ -12,8 +12,8 @@ parent:
 depends_on:
 - 20261124-03-migration-6-and-document-records
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -37,8 +37,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** `caixa/documents/evidence.py`, deterministic, with no model.
 
@@ -91,7 +91,7 @@ name.
     renewal (date and author from the filename), and None for the property tax bill (author
     noise) and the cheque (no date).
 - Verify: `python -m pytest -q tests/test_documents_evidence.py`
-- [ ] done
+- [x] done
 
 ### T02: Evidence in the import
 
