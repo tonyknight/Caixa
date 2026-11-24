@@ -178,3 +178,17 @@ def test_a_box_of_documents_alone_gets_an_index(tmp_path: Path, pdf_family: Any)
     PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
     index = (box.root / "index.html").read_text(encoding="utf-8")
     assert f'href="{VIEW}"' in index and "Our box" in index
+
+
+# --- Search in the window (ticket 20261124-18) ---------------------------------------------------
+
+
+@needs_ocr
+def test_the_search_form_waits_for_caixa(viewed: Box) -> None:
+    page = _view(viewed)
+    form = re.search(r'<form class="search" hidden[^>]*>.*?</form>', page, re.S)
+    assert form, "the search form is drawn, hidden"
+    assert 'aria-label="Search every page"' in form.group(0)
+    types = re.findall(r'<option value="(\w+)">', form.group(0))
+    assert {"statement", "bill", "invoice"} <= set(types) and "spaceship" not in types
+    assert 'class="hits"' in page and "documents.search" in page

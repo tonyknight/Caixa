@@ -62,6 +62,7 @@ def view_context(documents: list[dict[str, Any]], tags: dict[str, list[str]]) ->
     from pathlib import PurePosixPath
     from urllib.parse import quote
 
+    from caixa.documents.evidence import TYPE_LABELS
     from caixa.documents.pages import REASONS, _when, card
 
     folder = PurePosixPath(VIEW).parent
@@ -154,6 +155,10 @@ def view_context(documents: list[dict[str, Any]], tags: dict[str, list[str]]) ->
         ),
         "review": review,
         "entries": entries,
+        "types": [
+            {"value": kind, "label": TYPE_LABELS.get(kind, kind.replace("_", " ").capitalize())}
+            for kind in sorted({d["type"] for d in documents if d["type"]})
+        ],
     }
 
 

@@ -21,6 +21,16 @@
 .entry-doc .more { color:var(--muted); font-size:.85rem; }
 .entry-doc .tag { font-size:.72rem; padding:0 .45rem; border-radius:.6rem; background:var(--panel); border:1px solid var(--line); }
 .entry-doc a.open-document { margin-left:auto; font-weight:600; }
+.search { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin:.4rem 0 .8rem; }
+.doc-search { flex:1; min-width:14rem; font:inherit; padding:.35rem .6rem; border:1px solid var(--line); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.search select, .search button { font:inherit; padding:.25rem .6rem; border:1px solid var(--line); border-radius:.4rem; background:var(--card); color:var(--fg); }
+.search button { background:var(--accent); color:var(--on-accent); border-color:var(--accent); font-weight:600; cursor:pointer; }
+.hits { list-style:none; margin:0 0 1rem; padding:0; display:flex; flex-direction:column; gap:.4rem; }
+.hits li { background:var(--card); border:1px solid var(--line); border-radius:.5rem; padding:.5rem .75rem; }
+.hits .where { font-size:.85rem; color:var(--muted); }
+.hits .snippet { margin:.25rem 0; }
+.hits mark { background:var(--l2); color:inherit; border-radius:.15rem; padding:0 .1rem; }
+.hits .said { color:var(--muted); font-style:italic; }
 </style>{% endblock %}
 {% block content %}
 <header>
@@ -32,6 +42,12 @@
 <label>From <select class="year-from" aria-label="From the year"><option value="">the first</option>{% for y in years_list %}<option>{{ y }}</option>{% endfor %}</select></label>
 <label>to <select class="year-to" aria-label="To the year"><option value="">the last</option>{% for y in years_list %}<option>{{ y }}</option>{% endfor %}</select></label>
 </div>
+<form class="search" hidden role="search">
+<input type="search" class="doc-search" placeholder="Search every page, scanned ones too" aria-label="Search every page">
+<select class="doc-type" aria-label="Of the type"><option value="">Any type</option>{% for t in types %}<option value="{{ t.value }}">{{ t.label }}</option>{% endfor %}</select>
+<button type="submit">Search</button>
+</form>
+<ol class="hits" aria-label="Pages found"></ol>
 </header>
 {% if calendars %}<section class="calendars" aria-label="Calendar">
 {% for y in calendars %}<details class="calendar" data-year-block="{{ y.year }}"{% if loop.first %} open{% endif %}><summary>{{ y.year }} <span class="count">{{ y.count }}</span></summary><div class="months">{% for month in y.months %}<div class="month"><div class="month-name">{{ month.name }}</div><div class="grid">{% for cell in month.cells %}{% if cell.day == 0 %}<span class="d"></span>{% elif cell.count %}<a href="{{ cell.href }}" class="d l{{ cell.level }}" title="{{ cell.count }} document{{ '' if cell.count == 1 else 's' }}">{{ cell.day }}</a>{% else %}<span class="d">{{ cell.day }}</span>{% endif %}{% endfor %}</div></div>{% endfor %}</div></details>
