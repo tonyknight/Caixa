@@ -247,9 +247,10 @@ class PdfCollector:
     ) -> RunResult:
         from caixa.documents.importing import import_examined
 
-        files = self.locate(source, self._workdir(box, source))
+        workdir = self._workdir(box, source)
+        files = self.locate(source, workdir)
         seen = _examine_all(files, self._workers(box, options), progress)
-        return import_examined(box, source, seen, progress)
+        return import_examined(box, source, seen, progress, FORMAT, workdir)
 
 
 def collectors() -> list[PdfCollector]:

@@ -3,6 +3,7 @@
     <Box name>/
       README.md            plain language: what this is, and how to use it with or without Caixa
       People/  Groups/                 the generated, durable files
+      Documents/<FORMAT>/  documents (PDFs) by year and author, made with the first one
       Inbox/               drop exports here for Caixa to import
       .caixa/
         caixa.sqlite       the master database
@@ -43,6 +44,9 @@ files that open without any special software.
 - `Groups/` is the same for group conversations.
 - Mail lives with its people: `People/<Person>/Mail/<Account>/`, one page per conversation, with
   its attachments in `Attachments/` beside them.
+- `Documents/` holds documents such as PDFs, by format, year and author:
+  `Documents/PDF/<year>/<author>/(date) Title - Author.pdf`. Those whose author or date is not
+  known yet wait in `Documents/PDF/Unrecognized/`. The original files were never moved or changed.
 - `Inbox/` is where you drop an export (a .zip or a folder) for Caixa to import.
 - `.caixa/` is Caixa's own working data. Everything above it is yours to keep, copy and open.
 

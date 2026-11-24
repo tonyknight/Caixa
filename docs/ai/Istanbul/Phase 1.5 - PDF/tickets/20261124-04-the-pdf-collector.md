@@ -13,8 +13,7 @@ depends_on:
 - 20261124-02-the-archival-naming-convention
 - 20261124-03-migration-6-and-document-records
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -40,8 +39,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:**
 
@@ -108,7 +107,7 @@ Current task: T02
   - undo through the service empties `Documents/`;
   - reset removes the archived files and keeps a file the owner put there.
 - Verify: `python -m pytest -q tests/test_pdf_collector.py tests/test_reset.py tests/test_undo.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

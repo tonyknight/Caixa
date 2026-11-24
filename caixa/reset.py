@@ -2,8 +2,8 @@
 
 A box being tried out is rebuilt many times. Resetting it removes:
 
-- the pages and the files Caixa filed (photos, recordings, mail attachments) above `.caixa/`, and
-  the box's `index.html`;
+- the pages and the files Caixa filed (photos, recordings, mail attachments, documents) above
+  `.caixa/`, and the box's `index.html`;
 - what Caixa knows about them: the master database's items and people, each collector's working
   data, the undo snapshots, the list of imports and their logs.
 
@@ -37,8 +37,10 @@ from chattr.filing import playable_copy
 from caixa import owner as owner_file
 from caixa.box import Box
 
-#: The folders Caixa writes into above `.caixa/`.
+#: The folders Caixa writes into above `.caixa/` (made again after a reset).
 WRITTEN = ("People", "Groups", "Mail")
+#: Folders Caixa writes into that are made when first needed (tidied, not made again).
+WRITTEN_LATER = ("Documents",)
 #: Inside `.caixa/`: what goes with the data (the settings file, box.yaml, is not among them).
 STATE = (
     "work",
@@ -83,6 +85,17 @@ def _written_files(box: Box) -> set[Path]:
                 copy = playable_copy(file)  # a copy an older version made beside it
                 if copy is not None:
                     found.add(copy)
+    if box.master_path.is_file():  # the documents Caixa filed (their paths are in the master)
+        with closing(
+            sqlite3.connect(f"{box.master_path.resolve().as_uri()}?mode=ro", uri=True)
+        ) as db:
+            try:
+                rows = db.execute(
+                    "SELECT i.file_path FROM documents d JOIN items i ON i.id = d.item_id"
+                ).fetchall()
+            except sqlite3.Error:
+                rows = []
+        found |= {(root / relative).resolve() for (relative,) in rows if relative}
     found.add((root / "index.html").resolve())
     return {
         f for f in found if f.is_relative_to(root) and ".caixa" not in f.relative_to(root).parts
@@ -108,7 +121,7 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
         if file.is_file() or file.is_symlink():
             file.unlink()
             result.removed += 1
-    for name in WRITTEN:
+    for name in (*WRITTEN, *WRITTEN_LATER):
         folder = root / name
         if not folder.is_dir():
             continue
@@ -117,6 +130,8 @@ def reset_box(box: Box, forget_names: bool = False) -> Reset:
         for inner in sorted((p for p in folder.rglob("*") if p.is_dir()), reverse=True):
             if not any(inner.iterdir()):
                 inner.rmdir()
+        if name in WRITTEN_LATER and not any(folder.iterdir()):
+            folder.rmdir()
 
     owner = _keep_names(box)
     if forget_names:
