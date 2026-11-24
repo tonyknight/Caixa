@@ -279,13 +279,33 @@ later.
 
 ### Install
 
-From a checkout of this repository:
+From a checkout of this repository, the install script does everything in one go:
 
 ```bash
 git clone https://github.com/tonyknight/Caixa.git
 cd Caixa
+./tools/install.sh
+source .venv/bin/activate
+```
+
+It installs ExifTool, FFmpeg, and OCRmyPDF with Tesseract and Ghostscript, using Homebrew on a Mac
+or apt on Debian and Ubuntu; on other systems it says what to install. It then makes `.venv`,
+installs Chattr and then Caixa into it, and ends with `caixa doctor`. Running it again is safe.
+
+Its options:
+
+- `--languages "eng por"`: Tesseract's languages for scanned PDFs (English alone by default);
+- `--dev`: also the test tools and the window's Node packages;
+- `--no-system`: Python only;
+- `--dry-run`: show the steps and do nothing.
+
+`./tools/install.sh --help` lists every option.
+
+By hand, the Python part is:
+
+```bash
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e tools/chattr -e .
+pip install -e tools/chattr -e ".[ocr]"
 ```
 
 Both packages go in one command, **Chattr first**: Caixa depends on Chattr by name, and an
