@@ -3,11 +3,12 @@ id: 20261124-15-serving-pdfs-and-the-overlay
 title: Serving PDFs and the overlay
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: PDFs inline under their own policy; document.js overlay with page jumps,
+  from the box and from disk.'
 parent:
 depends_on:
 - 20261124-04-the-pdf-collector
@@ -20,9 +21,9 @@ PDFs served inline by `caixa serve` under a policy the browser's viewer accepts 
 
 ## Acceptance criteria
 
-- [ ] `application/pdf` is served inline with ranges
-- [ ] Open shows the PDF in an overlay, `#page=N` jumps; Escape, cross and outside click close; Open in its own window
-- [ ] Its hash joins the box CSP; works from `/box/` and `file://` (Chromium end-to-end)
+- [x] `application/pdf` is served inline with ranges
+- [x] Open shows the PDF in an overlay, `#page=N` jumps; Escape, cross and outside click close; Open in its own window
+- [x] Its hash joins the box CSP; works from `/box/` and `file://` (Chromium end-to-end)
 
 ## Context
 
@@ -91,10 +92,44 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa serve` shows PDFs inline (`application/pdf`, ranges, no
+  `Content-Disposition`) under their own policy, `frame-ancestors 'self'`, so the browser's viewer
+  works in the overlay and nothing else can frame them. `caixa/documents/templates/document.js`
+  is Caixa's own page script:
+  - **Open** (`a.open-document`) shows the PDF over the page at `#page=N`;
+  - Escape, the cross or a click beside it closes it;
+  - **Open in its own window** shows it in a tab.
+
+  Its hash is in the box pages' policy. `PAGE_SCRIPTS` now names each script's folder, and
+  older copies in pages are replaced. `document.css` gives the Nord panel. Chromium end-to-end
+  tests open the overlay from `/box/` and from `file://`.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/templates/document.js`, `caixa/documents/templates/document.css`,
+    `web/tests/e2e-documents.test.ts`;
+  - changed: `caixa/web.py`, `pyproject.toml` (package data), `tests/test_web_server.py`,
+    `web/tests/e2e-support.ts` (`buildPdfFamily`).
+- **Errors:** the first end-to-end test page lacked the overlay's style, so the closed dialog
+  stayed visible; the page now carries `document.css`, as document pages will.
 - **Verify:**
+  - `python -m pytest -q`: 1901 passed, 1 skipped.
+  - vitest: 279 passed (with the new end-to-end tests); tsc clean.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 890be88..e9b55c6 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only (one for the Mac).
+
+- **Minor (for the Mac):** headless Chromium does not draw PDFs, so the tests check the frame's
+  address and the PDF's headers, not the viewer itself. Safari's viewer in the overlay, from
+  `/box/` and from disk, is the maintainer's check.
+- **Minor:** unlike `conversation.js`, the overlay does not hand Escape to the PDF frame (a
+  browser's PDF viewer keeps its own keys); the cross and a click beside it always work.
+- **Spec:** D19 met; every acceptance criterion met.
+- **TDD:** RED (4 failing web tests; the end-to-end test failing on its first page) before each
+  GREEN.
+- **Commits:** `20261124-15 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
