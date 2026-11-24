@@ -12,8 +12,7 @@ parent:
 depends_on:
 - 20261124-04-the-pdf-collector
 subtasks: []
-plan_status: in-progress
-current_task: T02
+plan_status: done
 ---
 ## Description
 
@@ -37,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T02
+Status: done
+Current task: 
 
 **Design:** `caixa/documents/pdf/inspect.py` measures each page with PyMuPDF:
 
@@ -93,7 +92,7 @@ with the same text as a document already in the box gets `probable_duplicate` in
   - the statement saved again is `probable_duplicate`;
   - the preview says how many pages may need OCR.
 - Verify: `python -m pytest -q tests/test_pdf_inspect.py tests/test_pdf_collector.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

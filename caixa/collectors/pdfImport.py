@@ -29,6 +29,7 @@ from typing import Any, Callable, Mapping, Optional
 from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
+from caixa.documents.pdf.inspect import inspect_pdf, text_hash
 
 FORMAT = "pdf"
 COLLECTOR = "pdf"
@@ -71,6 +72,14 @@ class Examined:
     locked: bool = False  # it needs a password to be read
     properties: dict[str, str] = field(default_factory=dict)
     error: Optional[str] = None  # why it cannot be used
+    #: Each page as inspected (`caixa.documents.pdf.inspect`): number, class, poor, text, quality.
+    inspection: tuple[dict[str, Any], ...] = ()
+    text_hash: Optional[str] = None
+
+    @property
+    def ocr_pages(self) -> int:
+        """How many pages may need OCR (pictures, broken text, a poor OCR layer)."""
+        return sum(page["needs_ocr"] for page in self.inspection)
 
     @property
     def name(self) -> str:
@@ -119,7 +128,25 @@ def examine(path: Path) -> Examined:
             for key, value in (doc.metadata or {}).items()
             if key in PROPERTIES and value and str(value).strip()
         }
-        return replace(seen, pages=doc.page_count, properties=properties)
+        pages = inspect_pdf(doc)
+        inspection = tuple(
+            {
+                "number": page.number,
+                "page_class": page.page_class,
+                "poor": page.poor,
+                "needs_ocr": page.needs_ocr,
+                "text": page.text,
+                "quality": page.quality(),
+            }
+            for page in pages
+        )
+        return replace(
+            seen,
+            pages=doc.page_count,
+            properties=properties,
+            inspection=inspection,
+            text_hash=text_hash(page.text for page in pages),
+        )
     finally:
         doc.close()
 
@@ -225,10 +252,16 @@ class PdfCollector:
                 locked += one.locked
         pages = sum(one.pages or 0 for one in new.values())
         size = sum(one.size for one in new.values())
+        ocr = sum(one.ocr_pages for one in new.values())
         warnings = [
             f"{_plural(len(new), 'new document', 'new documents')}, "
             f"{_plural(pages, 'page', 'pages')}, {size / 1_000_000:.1f} MB",
         ]
+        if ocr:
+            warnings.append(
+                f"{_plural(ocr, 'page may', 'pages may')} need OCR (scanned, or text that "
+                "cannot be read)"
+            )
         if already:
             warnings.append(f"{_plural(already, 'file', 'files')} already in the box")
         if copies:

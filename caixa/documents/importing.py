@@ -5,8 +5,10 @@ The collector examines files (in worker processes); this one writer then records
 - a file the box already has (the same SHA-256) gains the place it was found again, nothing else;
 - a file that cannot be used is named in the warnings and left where it is;
 - a new file is placed (`archive.place`), copied byte for byte (`archive.copy_into`) and recorded:
-  its document, where it was found, and an `import` run. A file locked with a password is kept as
-  it is and waits for review (`locked`).
+  its document, its pages as inspected (text, class, quality), whether it needs OCR, where it was
+  found, and an `import` run. A file locked with a password is kept as it is and waits for review
+  (`locked`); one whose text is the same as a document's already in the box waits too
+  (`probable_duplicate`): both stay.
 
 Each document is committed as it is filed, so a stopped import leaves the master and the box in
 step; undoing the import takes both back.
@@ -73,6 +75,9 @@ def import_examined(
                 continue
             relative = place(box, one.name, one.sha256, facts(one) if facts else None, format)
             copy_into(box, Path(one.path), relative, one.sha256)
+            review = ["locked"] if one.locked else []
+            if one.text_hash and records.find_by_text(master, one.text_hash):
+                review.append("probable_duplicate")
             record = records.DocumentRecord(
                 format=format,
                 original_filename=one.name,
@@ -81,10 +86,22 @@ def import_examined(
                 file_path=relative,
                 archived_sha256=one.sha256,
                 pages=one.pages,
-                processing_status="needs_review" if one.locked else "archived",
-                review=["locked"] if one.locked else [],
+                processing_status="needs_review" if review else "archived",
+                ocr_status="needs_ocr" if one.ocr_pages else "not_needed",
+                review=review,
+                text_hash=one.text_hash,
             )
             item_id, _ = records.save_document(master, record, import_id)
+            records.set_pages(
+                master,
+                item_id,
+                [
+                    records.PageText(
+                        page["number"], page["text"], "pdf", page["page_class"], page["quality"]
+                    )
+                    for page in one.inspection
+                ],
+            )
             records.add_source(master, item_id, where, one.size, one.modified, import_id)
             records.add_run(
                 master, item_id, "import", "ok", tool="caixa", version=__version__,

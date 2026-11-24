@@ -161,6 +161,15 @@ def find_by_source(master: Master, source_sha256: str) -> Optional[str]:
     return str(row[0]) if row else None
 
 
+def find_by_text(master: Master, text_hash: str) -> Optional[str]:
+    """A document whose text has this fingerprint (`caixa.documents.pdf.inspect.text_hash`)."""
+    row = master.connection.execute(
+        "SELECT item_id FROM documents WHERE text_hash = ? ORDER BY created_at LIMIT 1",
+        (text_hash,),
+    ).fetchone()
+    return str(row[0]) if row else None
+
+
 def save_document(
     master: Master, record: DocumentRecord, import_id: Optional[int]
 ) -> tuple[str, str]:
@@ -424,6 +433,7 @@ __all__ = [
     "author_id",
     "find_author",
     "find_by_source",
+    "find_by_text",
     "get_document",
     "item_id_for",
     "list_documents",
