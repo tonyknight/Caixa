@@ -3,16 +3,16 @@ id: 20261124-20-passages-embeddings-and-hybrid-search
 title: Passages, embeddings and hybrid search
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: Hybrid search by words and meaning; documents.embed
 parent:
 depends_on:
 - 20261124-08-page-text-and-full-text-index
 subtasks: []
-plan_status: in-progress
+plan_status: done
 current_task: T02
 ---
 ## Description
@@ -21,9 +21,9 @@ Passages and embeddings (endpoint `/v1/embeddings`; Apple `NLContextualEmbedding
 
 ## Acceptance criteria
 
-- [ ] A paraphrase the full text misses finds the fixture (stand-in embeddings)
-- [ ] Embedding can stop and continue; passages are keyed by `item_id`
-- [ ] No embedding model: search is full text only
+- [x] A paraphrase the full text misses finds the fixture (stand-in embeddings)
+- [x] Embedding can stop and continue; passages are keyed by `item_id`
+- [x] No embedding model: search is full text only
 
 ## Context
 
@@ -36,7 +36,7 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: in-progress
+Status: done
 Current task: T02
 
 **Design:**
@@ -91,14 +91,59 @@ Current task: T02
   - the job and the command embed;
   - an import with the setting embeds.
 - Verify: `python -m pytest -q tests/test_documents_semantic.py tests/test_documents_search.py tests/test_worker_protocol.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
 - **Outcome:**
+  - **Passages:** `caixa/documents/passages.py` cuts each page into passages of about 1,000
+    characters with 150 of overlap, at word ends. They are stored in `chunks` by `item_id`, so
+    Stage 2 can add mail and messages.
+  - **Vectors:** `caixa/documents/embeddings.py` asks the summaries' endpoint, on this computer
+    only, at `/v1/embeddings`, using the `documents.embedding_model` setting (empty: no semantic
+    search). Vectors are stored normalized, as float32, with the model's name. A document is
+    committed as soon as it is embedded, so a stopped run carries on, and the run stops after two
+    failures in a row. New page text (reprocess) drops a document's passages, so they are
+    embedded again.
+  - **Hybrid search:** given an embedder, `search.search` ranks passages by cosine similarity
+    (numpy) and joins them with the full-text pages by reciprocal rank fusion (k = 60) on
+    (document, page). A page found only by meaning has its passage as its snippet and is marked
+    `semantic`. Without a model or vectors, the results are exactly the full-text results.
+    `documents.search` uses an embedder by default, waiting at most 10 seconds for the model.
+  - **Running it:** the `documents.embed` job, `caixa documents embed`, and embedding after
+    reading in an import when a model is set.
 - **Files:**
+  - new: `caixa/documents/passages.py`, `caixa/documents/embeddings.py`,
+    `tests/fixtures/stand_in_embeddings.py`, `tests/test_documents_semantic.py`;
+  - changed: `caixa/documents/search.py`, `caixa/documents/records.py`,
+    `caixa/collectors/pdfImport.py`, `caixa/service.py`, `caixa/cli.py`, `caixa/settings.py`,
+    `tests/test_worker_protocol.py`.
 - **Errors:**
+  - A patch script stopped on an anchor that didn't match; reapplied.
+  - Hybrid ranking rewrote the ranks even with no vectors; it now returns the full-text results
+    unchanged.
 - **Verify:**
+  - `python -m pytest -q`: 1956 passed, 1 skipped (before the review fixes; their tests and the
+    ticket's suites pass: 105).
+  - mypy (3.12 target): only the 8 baseline errors.
+  - Apple's `NLContextualEmbedding` is left for the maintainer's Mac (Swift helper).
+
+## Review
+
+### 2026-11-24: 80f9d13..4d744be (T01–T02), reviewed in-session
+
+**Verdict:** clean after two fixes; Minor items only.
+
+- **Fixed:** reprocessing kept stale passages from the old text. `set_pages` now deletes them.
+- **Fixed:** a search waited up to 120 s for a model that hung. It now waits 10 s, then searches
+  by words alone.
+- **Minor:** vectors are read from the database on each search (no cache); fast enough for a
+  family archive, and worth revisiting in Stage 2.
+- **Minor:** semantic snippets carry no `[marks]`: nothing in them matched by words.
+- **Spec:** D23 met; every acceptance criterion met.
+- **TDD:** RED (`TypeError: search() got an unexpected keyword argument 'embed'`; no method
+  `documents.embed`) before GREEN.
+- **Commits:** `20261124-20 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
