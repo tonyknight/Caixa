@@ -311,6 +311,17 @@ class PdfCollector:
                 f"{read['waiting']} documents were not read by a model: {read['message']} "
                 "They can be read later (caixa documents enrich)."
             )
+        from caixa.documents.embeddings import embed_documents, model_name
+
+        if model_name(settings.load(box)):  # search by meaning: the new documents' passages
+            embedded = embed_documents(box, progress=progress)
+            if embedded.get("reason"):
+                result.warnings.append(f"Documents were not embedded: {embedded['message']}")
+            elif embedded.get("failed"):
+                result.warnings.append(
+                    f"{embedded['failed']} documents could not be embedded; "
+                    "caixa documents embed tries again."
+                )
         from caixa.documents.pages import draw_documents
 
         progress(Progress("rendering", message="Drawing the document pages"))

@@ -13,7 +13,7 @@ trailing `*` asks for a prefix, and FTS5's own operators are just words.
 from __future__ import annotations
 
 import re
-from typing import Any, Optional
+from typing import Any, Callable, Optional, Sequence
 
 from caixa.documents.records import find_author
 from caixa.master import Master
@@ -114,9 +114,13 @@ def search(
     status: Optional[str] = None,
     ocr_status: Optional[str] = None,
     limit: int = 50,
+    embed: Optional[Callable[[Sequence[str]], list[list[float]]]] = None,
+    model: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """The pages that match, best first (see the module text). Without words, the documents the
-    filters choose, each by its first page; without either, nothing."""
+    filters choose, each by its first page; without either, nothing. Given `embed` and `model`
+    (the embedding model and its name), passages close in meaning join the pages found by words,
+    ranked together by reciprocal rank fusion (`hybrid`)."""
     where, args = _filters(
         master, type, category, author, date_from, date_to, tag, status, ocr_status
     )
@@ -148,7 +152,84 @@ def search(
         + " ORDER BY rank, d.item_id, p.page LIMIT ?",
         (matched, *args, int(limit)),
     )
-    return [dict(row) for row in rows]
+    words = [{**dict(row), "semantic": False} for row in rows]
+    if embed is None or not model:
+        return words
+    try:
+        (vector,) = embed([query])
+    except Exception:  # the embedding model is not answering: search by words alone
+        return words
+    close = _close(master, vector, str(model), where, args, int(limit))
+    return hybrid(words, close, int(limit)) if close else words
 
 
-__all__ = ["fts_query", "search"]
+#: Reciprocal rank fusion's constant, and how close in meaning (cosine) a passage must be to count.
+FUSION = 60
+CLOSEST = 0.25
+#: A passage shown as a snippet is cut at this many characters.
+PASSAGE = 240
+
+
+def _close(
+    master: Master,
+    vector: Sequence[float],
+    model: str,
+    where: list[str],
+    args: list[Any],
+    most: int,
+) -> list[dict[str, Any]]:
+    """The pages whose passages are closest in meaning to `vector`, best first, one hit a page."""
+    import numpy as np
+
+    rows = master.connection.execute(
+        f"SELECT {_FIELDS}, c.page, c.text AS passage, c.embedding, "
+        "COALESCE(p.source, 'pdf') AS source FROM chunks c "
+        "JOIN documents d ON d.item_id = c.item_id JOIN items i ON i.id = d.item_id "
+        "LEFT JOIN authors a ON a.id = d.author_id "
+        "LEFT JOIN document_pages p ON p.item_id = c.item_id AND p.page = c.page "
+        "WHERE c.embedding_model = ? AND c.embedding IS NOT NULL"
+        + "".join(f" AND {condition}" for condition in where),
+        (model, *args),
+    ).fetchall()
+    query = np.asarray(vector, dtype=np.float32)
+    vectors = [np.frombuffer(r["embedding"], dtype=np.float32) for r in rows]
+    usable = [i for i, v in enumerate(vectors) if v.shape == query.shape]
+    if not usable:
+        return []
+    scores = np.vstack([vectors[i] for i in usable]) @ (
+        query / (float(np.linalg.norm(query)) or 1.0)
+    )
+    best: dict[tuple[str, int], dict[str, Any]] = {}
+    for at in np.argsort(-scores):
+        score = float(scores[at])
+        if score < CLOSEST or len(best) >= most:
+            break
+        row = dict(rows[usable[int(at)]])
+        key = (str(row["item_id"]), int(row["page"]))
+        if key in best:
+            continue
+        passage = " ".join(str(row.pop("passage") or "").split())
+        row.pop("embedding")
+        cut = passage[:PASSAGE] + (ELLIPSIS if len(passage) > PASSAGE else "")
+        best[key] = {**row, "snippet": cut, "rank": -score, "semantic": True}
+    return list(best.values())
+
+
+def hybrid(
+    words: list[dict[str, Any]], close: list[dict[str, Any]], limit: int
+) -> list[dict[str, Any]]:
+    """Pages found by words and pages found by meaning, ranked together by reciprocal rank fusion:
+    a page found both ways rises, and keeps the words' snippet; a page found only by meaning has
+    its passage as its snippet."""
+    scores: dict[tuple[str, int], float] = {}
+    hits: dict[tuple[str, int], dict[str, Any]] = {}
+    for found in (words, close):
+        for place, hit in enumerate(found, start=1):
+            key = (str(hit["item_id"]), int(hit["page"]))
+            scores[key] = scores.get(key, 0.0) + 1.0 / (FUSION + place)
+            hits.setdefault(key, hit)
+    ranked = sorted(scores, key=lambda key: -scores[key])[:limit]
+    return [{**hits[key], "rank": -scores[key]} for key in ranked]
+
+
+__all__ = ["fts_query", "hybrid", "search"]

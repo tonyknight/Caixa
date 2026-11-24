@@ -148,6 +148,10 @@ def build_parser() -> argparse.ArgumentParser:
     who.add_argument("verb", nargs="?", default="list", choices=["list", "rename", "merge"])
     who.add_argument("values", nargs="*", help="rename: ID NAME; merge: FROM_ID TO_ID")
     _box_argument(who)
+    vectors = document_commands.add_parser(
+        "embed", help="embed the documents' passages, so search finds them by meaning"
+    )
+    _box_argument(vectors)
     read = document_commands.add_parser(
         "enrich", help="read documents with the model: those waiting, those named, or --all"
     )
@@ -828,6 +832,24 @@ def _cmd_documents(args: argparse.Namespace) -> int:
             change = service.documents_authors_merge(int(args.values[0]), int(args.values[1]))
             print(json.dumps(change, indent=2) if args.json else
                   f"Merged into {change['author']['name']} ({_plural(change['moved'], 'file')} moved).")  # fmt: skip
+        return 0
+    if args.action == "embed":
+        service = _open(args)
+        job = service.documents_embed()
+        try:
+            done = service.wait(job["id"])
+        finally:
+            service.close()
+        if done["status"] != "done":
+            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+            return 1
+        result = done["result"]
+        if args.json:
+            _print_json(result)
+        elif result.get("reason"):
+            print(f"Nothing was embedded: {result['message']}")
+        else:
+            print(f"{result['embedded']} documents embedded, {result['failed']} failed.")
         return 0
     if args.action == "enrich":
         service = _open(args)

@@ -119,3 +119,76 @@ def test_an_endpoint_on_the_internet_is_refused() -> None:
         embeddings.embedder({"summaries.endpoint": "https://api.example.com/v1",
                              "documents.embedding_model": "big", "summaries.allow_remote": True})  # fmt: skip
     assert refused.value.reason == "remote"
+
+
+# --- Hybrid search, the job and the command (T02) ------------------------------------------------
+
+
+def _search(box: Box, query: str, semantic: bool = True) -> list[dict[str, Any]]:
+    from caixa.documents.search import search
+
+    embed, model = embeddings.embedder(settings.load(box)) if semantic else (None, None)
+    with box.master(read_only=True) as master:
+        return search(master, query, embed=embed, model=model)
+
+
+def test_a_paraphrase_finds_what_words_miss(box: Box) -> None:
+    embed_documents(box)
+    assert _search(box, "power invoice", semantic=False) == []
+    found = _search(box, "power invoice")
+    assert found and found[0]["original_filename"] == "2022 Car Insurance.pdf"
+    assert found[0]["semantic"] is True and "Electricity" in found[0]["snippet"]
+
+
+def test_words_still_come_first(box: Box) -> None:
+    embed_documents(box)
+    words = _search(box, "Supermercado", semantic=False)
+    both = _search(box, "Supermercado")
+    assert both[0]["item_id"] == words[0]["item_id"] and both[0]["page"] == words[0]["page"]
+    assert "[Supermercado]" in both[0]["snippet"]
+
+
+def test_without_vectors_it_is_search_by_words(box: Box) -> None:
+    assert _search(box, "Maria") == _search(box, "Maria", semantic=False)
+
+
+@pytest.fixture
+def service(box: Box) -> Iterator[Any]:
+    from caixa.service import Service
+
+    made = Service(roots=[box.root.parent])
+    made.box_open(str(box.root))
+    yield made
+    made.close()
+
+
+def test_the_job_embeds_and_the_service_searches_by_meaning(service: Any) -> None:
+    job = service.call("documents.embed", {})
+    done = service.wait(job["id"], 300)
+    assert done["status"] == "done", done["error"]
+    assert done["result"]["embedded"] > 0
+    found = service.call("documents.search", {"query": "power invoice"})["hits"]
+    assert found and found[0]["original_filename"] == "2022 Car Insurance.pdf"
+
+
+def test_the_command_embeds(box: Box, capsys: pytest.CaptureFixture[str]) -> None:
+    from caixa import cli
+
+    assert cli.main(["documents", "embed", "--box", str(box.root)]) == 0
+    assert "documents embedded" in capsys.readouterr().out
+
+
+def test_an_import_embeds_when_a_model_is_set(
+    pdf_family: Any, tmp_path: Path, endpoint: StubServer
+) -> None:
+    source = tmp_path / "more"
+    source.mkdir()
+    shutil.copyfile(pdf_family.root / "2022 Car Insurance.pdf", source / "2022 Car Insurance.pdf")
+    made = Box.create(tmp_path / "Other", name="Other box")
+    settings.save(made, {**_values(endpoint), "documents.ocr": False, "documents.enrich": False})
+    PdfCollector().run(made, source, {"workers": 1}, lambda step: None)
+    with made.master() as master:
+        (count,) = master.connection.execute(
+            "SELECT COUNT(*) FROM chunks WHERE embedding IS NOT NULL"
+        ).fetchone()
+    assert count >= 1

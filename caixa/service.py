@@ -977,6 +977,10 @@ class Service:
             return self._mail_reduce(box, job, progress)
         if job["kind"] == "mail-summarize":
             return self._mail_summarize(box, progress)
+        if job["kind"] == "documents-embed":
+            from caixa.documents.embeddings import embed_documents
+
+            return embed_documents(box, progress=progress)
         if job["kind"] == "documents-enrich":
             from caixa.documents.enrich import enrich_documents
 
@@ -1778,6 +1782,12 @@ class Service:
             except KeyError:
                 raise ServiceError("not_found", f"There is no document {item_id}.") from None
 
+    @method("documents.embed", write=True)
+    def documents_embed(self) -> dict[str, Any]:
+        """Embed the documents' passages, as a job, so search finds them by meaning too: the
+        documents with no vectors yet from the embedding model in Settings."""
+        return self._enqueue("documents-embed", "pdf", "embed", {})
+
     @method("documents.search")
     def documents_search(
         self,
@@ -1796,12 +1806,19 @@ class Service:
         document, page and a snippet; filters narrow by the documents' facts."""
         from caixa.documents import search as document_search
 
+        from caixa.documents import embeddings
+
         box = self._require_box()
+        try:  # with an embedding model, by meaning too
+            embed, model = embeddings.embedder(settings.load(box))
+        except embeddings.EmbeddingsUnavailable:
+            embed, model = None, None
         with box.master(read_only=self.read_only) as master:
             hits = document_search.search(
                 master, query, type=type, category=category, author=author,
                 date_from=date_from, date_to=date_to, tag=tag, status=status,
                 ocr_status=ocr_status, limit=max(1, min(int(limit), 500)),
+                embed=embed, model=model,
             )  # fmt: skip
         return {"query": document_search.fts_query(query), "hits": hits}
 
