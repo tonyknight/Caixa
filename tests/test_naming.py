@@ -236,3 +236,20 @@ def test_every_example_of_the_document_is_what_the_code_names(
     date, title, author, expected = row
     made = archival_name(NamingDate.parse(date), title, author if author != "—" else None)
     assert made == expected
+
+
+# --- Where the convention and the licences are told (ticket 20261124-23) -------------------------
+
+
+def test_the_readme_and_the_collectors_guide_link_the_convention() -> None:
+    root = Path(__file__).resolve().parents[1]
+    readme = (root / "README.md").read_text(encoding="utf-8")
+    guide = (root / "docs" / "Documentation" / "Collector.md").read_text(encoding="utf-8")
+    assert "docs/Archival%20names.md" in readme
+    assert "../Archival%20names.md" in guide and "## PDF documents" in guide
+    assert "Collector.md#pdf-documents" in readme
+
+
+def test_the_notice_names_pymupdfs_licence() -> None:
+    notice = (Path(__file__).resolve().parents[1] / "NOTICE").read_text(encoding="utf-8")
+    assert "PyMuPDF" in notice and "AGPL-3.0" in notice and "section 13" in notice

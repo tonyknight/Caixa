@@ -13,6 +13,7 @@ It assumes Caixa is installed (see [Installation](../../README.md#installation))
 - [The six collectors](#the-six-collectors): [WhatsApp](#whatsapp) · [iMessage](#imessage) ·
   [Messenger and Instagram](#messenger-and-instagram) · [Mail](#mail) · [Google Voice](#google-voice) ·
   [iPhone voicemail](#iphone-voicemail)
+- [PDF documents](#pdf-documents)
 - [Naming the people](#naming-the-people)
 - [Where the data is stored](#where-the-data-is-stored)
 - [How the input is transformed](#how-the-input-is-transformed)
@@ -521,6 +522,119 @@ AMR, which most browsers cannot play, so Caixa files it as `.m4a`, which every b
 **Good to know.** Transcription needs `ffmpeg` and a model (see [Installation](../../README.md#installation)). It
 runs with the network blocked for the process, so a speech engine that tried to fetch something would
 fail rather than quietly phone home.
+
+## PDF documents
+
+The `pdf` collector brings in statements, bills, letters, contracts, scans and any other PDF.
+
+```bash
+caixa import pdf ~/Downloads/Statements --box ~/Our\ Box --preview   # what would come in
+caixa import pdf ~/Downloads/Statements --box ~/Our\ Box             # a file, a folder or a zip
+```
+
+It takes a single PDF, a folder of them (with every folder inside it), or a zip. In the browser it
+is the **PDF documents** card of the import wizard. Your files are never changed: Caixa works on
+copies.
+
+**What happens to each file:**
+
+1. **Known already?** The file is hashed. A file the box already has is left out, and a copy
+   found at another path is only noted.
+2. **Inspected, page by page.** Pages with good text, pages that are pictures (scans), pages with
+   an old text layer, and pages whose text is broken (fonts that map to nonsense) are told apart.
+   A PDF locked with a password is kept as it is and waits for you.
+3. **Scans made searchable.** With OCRmyPDF and Tesseract installed, pages that are pictures get
+   an invisible text layer, on your computer; only the pages that need it are touched, and images
+   are not recompressed. A page whose own text is broken is not changed: it is read by OCR from a
+   render, and that text is kept for search.
+4. **Checked.** The new copy is opened by two independent PDF readers. It must have the same pages,
+   sizes and rotation as the original, and look the same, page by page. A copy that fails is not
+   used: the original's exact copy is filed instead, marked so OCR can be tried again
+   (`caixa documents reprocess --failed`), and the failed copy is kept in `.caixa/work/documents/`.
+5. **Filed** as `Documents/PDF/<year>/<author>/(date) Title - Author.pdf`, named by the convention
+   in [`Archival names.md`](../Archival%20names.md). The date is the one the document is about (a
+   statement's last day, a bill's issue date), and as precise as it is known: `(2024-03-12)`,
+   `(2024-03)` or `(2024)`. A document whose author or date cannot be worked out waits in
+   `Documents/PDF/Unrecognized/` under its own name.
+
+**Read by a model.** If the box has a model on your computer (Settings, Summaries: Apple
+Intelligence, or an endpoint such as LM Studio), each document is read after the import. The model
+says:
+
+- what the document is (type and category), its title, who issued it, and its date;
+- the other dates in it, and the people named;
+- the facts its type has (a statement's account and balances, a bill's amount due);
+- a short summary and a few tags.
+
+Every fact must quote the page it comes from, and Caixa checks that the quote is there. Then
+Caixa, not the model, weighs those answers against what the file name and the PDF's properties
+say, and the date found in the text. Only when everything needed is there, checked, and
+uncontradicted is the document renamed and moved; anything else waits for you, with the reason.
+Documents are never sent to a service on the internet, even when the summaries allow one. Without
+a model, documents are filed by what their file names and properties say, and can be read later:
+
+```bash
+caixa documents enrich --box ~/Our\ Box          # those not read yet (or name them, or --all)
+```
+
+**The pages.**
+
+- `Documents/PDF/PDF.html` shows every document: a calendar of their dates, each year's authors,
+  **Unrecognized**, **To review**, and a filter box.
+- Each `<year>/<author>/<author>.html` has a card per document, in date order. A card shows its
+  facts, which ones a model wrote, its summary and tags, and **Open**, which shows the PDF over the
+  page, at the page asked for.
+- These pages work from disk too. Served by `caixa serve`, they add search, Ask, and correction.
+
+**Corrections, tags and authors.**
+
+- On a card, served by Caixa, **Correct** sets the author, title, date or type. A card in
+  Unrecognized asks for an **Author** and a **Date** and **Apply** files it.
+- What you set is marked as verified, and reading again never overrides it.
+- In the window the pages are redrawn together with **Update the pages**; from the command line
+  at once.
+
+```bash
+caixa documents review --box ~/Our\ Box                       # what waits, and why
+caixa documents update ID --author "Águas do Vale" --date 2024-03 --box ~/Our\ Box
+caixa documents tags ID --add "water" --remove "bills" --box ~/Our\ Box
+caixa documents tags --starter --add "pension" --box ~/Our\ Box   # the tags offered to the model
+caixa documents authors --box ~/Our\ Box                       # list, rename ID NAME, merge FROM TO
+```
+
+**Search and Ask.**
+
+- `caixa documents search` (and the search box of the served view) finds the pages that hold every
+  word, scanned pages included, with accents aside, "quoted phrases" and `prefix*`. Filters narrow
+  it by type, author, dates and tag.
+- With an embedding model named in Settings, Documents, passages are also found by meaning (a
+  "power invoice" finds the electricity bill). `caixa documents embed` prepares the documents
+  already in the box; new ones are done as they arrive.
+- `caixa documents ask` (and the **Ask** box) answers a question from a few passages Caixa found,
+  citing each by document and page. An answer citing anything it was not given is refused. An
+  answer is always marked as a model's: check it against the pages it cites.
+
+**People.** An author who is a person of the box, and the people the model found named in a
+document, are linked to it. The owner is not linked: every document is theirs. With **Update the
+pages**, those people's pages list the documents with **Open**.
+
+**Settings, Documents.**
+
+- whether documents are read by a model (on);
+- whether scans are made searchable (on);
+- Tesseract's languages (`eng`; for example `eng+por`, each installed);
+- the embedding model (empty: search by words only).
+
+`caixa doctor` reports whether OCRmyPDF, Tesseract with its languages, and Ghostscript are found.
+
+**Privacy.**
+
+- No page text, extracted value, question or answer goes into a log; a test checks it.
+- The working copies in `.caixa/work/documents/` are readable by you alone.
+- What a model wrote is always told apart from what you set.
+
+Every command of `caixa documents`: `list`, `show`, `search`, `ask`, `review`, `update`, `tags`,
+`authors`, `enrich`, `embed` and `reprocess`. Each says more with `--help`.
 
 ## When something does not work
 
@@ -1352,3 +1466,9 @@ These are known, and honest, as of this writing:
 - **The privacy level** (`private`, `family`, `public`) is stored on every item and in the Settings, but
   nothing yet acts on it.
 - **Windows** has not been tried; `caixa serve` refuses to start there.
+- **PDF documents were tried only on synthetic PDFs** in Linux and Chromium. On a Mac, Apple
+  Intelligence's reading, Safari's PDF overlay, Homebrew's OCRmyPDF and real documents wait to be
+  tried. Apple's own embeddings are not used yet: search by meaning needs an endpoint's embedding
+  model.
+- **A person of the box with no messages has no person page**, so their documents show only on the
+  document pages.

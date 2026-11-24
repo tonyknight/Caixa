@@ -88,3 +88,14 @@ def test_no_page_text_in_the_logs(
     everything = "\n".join([*logs, *messages, out.out, out.err, caplog.text])
     leaked = sorted(word for word in _page_words(pdf_family) if word in everything)
     assert leaked == []
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "geteuid"), reason="POSIX permissions")
+def test_the_working_copies_are_the_owners_alone(tmp_path: Path) -> None:
+    import stat
+
+    box = Box.create(tmp_path / "Box", name="Our box")
+    folder = box.work_dir("documents")
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700
+    folder.chmod(0o755)  # (as an older Caixa left it)
+    assert stat.S_IMODE(box.work_dir("documents").stat().st_mode) == 0o700

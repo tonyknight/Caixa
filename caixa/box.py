@@ -61,6 +61,10 @@ SCOPES = ("index", "pages")
 STATE_LOCK = threading.RLock()
 
 
+#: Working folders no one but the box's owner may open (`Box.work_dir`).
+PRIVATE_WORK = frozenset({"documents"})
+
+
 class BoxError(Exception):
     """The folder is not a usable box (or already is one)."""
 
@@ -203,8 +207,15 @@ class Box:
         return self.caixa_dir / "logs"
 
     def work_dir(self, collector: str) -> Path:
+        """The collector's working folder, made if need be. The documents' (copies of PDFs, OCR
+        output, failed copies) can be opened by the box's owner alone."""
         path = self.caixa_dir / "work" / collector
         path.mkdir(parents=True, exist_ok=True)
+        if collector in PRIVATE_WORK:
+            try:
+                path.chmod(0o700)
+            except OSError:  # (a file system without permissions)
+                pass
         return path
 
     @property

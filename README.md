@@ -105,6 +105,27 @@ shows each item. How each step works, and what happens to attachments in particu
 files in a box (`(DATE) Title - Author.ext`) is set out in
 [`docs/Archival names.md`](docs/Archival%20names.md).
 
+**PDF documents** (Phase 1.5 - PDF) have their own collector, `pdf`. It takes a PDF, a folder
+of them or a zip, and never changes the originals. Each file is:
+
+1. hashed, and skipped if the box already has it;
+2. inspected page by page;
+3. given an invisible text layer on its scanned pages, on your own computer (OCRmyPDF and
+   Tesseract), and checked against the original before that copy is kept;
+4. filed as `Documents/PDF/<year>/<author>/(date) Title - Author.pdf`.
+
+A model on your computer (Apple Intelligence, or an endpoint such as LM Studio) reads each document
+to say what it is, who issued it and when. Every answer is checked against the pages. Only a
+confident one renames and files the document; the rest wait for you, and a document whose author or
+date can't be worked out waits in `Documents/PDF/Unrecognized/`. Each year and author has a page of
+cards, and each card opens its PDF over the page.
+
+Served by `caixa serve`, the documents can be searched by their words (scans too) and by meaning,
+corrected, tagged, and asked questions: the model answers from the pages it is given and cites
+document and page, and an answer citing anything else is refused. Authors and people named who are
+people of the box show the documents on their person pages. See
+[PDF documents](docs/Documentation/Collector.md#pdf-documents).
+
 **Two databases, on purpose.** Chattr keeps its own working store (`chattr.sqlite`), so it can run
 standalone and iterate quickly. Caixa's **master database** (`caixa.sqlite`) is the source of truth: one
 row per item (a message, a mail, a call, a voicemail), the people, their names, a record of every
@@ -121,11 +142,13 @@ attachment of their own database, never by writing into each other.
   People/          <Person>/<Person>.html (everything, one page), <Source>/Attachments/(date) time sender.ext,
                    Mail/<Account>/(date) subject.html (a page per conversation) + Attachments/
   Groups/          <Group>/  the same, for group conversations
+  Documents/       PDF/PDF.html (every document), PDF/<year>/<author>/(date) Title - Author.pdf and
+                   <author>.html (its cards), PDF/Unrecognized/ (what waits for an author or a date)
   Inbox/           drop exports here
   .caixa/          Caixa's own working files: the databases, logs, working copies
 ```
 
-Photos, video and documents will be their own domain with their own tool: a later project.
+Photos and video will be their own domain with their own tool: a later project.
 
 ## Part 2: A personal model
 
@@ -212,20 +235,23 @@ Caixa is in early development; version 0.5.0 closed its first project (Phase 1, 
 | --- | --- |
 | **Message collectors** (iMessage, WhatsApp, Messenger/Instagram, mail, Google Voice, voicemail) | Built and tested against synthetic exports in every format; iMessage, Messenger, Google Voice, iPhone voicemail and mail also tried by the maintainer on real exports |
 | **Mail without the noise** (Phase 1.5): read an mbox, Clean mail, Sort mail, import the chosen conversations, summaries (Apple Intelligence first), the Reduced mbox; changes on the people page drawn together with **Update the pages** | Built, tested on a synthetic noisy mailbox and in a real browser, and used by the maintainer on real mailboxes in a box of 48,000 pages |
+| **PDF documents** (Phase 1.5 - PDF): import, OCR of scans, validation, archival names by year and author, reading by a local model with checked evidence, review and corrections, tags, search by words and by meaning, Ask with checked citations, documents on person pages | Built, tested on a synthetic family of PDFs and in a real browser; to be tried by the maintainer on a Mac with real documents |
 | **The box and the master database** | Built |
 | **Command line** (`caixa`, and Chattr's own `chattr-cli`) | Built |
 | **Browser interface**: create a box, import wizard, jobs, people, browse, settings, Clean mail and Sort mail | Built, and tested in a real browser against the real `caixa serve` |
 | **Chattr's own browser page** (`chattr-cli serve`) | Built |
-| **Search index, personal model, the heirs' "Ask" experience** | Planned |
+| **Search index and Ask** for documents | Built (full text and meaning, for PDFs) |
+| **Search across every kind of item, personal model, the heirs' "Ask" experience** | Planned |
 | **Presentation mode** (read-only, its own port), **Docker image** | Planned (a read-only service exists) |
-| **More sources** (Slack, Telegram, Google Chat, photos, documents) | Planned |
+| **More sources** (Slack, Telegram, Google Chat, photos, other document formats) | Planned |
 | **Windows** | Untested |
 
 The known gaps of the collectors (for example, that iMessage attachments still in iCloud cannot be
 fetched) are listed in [`docs/Documentation/Collector.md`](docs/Documentation/Collector.md#known-limitations).
 Each project's briefing, requirements and ticket history are in
 [`docs/ai/Istanbul/Phase1-Collector/`](docs/ai/Istanbul/Phase1-Collector/) and
-[`docs/ai/Istanbul/Phase 1.5 - Mbox/`](docs/ai/Istanbul/Phase%201.5%20-%20Mbox/).
+[`docs/ai/Istanbul/Phase 1.5 - Mbox/`](docs/ai/Istanbul/Phase%201.5%20-%20Mbox/) and
+[`docs/ai/Istanbul/Phase 1.5 - PDF/`](docs/ai/Istanbul/Phase%201.5%20-%20PDF/).
 
 ## Installation
 
@@ -242,6 +268,10 @@ macOS is the target for iMessage. Windows is untested (and `caixa serve` does no
 | **FFmpeg** | recommended | Files recordings (voicemail, voice notes) as `.m4a`, which every browser plays; without it they are kept in their original format. Also prepares audio for local speech-to-text. |
 | **A local speech model** | optional | To transcribe voicemail: whisper.cpp's `whisper-cli` and a model file, or the `faster-whisper` package and a model folder. Caixa never downloads a model. |
 | **A translation model** | optional | Any OpenAI-compatible service: one on your own computer (for example Ollama at `http://localhost:11434/v1`) or a paid one (OpenRouter, DeepSeek) with your API key. Off until you turn it on; set it up and test it in Settings. |
+| **PyMuPDF** | PDF documents | Installed with Caixa. It is licensed under the AGPL-3.0 (see [`NOTICE`](NOTICE)). |
+| **OCRmyPDF, Tesseract and Ghostscript** | optional, for scanned PDFs | Give scanned pages a searchable text layer. Install with `pip install -e ".[ocr]"` plus your package manager (`brew install ocrmypdf` on a Mac brings all three; `apt install tesseract-ocr ghostscript`). Install each language you need (for Portuguese, `tesseract-ocr-por`) and set them in Settings, Documents. `caixa doctor` says what is found. Without them, scans are kept and wait for OCR. |
+| **A local model for documents** | optional | The summaries' model (Apple Intelligence on a Mac, or an OpenAI-compatible endpoint on your computer such as LM Studio) reads documents and answers questions about them. Documents are never sent to a service on the internet. Without it, documents are filed by what their file names and properties say. |
+| **An embedding model** | optional | For search by meaning: an embedding model the same endpoint serves, named in Settings, Documents. |
 | **macOS "Full Disk Access"** | iMessage only | macOS lets a program read `~/Library/Messages/chat.db` only after you allow it in System Settings, Privacy & Security. Caixa opens the database read-only. |
 
 The command-line collectors need only Python. Everything in the table marked optional can be added
@@ -266,7 +296,7 @@ Check it worked:
 
 ```bash
 caixa --version         # caixa 0.5.1
-caixa collectors        # lists the six collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail)
+caixa collectors        # lists the collectors (iMessage, WhatsApp, Messenger, mail, Google Voice, voicemail, PDF documents)
 ```
 
 Then start the browser interface:
@@ -295,6 +325,11 @@ caixa mail clean ~/Downloads/takeout.zip --write --box ~/Our\ Box         #   cl
 caixa mail senders "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box  #   sort,
 caixa mail import "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box   #   import,
 caixa mail reduce "(2026-11-20) All mail [Cleaned].mbox" --box ~/Our\ Box   #   and keep the rest
+caixa import pdf ~/Downloads/Statements --box ~/Our\ Box     # PDFs: a file, a folder or a zip
+caixa documents review --box ~/Our\ Box                       # what waits for you, and why
+caixa documents update ID --author "Águas do Vale" --date 2024-03 --box ~/Our\ Box
+caixa documents search "água 2024" --box ~/Our\ Box
+caixa documents ask "How much was the March water bill?" --box ~/Our\ Box
 ```
 
 Set `CAIXA_BOX` (or run inside the box) to leave out `--box`. Drop exports into the box's `Inbox/`
@@ -303,7 +338,7 @@ folder if you prefer; it is listed in the interface.
 `caixa worker [--box PATH] [--read-only]` serves the same operations over standard input and
 output as JSON-RPC 2.0, one JSON object per line. That is how the browser interface talks to
 Python; it is not a network service. Its methods (`box.*`, `collectors.list`, `import.*`,
-`jobs.*`, `mail.*`, `people.*`, `browse.*`, `files.list`, `inbox.list`, `settings.*`), notifications
+`jobs.*`, `mail.*`, `documents.*`, `people.*`, `browse.*`, `files.list`, `inbox.list`, `settings.*`), notifications
 (`job.progress`, `job.finished`, `inbox.changed`) and error codes are described at the top of
 [`caixa/worker.py`](caixa/worker.py). With `--read-only`, every method that would change the box is
 refused, and nothing is written.

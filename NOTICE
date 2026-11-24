@@ -22,3 +22,24 @@ tools/chattr/  Chattr, Copyright (C) 2025-2026 Tony Knight, GPL-3.0-or-later.
                Contains portions derived from imessage-exporter
                (Copyright (C) Christopher Sardegna, GPL-3.0-or-later).
                See tools/chattr/NOTICE.
+
+
+Libraries and programs used for PDF documents
+---------------------------------------------
+
+Caixa reads, renders and checks PDFs with these. None is part of this
+repository; each is installed separately and keeps its own licence.
+
+PyMuPDF        Copyright (C) Artifex Software, Inc. GNU Affero General
+               Public License, version 3 (AGPL-3.0), or a commercial
+               licence from Artifex. Installed with Caixa, and imported
+               by it: a Caixa installed with PyMuPDF is used under the
+               AGPL-3.0's terms as well as the GPL's. In particular, if you
+               let others use a modified Caixa over a network (for example
+               `caixa serve` reached by other people), section 13 of the
+               AGPL-3.0 asks you to offer them its source.
+OCRmyPDF       Mozilla Public License 2.0. Optional (the `ocr` extra).
+pikepdf        Mozilla Public License 2.0. Installed with OCRmyPDF.
+Tesseract OCR  Apache License 2.0. A separate program OCRmyPDF runs.
+Ghostscript    AGPL-3.0 (or a commercial licence from Artifex). A separate
+               program OCRmyPDF runs; Caixa does not link to it.
