@@ -3,11 +3,12 @@ id: 20261124-13-summaries-and-tags
 title: Summaries and tags
 type: feature
 priority: medium
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: summaries cut to 30-50 words, tags tidied to the starter set, owner''s
+  tags and starter set.'
 parent:
 depends_on:
 - 20261124-10-ai-classification
@@ -20,8 +21,8 @@ A 30–50-word summary in the document's language, marked as a model's, and up t
 
 ## Acceptance criteria
 
-- [ ] Fixtures get summaries within 30–50 words and up to four tags
-- [ ] A starter tag is used when it fits; tags can be added and removed (`documents.tags`), the starter set extended or trimmed
+- [x] Fixtures get summaries within 30–50 words and up to four tags
+- [x] A starter tag is used when it fits; tags can be added and removed (`documents.tags`), the starter set extended or trimmed
 
 ## Context
 
@@ -91,9 +92,37 @@ ticket makes them right and puts them on the document.
 ## Completion report
 
 - **Outcome:**
+  - **Summaries:** asked for in 30–50 words, a long one cut at a sentence with the summaries'
+    rule, stored with the model's name.
+  - **Tags:** the prompt names the starter set; `normalize_tags` matches starter tags under
+    capitals, accents or a plural, removes duplicates and keeps four at most.
+  - **Applied always:** both are set whether or not the document is confident.
+  - **The owner's tags:** the owner adds and removes tags (`documents.tags`,
+    `caixa documents tags ITEM --add/--remove`); a removed tag is remembered and the model does
+    not bring it back.
+  - **The starter set** grows and shrinks (`documents.tags.starter`, `--starter`).
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/tags.py`, `tests/test_documents_tags.py`;
+  - changed: `caixa/documents/enrich.py`, `caixa/documents/records.py`, `caixa/service.py`,
+    `caixa/cli.py`, `tests/fixtures/stand_in_documents.py`, `tests/test_worker_protocol.py`.
+- **Errors:** none.
 - **Verify:**
+  - `python -m pytest -q`: 1890 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: 99caefb..93aa747 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a summary shorter than 30 words is kept rather than asked for again (as for mail);
+  the benchmark will show how often local models fall short.
+- **Minor:** a plural is matched only by a final `s`; Portuguese plurals such as `-ões` are not.
+- **Spec:** D16 met; every acceptance criterion met.
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.tags`; the owner and service tests before
+  T02) before each GREEN.
+- **Commits:** `20261124-13 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
