@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -35,7 +36,9 @@ from caixa import apple_intelligence, summaries
 
 #: The made-up emails, beside Chattr in the repository.
 EMAILS = Path(__file__).resolve().parents[1] / "tools" / "ai-benchmark" / "emails.json"
-TASKS = ("summaries", "translations")
+#: The made-up documents (the synthetic PDF family as a model is given it), beside them.
+DOCUMENTS = EMAILS.with_name("documents.json")
+TASKS = ("summaries", "translations", "documents")
 APPLE = "Apple Intelligence"
 #: What a warm-up asks (its answer is not used).
 WARM_UP = [{"role": "user", "content": "Reply with the single word: ready"}]
@@ -45,6 +48,49 @@ def load(path: Optional[Path] = None) -> list[dict[str, Any]]:
     """The conversations, each with its `id`, `language`, `subject` and `mails`."""
     data = json.loads(Path(path or EMAILS).read_text(encoding="utf-8"))
     return list(data["conversations"])
+
+
+def load_documents(path: Optional[Path] = None) -> list[dict[str, Any]]:
+    """The documents, each with its `filename`, `properties`, `pages` and known `answers`."""
+    data = json.loads(Path(path or DOCUMENTS).read_text(encoding="utf-8"))
+    return list(data["documents"])
+
+
+def _plain_words(text: str) -> set[str]:
+    import unicodedata
+
+    decomposed = unicodedata.normalize("NFKD", text or "")
+    plain = "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
+    return set(re.findall(r"\w+", plain))
+
+
+def _same_author(said: Optional[str], expected: Optional[str]) -> bool:
+    if not expected:
+        return not said
+    if not said:
+        return False
+    a, b = " ".join(sorted(_plain_words(said))), " ".join(sorted(_plain_words(expected)))
+    wanted = _plain_words(expected)
+    return a == b or wanted <= _plain_words(said) or _plain_words(said) <= wanted
+
+
+def score(answer: Optional[dict[str, Any]], expected: dict[str, Any]) -> dict[str, Any]:
+    """How a model's reading of a document compares with its known answers: type (exact),
+    author (the same name, accents and case aside, or one containing the other), date (exact),
+    title (at least half its words in common), and how many quotes were verified."""
+    if not isinstance(answer, dict):
+        return {"type": False, "author": False, "date": False, "title": False, "verified": 0}
+    author = answer.get("author") if isinstance(answer.get("author"), dict) else None
+    date = answer.get("date") if isinstance(answer.get("date"), dict) else None
+    title_words = _plain_words(str(expected.get("title") or ""))
+    common = title_words & _plain_words(str(answer.get("title") or ""))
+    return {
+        "type": answer.get("type") == expected.get("type"),
+        "author": _same_author(author.get("name") if author else None, expected.get("author")),
+        "date": (date or {}).get("value") == expected.get("date"),
+        "title": bool(title_words) and len(common) * 2 >= len(title_words),
+        "verified": sum(bool(x and x.get("verified")) for x in (author, date)),
+    }
 
 
 def _items(conversations: list[dict[str, Any]], task: str, budget: int) -> list[dict[str, Any]]:

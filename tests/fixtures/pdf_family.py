@@ -765,3 +765,32 @@ def build_pdf_family(out_dir: Path) -> PdfFamily:
         json.dumps(answers, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     return PdfFamily(out_dir, documents)
+
+
+def benchmark_documents() -> list[dict[str, Any]]:
+    """The family's documents as a model is given them, for `caixa benchmark`
+    (`tools/ai-benchmark/documents.json`): file name, properties, each page's text (a scan's as OCR
+    reads it, a broken page's as its words are), and the known answers."""
+    documents = []
+    for fixture, pages, properties in _family():
+        if fixture.type is None:
+            continue
+        documents.append(
+            {
+                "filename": fixture.name,
+                "properties": {k: v for k, v in properties.items() if v},
+                "pages": [
+                    {"page": n, "text": "" if spec.kind == "blank" else "\n".join(spec.lines)}
+                    for n, spec in enumerate(pages, start=1)
+                ],
+                "answers": {
+                    "type": fixture.type,
+                    "title": fixture.title,
+                    "author": fixture.author,
+                    "date": fixture.date,
+                    "precision": fixture.precision,
+                    "date_kind": fixture.date_kind,
+                },
+            }
+        )
+    return documents

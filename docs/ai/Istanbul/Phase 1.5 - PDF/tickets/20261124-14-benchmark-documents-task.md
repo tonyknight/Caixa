@@ -13,8 +13,8 @@ depends_on:
 - 20261124-11-type-schemas
 - 20261124-12-reconciliation-confidence-and-apply
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -36,8 +36,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:**
 
@@ -68,7 +68,7 @@ Current task: T01
   - twelve documents with their answers;
   - scoring right, wrong and partial answers.
 - Verify: `python -m pytest -q tests/test_benchmark.py`
-- [ ] done
+- [x] done
 
 ### T02: The documents task in the run and the report
 

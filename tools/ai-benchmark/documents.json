@@ -1,0 +1,250 @@
+{
+  "documents": [
+    {
+      "filename": "2024-11 Banco Atlântico Checking Statement.pdf",
+      "properties": {
+        "title": "Statement",
+        "author": "Banco Atlântico"
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Banco Atlântico\nChecking Statement\nMaria Costa, Rua das Flores 12, Porto\nAccount ending 4821\nStatement period: November 1, 2024 to November 30, 2024\nOpening balance: 2,310.55 EUR\nClosing balance: 1,987.20 EUR"
+        },
+        {
+          "page": 2,
+          "text": "Transactions\n2024-11-03  Supermercado Sol  -54.10\n2024-11-15  Cheque 1042  -450.00\n2024-11-28  Salary  +1,820.00\nPage 2 of 2"
+        }
+      ],
+      "answers": {
+        "type": "statement",
+        "title": "Checking Statement",
+        "author": "Banco Atlântico",
+        "date": "2024-11-30",
+        "precision": "day",
+        "date_kind": "statement_end"
+      }
+    },
+    {
+      "filename": "scan_00482.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Aguas do Vale\nFatura de agua\nCliente: Maria Costa\nContador 77812\nData de emissao: 12/03/2024\nPeriodo: 01/02/2024 a 29/02/2024\nTotal a pagar: 23,40 EUR"
+        }
+      ],
+      "answers": {
+        "type": "bill",
+        "title": "Fatura de Água",
+        "author": "Águas do Vale",
+        "date": "2024-03-12",
+        "precision": "day",
+        "date_kind": "issue"
+      }
+    },
+    {
+      "filename": "Check 1042 - Canalizações Rui - 450.00.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Banco Atlantico\nCheque No. 1042\nDate: 2024-11-15\nPay to the order of: Canalizacoes Rui\nAmount: 450.00 EUR\nFour hundred fifty euros\nSigned: Maria Costa"
+        }
+      ],
+      "answers": {
+        "type": "cheque",
+        "title": "Cheque 1042",
+        "author": "Maria Costa",
+        "date": "2024-11-15",
+        "precision": "day",
+        "date_kind": "written"
+      }
+    },
+    {
+      "filename": "2023 Property Tax Bill.pdf",
+      "properties": {
+        "title": "Untitled",
+        "author": "admin",
+        "creationDate": "D:20190101000000Z"
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Câmara Municipal de Vila Nova\nProperty Tax Statement\nTax year 2022\nIssued: April 20, 2023\nOwner: Maria Costa\nProperty: Rua das Flores 12, Porto\nAmount due: 312.00 EUR\nDue by: May 31, 2023"
+        },
+        {
+          "page": 2,
+          "text": ""
+        }
+      ],
+      "answers": {
+        "type": "tax",
+        "title": "Property Tax Bill",
+        "author": "Câmara Municipal de Vila Nova",
+        "date": "2022",
+        "precision": "year",
+        "date_kind": "tax_year"
+      }
+    },
+    {
+      "filename": "Document1.pdf",
+      "properties": {
+        "creator": "Microsoft Word",
+        "author": "Microsoft Office User"
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Porto, 2 de junho de 2019\nQuerida Maria,\nEscrevo-te para contar que a casa de Braga ficou pronta.\nOs azulejos da cozinha chegaram na semana passada.\nUm abraço,\nJoão Costa"
+        }
+      ],
+      "answers": {
+        "type": "correspondence",
+        "title": "Carta de João Costa",
+        "author": "João Costa",
+        "date": "2019-06-02",
+        "precision": "day",
+        "date_kind": "letter"
+      }
+    },
+    {
+      "filename": "download.pdf",
+      "properties": {
+        "producer": "Estrela POS 3.1"
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Livraria Estrela\nInvoice FT 2024/118\nDate: February 9, 2024\nCustomer: Maria Costa\n2 books: A Casa das Marés, O Rio\nTotal: 37.80 EUR"
+        },
+        {
+          "page": 2,
+          "text": "Livraria Estrela\nPayment receipt\nPaid 37.80 EUR by card\nRef 55031"
+        }
+      ],
+      "answers": {
+        "type": "invoice",
+        "title": "Invoice FT 2024/118",
+        "author": "Livraria Estrela",
+        "date": "2024-02-09",
+        "precision": "day",
+        "date_kind": "issue"
+      }
+    },
+    {
+      "filename": "2024-06-15 Insurance Renewal - Seguradora Horizonte.pdf",
+      "properties": {
+        "creator": "ScanSnap Manager"
+      },
+      "pages": [
+        {
+          "page": 1,
+          "text": "Seguradora Horizonte\nHome Insurance Renewal\nPolicy number HZ-55120\nInsured: Maria Costa\nCoverage: July 1, 2024 to June 30, 2025\nIssued: June 15, 2024\nAnnual premium: 245.00 EUR"
+        }
+      ],
+      "answers": {
+        "type": "insurance",
+        "title": "Home Insurance Renewal",
+        "author": "Seguradora Horizonte",
+        "date": "2024-07-01",
+        "precision": "day",
+        "date_kind": "coverage_start"
+      }
+    },
+    {
+      "filename": "old_ocr_contract.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Rental Agreement\nBetween Maria Costa (landlord) and Rui Pereira (tenant)\nProperty: Rua do Sol 8, Braga\nMonthly rent: 650.00 EUR"
+        },
+        {
+          "page": 2,
+          "text": "Clause 1. The tenant pays the rent by the 8th of each month.\nSigned in Braga on September 30, 2021\nMaria Costa        Rui Pereira"
+        }
+      ],
+      "answers": {
+        "type": "agreement",
+        "title": "Rental Agreement",
+        "author": null,
+        "date": "2021-09-30",
+        "precision": "day",
+        "date_kind": "execution"
+      }
+    },
+    {
+      "filename": "extrato_marco.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Banco Atlantico\nExtrato de conta\nTitular: Maria Costa\nConta terminada em 4821\nPeriodo: 1 a 31 de marco de 2024\nSaldo final: 2.104,33 EUR"
+        }
+      ],
+      "answers": {
+        "type": "statement",
+        "title": "Extrato de Conta",
+        "author": "Banco Atlântico",
+        "date": "2024-03-31",
+        "precision": "day",
+        "date_kind": "statement_end"
+      }
+    },
+    {
+      "filename": "2022 Car Insurance.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Energia do Norte\nElectricity Bill\nCustomer: Maria Costa\nIssued: January 10, 2024\nBilling period: December 2023\nAmount due: 88.15 EUR"
+        }
+      ],
+      "answers": {
+        "type": "bill",
+        "title": "Electricity Bill",
+        "author": "Energia do Norte",
+        "date": "2024-01-10",
+        "precision": "day",
+        "date_kind": "issue"
+      }
+    },
+    {
+      "filename": "receipt_rotated.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Café Central\nReceipt 0093\n3 May 2024\n2 coffees 2.40\n1 cake 4.00\nTotal 6.40 EUR"
+        }
+      ],
+      "answers": {
+        "type": "invoice",
+        "title": "Receipt 0093",
+        "author": "Café Central",
+        "date": "2024-05-03",
+        "precision": "day",
+        "date_kind": "issue"
+      }
+    },
+    {
+      "filename": "Exame Ana Costa 2020.pdf",
+      "properties": {},
+      "pages": [
+        {
+          "page": 1,
+          "text": "Clínica Santa Luzia\nResultados de análises\nPaciente: Ana Costa\nData da colheita: 14/10/2020\nHemoglobina 13,8 g/dL\nMédico: Dr. Paulo Lima"
+        }
+      ],
+      "answers": {
+        "type": "medical",
+        "title": "Resultados de Análises",
+        "author": "Clínica Santa Luzia",
+        "date": "2020-10-14",
+        "precision": "day",
+        "date_kind": "issue"
+      }
+    }
+  ]
+}

@@ -60,6 +60,7 @@ def test_a_run_times_both_sides_and_writes_the_report(
     report = benchmark.run(
         endpoint=server.endpoint, model="local-model", api_key="sk-local",
         apple_workers=[1, 2], endpoint_workers=[1, 2], out=tmp_path / "out", say=said.append,
+        tasks=("summaries", "translations"),
     )  # fmt: skip
     rows = report["results"]
     assert {(r["provider"], r["workers"], r["task"]) for r in rows} == {
@@ -124,3 +125,75 @@ def test_the_command_line(
     printed = capsys.readouterr().out
     assert "Apple Intelligence" in printed and "local-model" in printed and "report.md" in printed
     assert server.requests and server.requests[0]["headers"]["Authorization"] == "Bearer sk-env"
+
+
+# --- The documents task (ticket 20261124-14) -----------------------------------------------------
+
+
+def test_the_benchmark_documents_match_the_fixtures() -> None:
+    from pdf_family import benchmark_documents
+
+    committed = json.loads(benchmark.DOCUMENTS.read_text(encoding="utf-8"))
+    assert committed == {"documents": benchmark_documents()}, (
+        "tools/ai-benchmark/documents.json is out of date: write it again from "
+        "pdf_family.benchmark_documents() (see tools/ai-benchmark/README.md)"
+    )
+
+
+def test_twelve_documents_with_their_answers() -> None:
+    documents = benchmark.load_documents()
+    assert len(documents) == 12
+    statement = next(d for d in documents if d["filename"].startswith("2024-11 Banco"))
+    assert statement["answers"]["author"] == "Banco Atlântico"
+    assert (
+        statement["answers"]["date"] == "2024-11-30" and statement["answers"]["type"] == "statement"
+    )
+    assert "Supermercado Sol" in statement["pages"][1]["text"]
+    scan = next(d for d in documents if d["filename"] == "scan_00482.pdf")
+    assert "77812" in scan["pages"][0]["text"]  # as OCR would read it
+
+
+EXPECTED = {
+    "type": "bill",
+    "title": "Electricity Bill",
+    "author": "Energia do Norte",
+    "date": "2024-01-10",
+}
+
+
+def test_a_right_answer_scores_everything() -> None:
+    answer = {"type": "bill", "title": "Electricity bill for December",
+              "author": {"name": "ENERGIA DO NORTE, S.A.", "verified": True},
+              "date": {"value": "2024-01-10", "verified": True}}  # fmt: skip
+    assert benchmark.score(answer, EXPECTED) == {
+        "type": True,
+        "author": True,
+        "date": True,
+        "title": True,
+        "verified": 2,
+    }
+
+
+def test_a_wrong_answer_scores_nothing() -> None:
+    answer = {"type": "insurance", "title": "Car Insurance", "author": {"name": "Seguradora"},
+              "date": {"value": "2022"}}  # fmt: skip
+    assert benchmark.score(answer, EXPECTED) == {
+        "type": False,
+        "author": False,
+        "date": False,
+        "title": False,
+        "verified": 0,
+    }
+    assert benchmark.score(None, EXPECTED)["type"] is False
+
+
+def test_an_unknown_author_is_right_when_there_is_none() -> None:
+    answer = {"type": "agreement", "title": "Rental Agreement", "author": None,
+              "date": {"value": "2021-09-30"}}  # fmt: skip
+    expected = {
+        "type": "agreement",
+        "title": "Rental Agreement",
+        "author": None,
+        "date": "2021-09-30",
+    }
+    assert benchmark.score(answer, expected)["author"] is True

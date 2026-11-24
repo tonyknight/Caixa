@@ -8,9 +8,21 @@ OpenAI-compatible endpoint (oMLX, LM Studio, Ollama…), on the two jobs Caixa g
 - **Translations:** each Portuguese email into English, exactly as an import translates (20
   emails).
 
+- **Documents:** what each of twelve made-up documents is, who issued it and when, exactly as a
+  PDF import reads it, scored against what is known about each (type, author, date, title).
+
 `emails.json` holds 100 made-up emails in 35 conversations of 1 to 6 mails: 80 in English and 20
 (7 conversations) in Portuguese. Every name and address is invented (the project's synthetic
-family). Nothing from a box is used or sent.
+family). `documents.json` holds the synthetic PDF family's twelve documents as a model is given
+them (file name, properties, the text of each page, a scan's as OCR reads it) with their known
+answers. It is written from the test fixtures, and a test checks it still matches them; to write it
+again after changing them:
+
+```bash
+python -c "import json,sys; sys.path.insert(0,'tests/fixtures'); from pdf_family import benchmark_documents; open('tools/ai-benchmark/documents.json','w',encoding='utf-8').write(json.dumps({'documents': benchmark_documents()}, ensure_ascii=False, indent=2) + chr(10))"
+```
+
+Nothing from a box is used or sent.
 
 ## Running it
 
