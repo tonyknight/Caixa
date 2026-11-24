@@ -3,11 +3,12 @@ id: 20261124-04-the-pdf-collector
 title: The PDF collector
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: pdf collector, byte-for-byte archive into Documents/PDF, sources, undo,
+  reset.'
 parent:
 depends_on:
 - 20261124-02-the-archival-naming-convention
@@ -21,12 +22,12 @@ The `pdf` collector in `caixa/collectors/pdfImport.py`, registered by entry poin
 
 ## Acceptance criteria
 
-- [ ] Registered as `pdf = "caixa.collectors.pdfImport:collectors"`; appears in `collectors.list` with a how-to card and options
-- [ ] Preview counts PDFs, already in the box, duplicates within the source, encrypted, unreadable, pages, size, and writes nothing
-- [ ] Run archives each new PDF byte for byte; a source's bytes and modification time are unchanged; a second run adds only source rows
-- [ ] Filed into `<YYYY>/<Author>/` when a date and author are known (`caixa.documents.archive.place` takes them; ticket 09 supplies them from the filename and properties), else `Documents/PDF/Unrecognized/` under its original name
-- [ ] Undo removes what the import added; progress, cancel and run-again work; up to the Workers setting processes
-- [ ] The box README mentions `Documents/`
+- [x] Registered as `pdf = "caixa.collectors.pdfImport:collectors"`; appears in `collectors.list` with a how-to card and options
+- [x] Preview counts PDFs, already in the box, duplicates within the source, encrypted, unreadable, pages, size, and writes nothing
+- [x] Run archives each new PDF byte for byte; a source's bytes and modification time are unchanged; a second run adds only source rows
+- [x] Filed into `<YYYY>/<Author>/` when a date and author are known (`caixa.documents.archive.place` takes them; ticket 09 supplies them from the filename and properties), else `Documents/PDF/Unrecognized/` under its original name
+- [x] Undo removes what the import added; progress, cancel and run-again work; up to the Workers setting processes
+- [x] The box README mentions `Documents/`
 
 ## Context
 
@@ -111,10 +112,52 @@ Current task:
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** the `pdf` collector (`caixa/collectors/pdfImport.py`), registered by entry
+  point, appears in the import wizard with its card.
+  - It finds every PDF in a file, a folder (recursive) or a zip, and examines each in up to the
+    Workers setting processes: hash, size, time, pages, password, properties, or why it cannot be
+    used.
+  - Preview counts new documents, those already in the box, copies, locked and unreadable files
+    (named), pages and size, and writes nothing.
+  - An import copies each new PDF byte for byte through a checked `.part` file into
+    `Documents/PDF/Unrecognized/` under its own name. `archive.place` files by year and author when
+    facts are given; ticket 09 gives them. Each document is recorded with its sources and an
+    `import` run, and committed one by one.
+  - Known files only gain a source row; locked files wait for review; unreadable ones are named
+    and left alone.
+  - Undo and reset take the documents out, and reset keeps the owner's own files. The box README
+    describes `Documents/`.
 - **Files:**
-- **Errors:**
+  - new: `caixa/collectors/pdfImport.py`, `caixa/documents/archive.py`,
+    `caixa/documents/importing.py`, `tests/test_pdf_collector.py`;
+  - changed: `pyproject.toml` (entry point; mypy treats PyMuPDF, OCRmyPDF and pikepdf as
+    untyped), `caixa/reset.py`, `caixa/box.py`;
+  - two older tests corrected: `tests/test_chattr_collectors.py` compared lists with `>=`, and
+    `tests/test_contacts_setting.py` assumed every collector reads contacts.
+- **Errors:** opening the master read-only makes SQLite's `-wal`/`-shm` files, and the preview
+  test now ignores them. Adding a seventh collector exposed the two older test assumptions above.
 - **Verify:**
+  - `python -m pytest -q`: 1651 passed plus the corrected contacts test (8 passed), 1 skipped.
+  - vitest: 277 passed.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: abf68b5..11974e2 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a file from a zip is recorded as found at `<zip>!/<member>`. For a zip inside a
+  chosen folder this names the folder, not the zip; good enough to find it again.
+- **Minor:** preview's counts are carried in `Preview.warnings`, since the contract has no fields
+  for them. The wizard shows them as lines.
+- **Minor:** a file whose name has nothing usable is filed under the first 12 characters of its
+  SHA-256 (rare; such files can be renamed in review).
+- **Spec:** D1–D3 and D8 met; every acceptance criterion met. The provisional filing rule's facts
+  come in ticket 09, through `import_examined(facts=…)`.
+- **TDD:** RED (`ModuleNotFoundError: caixa.collectors.pdfImport`; the run tests failing before
+  `importing.py`) before each GREEN.
+- **Commits:** `20261124-04 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
