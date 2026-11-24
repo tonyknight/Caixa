@@ -13,8 +13,8 @@ depends_on:
 - 20261124-04-the-pdf-collector
 - 20261124-06-selective-ocr
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -38,8 +38,8 @@ Detailed checklist. Major subtasks should also appear in the frontmatter
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:** page text and its FTS5 index already exist (tickets 03, 05, 06: `document_pages`
 rows from the PDF or from OCR, kept in `documents_fts` by triggers, accents ignored). This ticket
@@ -75,7 +75,7 @@ adds searching them, in `caixa/documents/search.py`:
   - operators and stray quotes in what was typed do no harm;
   - an empty query without filters finds nothing.
 - Verify: `python -m pytest -q tests/test_documents_search.py`
-- [ ] done
+- [x] done
 
 ### T02: Searching from the service and the command line
 
