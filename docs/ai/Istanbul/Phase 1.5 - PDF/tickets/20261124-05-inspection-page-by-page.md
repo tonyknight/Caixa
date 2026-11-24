@@ -3,11 +3,11 @@ id: 20261124-05-inspection-page-by-page
 title: Inspection page by page
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-24
 updated: 2026-11-24
-closed:
-notes: ''
+closed: 2026-11-24
+notes: 'Done: page classes and quality, stored with page text; probable duplicates.'
 parent:
 depends_on:
 - 20261124-04-the-pdf-collector
@@ -20,10 +20,10 @@ Inspect every page with PyMuPDF and classify it (`text`, `needs_ocr`, `ocr_layer
 
 ## Acceptance criteria
 
-- [ ] Every fixture page gets the class its known answers name
-- [ ] Encrypted (password) and damaged files are recognised; an owner-password-only PDF is readable
-- [ ] Quality measures and the class are stored per page with the page's own text; preview reports pages likely to need OCR
-- [ ] A different file with the same text as a document in the box is flagged `probable_duplicate` for review, never merged
+- [x] Every fixture page gets the class its known answers name
+- [x] Encrypted (password) and damaged files are recognised; an owner-password-only PDF is readable
+- [x] Quality measures and the class are stored per page with the page's own text; preview reports pages likely to need OCR
+- [x] A different file with the same text as a document in the box is flagged `probable_duplicate` for review, never merged
 
 ## Context
 
@@ -96,10 +96,40 @@ with the same text as a document already in the box gets `probable_duplicate` in
 
 ## Completion report
 
-- **Outcome:**
+- **Outcome:** `caixa/documents/pdf/inspect.py` measures every page and classifies it as text,
+  needs_ocr, ocr_layer (poor or not), broken_text or blank. The measures are characters, bad
+  characters, word-like tokens, invisible text (text trace type 3), image coverage and drawings.
+  Every fixture page gets its known class. The collector's workers inspect each readable PDF. The
+  import stores each page's text, class and quality, sets `ocr_status` and a fingerprint of the
+  text, and marks a different file with the same text `probable_duplicate` (both kept). The
+  preview says how many pages may need OCR.
 - **Files:**
-- **Errors:**
+  - new: `caixa/documents/pdf/__init__.py`, `caixa/documents/pdf/inspect.py`,
+    `tests/test_pdf_inspect.py`;
+  - changed: `caixa/collectors/pdfImport.py`, `caixa/documents/importing.py`,
+    `caixa/documents/records.py` (`find_by_text`).
+- **Errors:** one mypy `no-any-return` from PyMuPDF's rectangle area, fixed.
 - **Verify:**
+  - `python -m pytest -q`: 1671 passed, 1 skipped.
+  - mypy (3.12 target): only the 8 baseline errors.
+
+## Review
+
+### 2026-11-24: f6eb4ae..e1ae2f6 (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** the word-like test knows Latin vowels only. Text in other scripts (Greek, Cyrillic,
+  CJK) would be judged broken. Revisit if such PDFs turn up.
+- **Minor:** image coverage for several pictures is estimated on a 40×40 grid, which is
+  enough to tell a scan from a logo.
+- **Minor:** page text crosses the process boundary in `Examined`; a very large PDF carries all
+  its text through the pool once.
+- **Spec:** D4 met; every acceptance criterion met (including the probable-duplicate rule from
+  *Pipeline*).
+- **TDD:** RED (`ModuleNotFoundError: caixa.documents.pdf`; the import tests failing before the
+  wiring) before each GREEN.
+- **Commits:** `20261124-05 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
