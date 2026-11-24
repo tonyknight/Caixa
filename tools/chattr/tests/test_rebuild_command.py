@@ -17,6 +17,16 @@ from chattr.rebuild import RebuildError, compare_databases, rebuild_database
 from chattr.render import Renderer
 
 
+@pytest.fixture(autouse=True)
+def _private_home(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`--root` alone isn't enough: with no `~/.chattr.json`, the command saves one pointing at
+    the test's temporary root. Isolate HOME so that pointer never lands in the real home."""
+    monkeypatch.setenv("HOME", str(tmp_path_factory.mktemp("home")))
+    monkeypatch.delenv("CHATTR_ROOT", raising=False)
+
+
 @pytest.fixture
 def site(full_archive, tmp_path: Path) -> Path:
     out = tmp_path / "site"
