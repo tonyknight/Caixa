@@ -457,7 +457,7 @@ def test_the_registry_finds_the_six_through_the_entry_point() -> None:
 
     registry = discover()
     assert registry.problems == []
-    assert sorted(c.info.id for c in registry.all()) >= IDS
+    assert set(IDS) <= {c.info.id for c in registry.all()}
     assert [c["id"] for c in registry.describe() if c["id"] in IDS] == [
         c.info.id for c in registry.all() if c.info.id in IDS
     ]

@@ -22,6 +22,7 @@ caixa = "caixa.cli:main"
 
 [project.entry-points."caixa.collectors"]
 chattr = "caixa.collectors.chattr:collectors"
+pdf = "caixa.collectors.pdfImport:collectors"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -60,4 +61,10 @@ markers = ["slow: a long-running scale test, left out of the default run"]
 # Third-party libraries without type information.
 [[tool.mypy.overrides]]
 module = ["tqdm", "tqdm.*", "vobject", "vobject.*", "ffmpeg", "ffmpeg.*", "pillow_heif", "faster_whisper"]
+ignore_missing_imports = true
+
+# PyMuPDF's own type information is partial: its calls are treated as untyped.
+[[tool.mypy.overrides]]
+module = ["pymupdf", "pymupdf.*", "fitz", "ocrmypdf", "ocrmypdf.*", "pikepdf", "pikepdf.*"]
+follow_imports = "skip"
 ignore_missing_imports = true
