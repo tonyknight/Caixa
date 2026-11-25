@@ -7,8 +7,7 @@ status: in-progress
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: 'Hot fix: a verbose log of each document import''s decisions; plan waits on
-  D26 and the file name'
+notes: 'In progress: T01 (session log module) done; T02 next'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
@@ -27,7 +26,7 @@ subtasks:
   title: Finding the log, documentation and the privacy test
   status: todo
 plan_status: in-progress
-current_task: T01
+current_task: T02
 ---
 ## Description
 
@@ -159,7 +158,7 @@ This ticket only makes the decisions visible.
 ## Implementation plan
 
 Status: in-progress
-Current task: T01
+Current task: T02
 
 **Design:**
 
@@ -201,7 +200,7 @@ Current task: T01
   - `current()` outside a session is a no-op.
 - **GREEN:** as designed.
 - **Verify:** `python -m pytest -q tests/test_session_log.py`, then the project verify command.
-
+- [x] done
 ### T02: Examining, OCR, validation and filing, logged
 
 - **Files:** `caixa/collectors/pdfImport.py` (`Examined` gains `seconds` and OCR and validation
@@ -291,3 +290,6 @@ Append-only running log. Each entry dated.
 - 2026-11-25: Approved: D26 amended (values always; quotes and raw replies opt-in; never page
   text, passages or summaries) and the sessions folder as proposed. Runs after `20261125-03`, so
   the log records the failures that ticket catches.
+
+### 2026-11-25
+T01 done: caixa/session_log.py, opened by the service for PDF import and documents enrich/embed/reprocess jobs; documents.log_quotes setting (off). Files of the other jobs are named for their commands (documents enrich, …). Checked end to end on the synthetic family (header and summary; per-document lines come in T02 and T03).
