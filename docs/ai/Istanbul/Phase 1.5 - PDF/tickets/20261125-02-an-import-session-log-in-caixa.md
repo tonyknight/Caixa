@@ -3,11 +3,11 @@ id: 20261125-02-an-import-session-log-in-caixa
 title: An import session log in .caixa
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-25
 updated: 2026-11-25
-closed:
-notes: 'In progress: T01–T03 done (session log, every stage logged); T04 next'
+closed: 2026-11-25
+notes: 'Done: session logs for every document job, documents log command, review fixed'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
@@ -15,18 +15,17 @@ depends_on:
 subtasks:
 - id: T01
   title: The session log
-  status: todo
+  status: done
 - id: T02
   title: Examining, OCR, validation and filing, logged
-  status: todo
+  status: done
 - id: T03
   title: Reading, reconciliation, embedding and drawing, logged
-  status: todo
+  status: done
 - id: T04
   title: Finding the log, documentation and the privacy test
-  status: todo
-plan_status: in-progress
-current_task: T04
+  status: done
+plan_status: done
 ---
 ## Description
 
@@ -100,29 +99,29 @@ This ticket only makes the decisions visible.
 
 ## Acceptance criteria
 
-- [ ] Every document job (PDF import, reprocess, enrich, embed) writes one session log, opened
+- [x] Every document job (PDF import, reprocess, enrich, embed) writes one session log, opened
       before its first stage, and closed with a summary even when the job fails or is
       cancelled. A failure is logged with its stage, the document when known, and its traceback.
-- [ ] The header names Caixa's version, `sys.executable`, the versions of numpy, PyMuPDF,
+- [x] The header names Caixa's version, `sys.executable`, the versions of numpy, PyMuPDF,
       pikepdf, OCRmyPDF and Tesseract (with its languages), and the deciding settings.
-- [ ] For each document the log says what examination, OCR, validation, filing, reading,
+- [x] For each document the log says what examination, OCR, validation, filing, reading,
       reconciliation and embedding decided and why, as listed in the description. Each line
       names the document as `[n/total] <original filename>`.
-- [ ] A document left in `Unrecognized/` has a line saying why: at filing (what the filename and
+- [x] A document left in `Unrecognized/` has a line saying why: at filing (what the filename and
       the properties lacked), and after reading (its reconciliation reasons, or why it was never
       read).
-- [ ] The closing summary counts documents per outcome, tallies review reasons, gives time per
+- [x] The closing summary counts documents per outcome, tallies review reasons, gives time per
       stage, and lists the errors.
-- [ ] The log is written line by line (readable while the job runs, with `tail -f`), and the file
+- [x] The log is written line by line (readable while the job runs, with `tail -f`), and the file
       is owner-only.
-- [ ] The `.jsonl` twin holds the same events, one JSON object per line, with a stable `event`
+- [x] The `.jsonl` twin holds the same events, one JSON object per line, with a stable `event`
       name and fields.
-- [ ] The end-of-import report (window and command line) names the session log.
+- [x] The end-of-import report (window and command line) names the session log.
       `caixa documents log [--job N]` prints a session (the latest by default).
-- [ ] The privacy test still finds no page text in job logs, the terminal or the job store; and
+- [x] The privacy test still finds no page text in job logs, the terminal or the job store; and
       no page text, passage or summary in the session log. It finds quotes and raw replies only
       when the opt-in setting is on (per decision 1).
-- [ ] D26 in the Requirements and the privacy section of `docs/Documentation/Collector.md` say
+- [x] D26 in the Requirements and the privacy section of `docs/Documentation/Collector.md` say
       what the session log holds.
 
 ## Context
@@ -150,15 +149,15 @@ This ticket only makes the decisions visible.
 
 ## Subtasks
 
-- [ ] T01 The session log
-- [ ] T02 Examining, OCR, validation and filing, logged
-- [ ] T03 Reading, reconciliation, embedding and drawing, logged
-- [ ] T04 Finding the log, documentation and the privacy test
+- [x] T01 The session log
+- [x] T02 Examining, OCR, validation and filing, logged
+- [x] T03 Reading, reconciliation, embedding and drawing, logged
+- [x] T04 Finding the log, documentation and the privacy test
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T04
+Status: done
+Current task: 
 
 **Design:**
 
@@ -272,13 +271,69 @@ Current task: T04
 - **Verify:** `python -m pytest -q tests/test_documents_privacy.py`,
   `pnpm --dir web run build`, then the project verify command:
   `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`.
-
+- [x] done
 ## Completion report
 
 - **Outcome:**
-- **Files:**
+  - Every PDF import and every documents `enrich`, `embed` and `reprocess` job writes an
+    owner-only session log in `.caixa/logs/sessions/`, with a `.jsonl` twin. It is opened before
+    the first stage and closed with a summary when the job is done, cancelled or failed.
+  - The header gives the version, `sys.executable`, the packages, Tesseract with its languages,
+    and the deciding settings. Each document gets a line per stage (`examine`, `ocr`,
+    `validate`, `file`, `read`, `propose`, `decide`, `embed`), named `[n/total] filename`.
+  - A document in Unrecognized says why at filing (`why: no_author`, …) and after reading (its
+    review reasons). The summary counts outcomes, tallies reasons, times each stage and lists
+    errors.
+  - The job's result names the log; the command line's reports and the window's import report
+    show it. `caixa documents log [--job N] [--json]` (and `documents.log`) prints it. A failed
+    document job points to it.
+  - On the synthetic family the log shows that most documents wait in Unrecognized at filing
+    because their file names give no author; only the model's reading supplies one.
+- **Files:** `caixa/session_log.py` (new); `caixa/service.py`; `caixa/cli.py`;
+  `caixa/settings.py` (`documents.log_quotes`, off); `caixa/collectors/pdfImport.py`;
+  `caixa/documents/importing.py`, `reprocess.py`, `enrich.py`, `reconcile.py` (`Decision.trail`),
+  `embeddings.py`, `pages.py`, `evidence.py` (`lacking`), `pdf/process.py` (timings);
+  `web/src/client/api.ts`, `locales.ts`, `pages/ImportPage.tsx`; the built window;
+  `docs/Documentation/Collector.md`; the Requirements (D26 amended);
+  `tests/test_session_log.py`, `test_session_log_import.py`, `test_session_log_reading.py` (new),
+  `test_documents_privacy.py`, `test_documents_evidence.py`, `test_worker_protocol.py`,
+  `web/tests/import-page.test.tsx`.
 - **Errors:**
-- **Verify:**
+  - A type's own fields (amounts, account numbers) are logged by name and whether found, not by
+    value: D26's always-allowed values are type, category, title, author, date and tags.
+  - The privacy extension passed on first run (T01–T03 already met it); it stays as the guard.
+  - Failed and cancelled jobs do not carry `session_log` in their result (the Jobs page reads
+    any result as import counts); `caixa documents log --job N` finds their log.
+  - Known limit: `examine` runs in worker processes; the parent logs its results, timings and
+    errors as it files each document.
+  - Review fixes (see *Review*): a log that cannot be written stops quietly; an error that ends
+    the job names its stage and document, once; replies are logged without their summaries.
+- **Verify:** project verify command after the review fixes: 2049 passed, 10 failed (the known
+  Chattr failures); black only the known `tests/test_mail_sent_and_received.py`; mypy the 8 known
+  errors; web 286 passed.
+
+## Review
+
+2026-11-25, a fresh reviewer on `716cf8e..862ae97`. Verdict before fixes: no Critical, three
+Important, five Minor. The three Important findings are fixed (RED then GREEN, four new tests):
+
+- *Important, fixed:* a write that failed (a full disk) would have raised into the stage. Now
+  `SessionLog` stops writing, says once in the job log why, and the job goes on. The two files
+  are closed even when the summary or the header fails.
+- *Important, fixed:* an error that ended the job was logged as `in job:`. `stage()` and the new
+  `on(document)` now remember where it left, and an error already logged where it happened is
+  not logged twice.
+- *Important, fixed:* with the opt-in on, a raw reply carried the model's summary. A reply that
+  parses is logged without it; one that does not parse is kept as it came.
+- *Minor, fixed:* `filename_conflicts` keeps only named words (year, type, author…) without the
+  opt-in, anything longer becomes a quote. A failed `caixa import pdf` points to
+  `caixa documents log --job N`. `contextlib.nullcontext` replaces `_no_session`.
+- *Minor, left:* reading, deciding and embedding number documents within their own set, not the
+  import's, and the `.jsonl` carries no item id. The standalone enrich, embed and reprocess jobs
+  report `stages: none`. `evidence.lacking` repeats the rules of `provisional_facts`. Candidates
+  for the bake-off ticket, which needs the item id to score by document.
+- *Kept by design:* a field named for page text is refused with an error, not dropped: callers
+  are fixed by the tests, which is the guard D26 asked for.
 
 ## Notes
 
@@ -299,3 +354,6 @@ T02 done. On the synthetic family the log shows why files wait in Unrecognized a
 
 ### 2026-11-25
 T03 done. A type's own fields (amounts, account and policy numbers) are logged by name and whether found, not by value: D26's always-allowed list names type, category, title, author, date and tags only. The privacy guard caught a field named passages (a count) in embedding; renamed passage_count.
+
+### 2026-11-25
+T04 done and reviewed: the job's result and reports name the session log; caixa documents log prints it; the privacy test covers session logs. Review: three Important findings fixed (unwritable log, job-level error context, summaries in opted-in replies).

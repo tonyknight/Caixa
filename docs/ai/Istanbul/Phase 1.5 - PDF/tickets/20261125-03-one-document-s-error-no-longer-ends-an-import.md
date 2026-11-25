@@ -18,7 +18,7 @@ subtasks:
   status: done
 - id: T02
   title: One document, or one stage, cannot end the import
-  status: todo
+  status: done
 plan_status: done
 current_task: T01
 ---
