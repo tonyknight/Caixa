@@ -31,7 +31,7 @@ import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence, TypeVar, Union
+from typing import Any, Callable, Iterator, Mapping, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
 from chattr.pages import templates_fingerprint
@@ -39,7 +39,7 @@ from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import TranslationError, is_local_endpoint
 
 from caixa import owner as owner_file
-from caixa import apple_intelligence, settings, summaries, translation, undo
+from caixa import apple_intelligence, session_log, settings, summaries, translation, undo
 from caixa.box import LAYOUT, Box, BoxError
 from caixa.collectors.base import Cancelled, Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
@@ -136,6 +136,26 @@ def _readable(folder: Path) -> bool:
     except OSError:
         return False
     return True
+
+
+#: The jobs that write a session log (`caixa.session_log`), by the name each gives its file.
+SESSION_KINDS = {
+    "documents-enrich": "documents enrich",
+    "documents-embed": "documents embed",
+    "documents-reprocess": "documents reprocess",
+}
+
+
+def session_kind(job: Mapping[str, Any]) -> Optional[str]:
+    """The name of a job's session log, or None for a job that keeps none."""
+    if job["kind"] == "import" and job.get("collector") == "pdf":
+        return "PDF import"
+    return SESSION_KINDS.get(job["kind"])
+
+
+@contextlib.contextmanager
+def _no_session() -> Iterator[None]:
+    yield
 
 
 class JobCancelled(Cancelled):
@@ -937,10 +957,12 @@ class Service:
             pace(step)
 
         outcome: dict[str, Any]
+        kind = session_kind(job)
         with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
             with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
                 try:
-                    result = self._execute(box, job, progress)
+                    with session_log.opened(box, number, kind) if kind else _no_session():
+                        result = self._execute(box, job, progress)
                     outcome = {"status": "done", "result": result, "error": None}
                 except JobCancelled:
                     outcome = {"status": "cancelled", "message": "Cancelled.", "error": None}

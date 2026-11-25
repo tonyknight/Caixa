@@ -211,6 +211,18 @@ SCHEMA: dict[str, Any] = {
                 "example eng+por. Each needs its language data installed."
             ),
         },
+        "documents.log_quotes": {
+            "type": "boolean",
+            "default": False,
+            "title": "Keep the model's quotes and replies in session logs",
+            "description": (
+                "Off by default. Each document import writes a session log in the box's .caixa "
+                "folder, saying what was decided about each document and why, with the values "
+                "found (author, date, title). When on, it also keeps the words the model quoted "
+                "from each page and its raw replies, to compare models. Page text, passages and "
+                "summaries are never written there."
+            ),
+        },
         "workers": {
             "type": "integer",
             "default": min(os.cpu_count() or 1, 12),
