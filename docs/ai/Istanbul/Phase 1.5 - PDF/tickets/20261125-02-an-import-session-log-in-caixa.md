@@ -7,8 +7,7 @@ status: in-progress
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: 'In progress: T01 and T02 done (session log; examining, OCR and filing logged);
-  T03 next'
+notes: 'In progress: T01–T03 done (session log, every stage logged); T04 next'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
@@ -27,7 +26,7 @@ subtasks:
   title: Finding the log, documentation and the privacy test
   status: todo
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -159,7 +158,7 @@ This ticket only makes the decisions visible.
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 **Design:**
 
@@ -252,7 +251,7 @@ Current task: T03
 - **Verify:** `python -m pytest -q tests/test_session_log_reading.py
   tests/test_documents_enrich.py tests/test_documents_reconcile.py tests/test_documents_semantic.py`,
   then the project verify command.
-
+- [x] done
 ### T04: Finding the log, documentation and the privacy test
 
 - **Files:**
@@ -297,3 +296,6 @@ T01 done: caixa/session_log.py, opened by the service for PDF import and documen
 
 ### 2026-11-25
 T02 done. On the synthetic family the log shows why files wait in Unrecognized at filing: most filenames give no author (why: no_author), which only the model's reading can supply. Outcomes are keyed by item id, so a later stage replaces a document's filing outcome.
+
+### 2026-11-25
+T03 done. A type's own fields (amounts, account and policy numbers) are logged by name and whether found, not by value: D26's always-allowed list names type, category, title, author, date and tags only. The privacy guard caught a field named passages (a count) in embedding; renamed passage_count.
