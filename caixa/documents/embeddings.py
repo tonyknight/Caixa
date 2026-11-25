@@ -15,16 +15,18 @@ that stopped carries on, and changing the model embeds everything again.
 from __future__ import annotations
 
 import json
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Mapping, Optional, Sequence
 
 from chattr.translation import is_local_endpoint
 
-from caixa import settings, summaries
+from caixa import session_log, settings, summaries
 from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.documents.passages import split
+from caixa.session_log import Document
 
 #: Passages sent in one request.
 BATCH = 16
@@ -132,28 +134,42 @@ def embed_documents(
     import numpy as np
 
     result: dict[str, Any] = {"embedded": 0, "failed": 0, "documents": []}
+    log = session_log.current()
     try:
         embed, model = embedder(settings.load(box))
     except EmbeddingsUnavailable as unavailable:
+        log.event(
+            "embed", "embedder", message=f"Nothing is embedded: {unavailable.message}",
+            reason=unavailable.reason,
+        )  # fmt: skip
         return {**result, "reason": unavailable.reason, "message": unavailable.message}
     result["model"] = model
     with box.master() as master:
         chosen = _waiting(master, model, item_ids)
+    log.event("embed", "embedder", model=model, waiting=len(chosen))
     in_a_row = 0
     for number, item_id in enumerate(chosen, start=1):
         if in_a_row >= FAILURES_IN_A_ROW:
             result["stopped"] = f"The model failed {in_a_row} times in a row; the rest wait."
+            log.event(
+                "embed", "stopped", message=result["stopped"], waiting=len(chosen) - number + 1
+            )
             break
         progress(Progress("embedding", number, len(chosen), item_id))
         with box.master() as master:
             pages = master.connection.execute(
                 "SELECT page, text FROM document_pages WHERE item_id = ? ORDER BY page", (item_id,)
             ).fetchall()
+            (name,) = master.connection.execute(
+                "SELECT original_filename FROM documents WHERE item_id = ?", (item_id,)
+            ).fetchone()
+        doc = Document(number, len(chosen), str(name))
         passages = [
             (int(page), start, end, text)
             for page, whole in pages
             for start, end, text in split(str(whole or ""))
         ]
+        began = time.monotonic()
         try:
             vectors: list[list[float]] = []
             for at in range(0, len(passages), BATCH):
@@ -161,8 +177,13 @@ def embed_documents(
         except EmbeddingError as error:
             result["failed"] += 1
             result.setdefault("errors", []).append(str(error))
+            log.event("embed", "embed", doc, passage_count=len(passages), error=str(error))
             in_a_row += 1
             continue
+        log.event(
+            "embed", "embed", doc, passage_count=len(passages),
+            seconds=round(time.monotonic() - began, 1),
+        )  # fmt: skip
         in_a_row = 0
         with box.master() as master:
             master.connection.execute("DELETE FROM chunks WHERE item_id = ?", (item_id,))

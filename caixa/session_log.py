@@ -139,14 +139,10 @@ class SessionLog(QuietLog):
         message: str = "",
         **fields: Any,
     ) -> None:
-        refused = NEVER.intersection(fields)
+        refused = sorted(NEVER.intersection(fields))
         if refused:
-            raise ValueError(f"{', '.join(sorted(refused))}: page text never goes into a log")
-        kept = {
-            key: value
-            for key, value in fields.items()
-            if self.quotes or not isinstance(value, (Quote, Reply))
-        }
+            raise ValueError(f"{', '.join(refused)}: page text never goes into a log")
+        kept = fields if self.quotes else _without_private(fields)
         head = " ".join(part for part in (str(document or ""), message) if part)
         parts = [head] if head else []
         parts += [f"{_words(key)}: {_show(value)}" for key, value in kept.items()]
@@ -315,6 +311,19 @@ def _owner_only(path: Path) -> Any:
     return os.fdopen(handle, "a", encoding="utf-8", buffering=1)
 
 
+def _without_private(value: Any) -> Any:
+    """`value` without its quotes and raw replies, at any depth."""
+    if isinstance(value, dict):
+        return {
+            key: _without_private(item)
+            for key, item in value.items()
+            if not isinstance(item, (Quote, Reply))
+        }
+    if isinstance(value, (list, tuple)):
+        return [_without_private(item) for item in value if not isinstance(item, (Quote, Reply))]
+    return value
+
+
 def _words(key: str) -> str:
     return key.removeprefix("documents.").replace("_", " ")
 
@@ -325,11 +334,13 @@ def _show(value: Any) -> str:
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, (Quote, Reply)):
-        return f'"{value}"'
+        return json.dumps(str(value), ensure_ascii=False)  # quoted, on one line
     if isinstance(value, float):
         return f"{value:.1f}"
     if isinstance(value, (list, tuple, set)):
-        return ", ".join(_show(item) for item in value) or "none"
+        items = [_show(item) for item in value]
+        between = "; " if any(", " in item for item in items) else ", "
+        return between.join(items) or "none"
     if isinstance(value, dict):
         return ", ".join(f"{k} {_show(v)}" for k, v in value.items()) or "none"
     return str(value)

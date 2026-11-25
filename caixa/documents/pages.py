@@ -26,6 +26,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 from urllib.parse import quote
 
+from caixa import session_log
 from caixa.box import Box
 from caixa.documents import records
 from caixa.documents.archive import DOCUMENTS, UNRECOGNIZED
@@ -277,6 +278,10 @@ def draw_documents(box: Box) -> Drawn:
     (box.caixa_dir / RECORD).write_text(
         json.dumps(sorted(wanted), ensure_ascii=False, indent=1) + "\n", encoding="utf-8"
     )
+    session_log.current().event(
+        "draw", "drawn", message=f"{len(drawn.written)} pages written, {len(drawn.removed)} removed",
+        pages=len(drawn.written), removed=len(drawn.removed),
+    )  # fmt: skip
     return drawn
 
 

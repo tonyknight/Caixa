@@ -97,7 +97,7 @@ def test_quotes_and_replies_are_kept_only_when_the_owner_asks(box: Box, kept: bo
     text, events = log.path.read_text(), _events(log)
     assert "author: Seguros Atlântico" in text
     assert ("Seguros Atlântico, S.A." in text) is kept
-    assert ('"insurance"' in text) is kept
+    assert ("insurance" in text) is kept
     proposal = next(event for event in events if event["event"] == "propose")
     assert ("author_quote" in proposal and "reply" in proposal) is kept
     assert events[0]["settings"]["documents.log_quotes"] is kept

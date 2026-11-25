@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import traceback
 import unicodedata
 from dataclasses import dataclass, field
@@ -39,13 +40,14 @@ from chattr.translation import (
     is_local_endpoint,
 )
 
-from caixa import settings, summaries
+from caixa import session_log, settings, summaries
 from caixa.box import Box
 from caixa.collectors.base import Cancelled, Progress
 from caixa.documents import evidence, records
 from caixa.documents import types as document_types
 from caixa.documents.tags import normalize_tags, starter_tags
 from caixa.naming import NamingDate, NamingError
+from caixa.session_log import Document, Quote, Reply
 
 PROMPT_VERSION = "1"
 SCHEMA_VERSION = "1"
@@ -235,6 +237,12 @@ def _said_by_properties(stated: evidence.PropertyEvidence) -> str:
     return "; ".join(parts) or "none worth reading"
 
 
+def pages_sent(document: DocumentInput) -> list[int]:
+    """The pages whose text the model is given: the first two and the last."""
+    count = document.page_count
+    return sorted({n for n, _ in document.pages if n <= 2 or n == count})
+
+
 def prepare(document: DocumentInput, budget: int) -> str:
     """What the model is sent about one document, within `budget` characters."""
     named = evidence.read_filename(document.filename, document.authors)
@@ -242,7 +250,7 @@ def prepare(document: DocumentInput, budget: int) -> str:
     text = "\n".join(t for _, t in document.pages)
     known = [a for a in sorted(set(document.authors)) if a.strip() and evidence._find(text, a)]
     count = document.page_count
-    numbers = sorted({n for n, _ in document.pages if n <= 2 or n == count})
+    numbers = pages_sent(document)
     shown = "all of them" if len(numbers) == count else "the first two and the last are given"
     head = [
         f"File name: {document.filename}",
@@ -360,6 +368,10 @@ class Classified:
     attempts: int = 0
     error: Optional[str] = None
     raw: str = ""
+    #: Each attempt: its number, seconds, what was wrong (None when usable) and the raw reply.
+    tries: list[dict[str, Any]] = field(default_factory=list)
+    sent: int = 0  # characters sent about the document
+    pages: list[int] = field(default_factory=list)  # the pages whose text was sent
 
 
 def _checked(answer: dict[str, Any], pages: Mapping[int, str]) -> dict[str, Any]:
@@ -415,6 +427,7 @@ def ask(
     result = Classified(ok=False)
     for attempt in (1, 2):
         result.attempts = attempt
+        began = time.monotonic()
         reply, _ = client.chat(messages, temperature=0, response_format=response_format)
         result.raw = reply
         try:
@@ -422,6 +435,14 @@ def ask(
             wrong = check(answer)
         except ValueError as error:
             answer, wrong = None, [str(error) or "it is not JSON"]
+        result.tries.append(
+            {
+                "attempt": attempt,
+                "seconds": round(time.monotonic() - began, 1),
+                "problem": "; ".join(wrong) or None,
+                "reply": Reply(reply),
+            }
+        )
         if not wrong:
             result.ok, result.answer, result.error = True, answer, None
             return result
@@ -435,7 +456,9 @@ def ask(
 
 def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
     """Ask the model what a document is (the classification schema), its quotes verified."""
-    found = ask(client, INSTRUCTION, prepare(document, budget), SCHEMA, problems)
+    prompt = prepare(document, budget)
+    found = ask(client, INSTRUCTION, prompt, SCHEMA, problems)
+    found.sent, found.pages = len(prompt), pages_sent(document)
     if found.ok:
         found.answer = _checked(found.answer, dict(document.pages))
     return found
@@ -620,12 +643,23 @@ def enrich_documents(
     moved: list[tuple[str, str]] = result["moved"]
     if not chosen:
         return result
+    log = session_log.current()
+    values = settings.load(box)
     try:
-        client, info = provider(settings.load(box))
+        client, info = provider(values)
     except EnrichUnavailable as unavailable:
+        log.event(
+            "read", "provider", message=f"Nothing is read: {unavailable.message}",
+            reason=unavailable.reason, waiting=len(chosen),
+        )  # fmt: skip
         return {**result, "reason": unavailable.reason, "message": unavailable.message}
+    log.event(
+        "read", "provider", provider=info["provider"], model=info["model"],
+        budget=info["budget"], why=_why(values, info), waiting=len(chosen),
+    )  # fmt: skip
     result.update(model=info["model"], provider=info["provider"])
     in_a_row = 0
+    errors: list[str] = []  # of the failures in a row
     try:
         for number, item_id in enumerate(chosen, start=1):
             if in_a_row >= FAILURES_IN_A_ROW:
@@ -633,24 +667,45 @@ def enrich_documents(
                     f"The model failed {in_a_row} times in a row; {len(chosen) - number + 1} "
                     "documents wait to be read later."
                 )
+                log.event(
+                    "read", "stopped", message=result["stopped"], errors=errors,
+                    waiting=len(chosen) - number + 1,
+                )  # fmt: skip
                 break
+            doc = Document(number, len(chosen), item_id)
             try:
                 with box.master() as master:
                     document = _input(master, item_id)
                     _set_status(master, item_id, "processing")
+                doc = Document(number, len(chosen), document.filename)
                 progress(Progress("enriching", number, len(chosen), document.filename))
-                status = _read_one(box, client, info, item_id, document, moved)
+                status, problem = _read_one(box, client, info, item_id, document, moved, doc)
             except Cancelled:
                 raise
             except Exception as error:  # one document's surprise must not cost the others
                 traceback.print_exc()
-                status = "failed"
+                log.error("read", error, doc)
+                status, problem = "failed", f"{type(error).__name__}: {error}"
                 _record_failure(box, info, item_id, error)
             result["enriched" if status == "completed" else status] += 1
-            in_a_row = in_a_row + 1 if status == "failed" else 0
+            if status == "failed":
+                in_a_row += 1
+                errors.append(str(problem))
+            else:
+                in_a_row, errors = 0, []
     finally:
         close(client)
     return result
+
+
+def _why(values: Mapping[str, Any], info: Mapping[str, Any]) -> str:
+    """Why documents are read by this provider, for the session log."""
+    chosen = str(values.get("summaries.provider") or "auto")
+    if chosen != "auto":
+        return f"chosen in Settings ({chosen})"
+    if info["provider"] == "apple":
+        return "Automatic: this Mac has Apple Intelligence"
+    return "Automatic: Apple Intelligence is not available here, so the endpoint in Settings"
 
 
 def _read_one(
@@ -660,8 +715,10 @@ def _read_one(
     item_id: str,
     document: DocumentInput,
     moved: list[tuple[str, str]],
-) -> str:
-    """Read one document, record what the model proposed and reconcile it; returns its status."""
+    doc: Document,
+) -> tuple[str, Optional[str]]:
+    """Read one document, record what the model proposed and reconcile it; returns its status
+    and what went wrong."""
     found: Optional[Classified] = None
     typed: Optional[Classified] = None
     problem: Optional[str] = None
@@ -676,6 +733,7 @@ def _read_one(
             typed = classify_type(client, document, kind, int(info["budget"]))
         except TranslationError as failure:
             type_problem = str(failure)
+    _log_reading(doc, info, found, typed, problem or type_problem)
     with box.master() as master:
         if found is None:
             status = "failed"
@@ -705,9 +763,66 @@ def _read_one(
             from caixa.documents.reconcile import reconcile_document
 
             moved += reconcile_document(
-                box, master, item_id, dict(document.pages), status == "completed"
+                box, master, item_id, dict(document.pages), status == "completed", doc
             )
-    return status
+    return status, problem
+
+
+def _log_reading(
+    doc: Document,
+    info: Mapping[str, Any],
+    found: Optional[Classified],
+    typed: Optional[Classified],
+    problem: Optional[str],
+) -> None:
+    """What the model was sent and how each attempt went, then what it proposed (D26: values and
+    whether each quote was found; quotes and replies only with the owner's opt-in; never the
+    summary, and a type's fields by name only)."""
+    log = session_log.current()
+    tries = found.tries if found else []
+    type_tries = typed.tries if typed else []
+    log.event(
+        "read", "read", doc, provider=info["provider"], model=info["model"],
+        sent=found.sent if found else None, budget=info["budget"],
+        pages=found.pages if found else [], attempts=tries, type_attempts=type_tries,
+        seconds=round(sum(t["seconds"] for t in tries + type_tries), 1), error=problem,
+    )  # fmt: skip
+    if found is None or not found.ok:
+        return
+    answer = found.answer
+    author = answer.get("author") or {}
+    date = answer.get("date") or {}
+    proposal: dict[str, Any] = {
+        "type": answer.get("type"),
+        "category": answer.get("category"),
+        "title": answer.get("title"),
+        "author": author.get("name"),
+        "author_verified": author.get("verified"),
+        "author_page": author.get("page"),
+        "date": date.get("value"),
+        "date_kind": date.get("kind"),
+        "date_verified": date.get("verified"),
+        "date_page": date.get("page"),
+        "other_dates": [
+            f"{other.get('value')} {other.get('kind') or 'other'}"
+            + ("" if other.get("verified") else " (not found)")
+            for other in answer.get("other_dates") or []
+        ],
+        "tags": answer.get("tags") or [],
+        "filename_conflicts": answer.get("filename_conflicts") or [],
+    }
+    if author.get("evidence"):
+        proposal["author_quote"] = Quote(author["evidence"])
+    if date.get("evidence"):
+        proposal["date_quote"] = Quote(date["evidence"])
+    if typed is not None and typed.ok:
+        proposal["fields"] = [
+            f"{name} ({'found' if one.get('verified') else 'not found'})"
+            for name, value in typed.answer.items()
+            for one in (value if isinstance(value, list) else [value])
+            if isinstance(one, dict) and one.get("value")
+        ]
+    log.event("read", "propose", doc, **proposal)
 
 
 def _record_failure(box: Box, info: Mapping[str, Any], item_id: str, error: Exception) -> None:

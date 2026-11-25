@@ -29,9 +29,11 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Mapping, Optional, Sequence
 
+from caixa import session_log
 from caixa.documents.evidence import _find
 from caixa.documents.records import normalize_author
 from caixa.naming import NamingDate, NamingError
+from caixa.session_log import Document
 
 #: The reasons reconciliation gives; each reading replaces the earlier ones.
 REASONS = (
@@ -59,6 +61,7 @@ class Decision:
     applied: set[int] = field(default_factory=set)  # ids of the fields the decision rests on
     conflicts: set[int] = field(default_factory=set)
     explained: list[tuple[str, str]] = field(default_factory=list)  # (filename date, its kind)
+    trail: list[str] = field(default_factory=list)  # what each rule found, for the session log
 
 
 def _one(
@@ -142,11 +145,13 @@ def decide(
     named_date = _one(fields, "date", "original_filename")
     others = _text_dates(fields)
     date_verified = False
+    trail = decision.trail
     if owner_date is not None:
         decision.date = str(owner_date["value"])
         decision.date_sources = ["user_verified"]
         decision.applied.add(int(owner_date["id"]))
         date_verified = True
+        trail.append(f"date: the owner's {decision.date}")
     elif model_date is not None:
         decision.date = str(model_date["value"])
         decision.date_sources = ["ai_inference"]
@@ -158,6 +163,10 @@ def decide(
         decision.date_kind = str(kind["value"]) if kind else None
         if kind is not None:
             decision.applied.add(int(kind["id"]))
+        trail.append(
+            f"date: the model's {decision.date} ({decision.date_kind or 'no kind'}), "
+            + ("verified" if date_verified else "not verified")
+        )
         if named_date is not None:
             written = str(named_date["value"])
             if _compatible(written, decision.date):
@@ -165,14 +174,20 @@ def decide(
                     decision.date = written  # the filename is more precise, and agrees
                 decision.date_sources.append("original_filename")
                 decision.applied.add(int(named_date["id"]))
+                trail.append(f"date: the filename's {written} agrees")
             else:
                 matches = [kind for value, kind in others if _compatible(written, value)]
                 if matches:
                     decision.explained.append((written, matches[0]))
+                    trail.append(f"date: the filename's {written} is its {matches[0]} date")
                 else:
                     reasons.append("conflict:date")
                     decision.conflicts |= {int(named_date["id"]), int(model_date["id"])}
+                    trail.append(
+                        f"date: the filename's {written} contradicts the model's {decision.date}"
+                    )
     if decision.date is None:
+        trail.append("date: none")
         reasons.append("no_date")
     elif not date_verified:
         reasons.append("unverified_date")
@@ -185,11 +200,15 @@ def decide(
     decision.type = str(chosen_type["value"]) if chosen_type else None
     if chosen_type is not None:
         decision.applied.add(int(chosen_type["id"]))
+        trail.append(f"type: {decision.type} ({'the owner' if owner_type else 'the model'})")
     else:
         reasons.append("no_type")
+        trail.append("type: none")
     named_types = _all(fields, "type", "original_filename")
     if decision.type and named_types and owner_type is None:
         if not any(_close(str(r["value"]), decision.type) for r in named_types):
+            words = ", ".join(str(r["value"]) for r in named_types)
+            trail.append(f"type: the filename's words ({words}) are not a {decision.type}")
             reasons.append("conflict:type")
             decision.conflicts |= {int(r["id"]) for r in named_types}
             if model_type is not None:
@@ -208,8 +227,10 @@ def decide(
     decision.title = str(title["value"]) if title else None
     if title is not None:
         decision.applied.add(int(title["id"]))
+        trail.append(f"title: {decision.title} (from {title['source']})")
     else:
         reasons.append("no_title")
+        trail.append("title: none")
 
     # --- the author
     owner_author = _one(fields, "author", "user_verified")
@@ -218,6 +239,7 @@ def decide(
     if owner_author is not None:
         decision.author = str(owner_author["value"])
         decision.applied.add(int(owner_author["id"]))
+        trail.append(f"author: the owner's {decision.author}")
     elif model_author is not None:
         said = str(model_author["value"])
         canonical = _known(said, known_authors)
@@ -232,14 +254,22 @@ def decide(
         )
         if not verified:
             reasons.append("unverified_author")
+        trail.append(
+            f"author: the model's {said}"
+            + (f", known as {canonical}" if canonical else "")
+            + (", verified" if verified else ", not verified")
+        )
         if named_author is not None:
             if _same_author(str(named_author["value"]), decision.author):
                 decision.applied.add(int(named_author["id"]))
+                trail.append(f"author: the filename's {named_author['value']} agrees")
             else:
                 reasons.append("conflict:author")
                 decision.conflicts |= {int(named_author["id"]), int(model_author["id"])}
+                trail.append(f"author: the filename's {named_author['value']} is someone else")
     else:
         reasons.append("no_author")
+        trail.append("author: none")
     if decision.author and decision.author in [
         str(r["value"]) for r in _all(fields, "person", "ai_inference")
     ]:
@@ -253,6 +283,7 @@ def decide(
         ]
     if owner_date is not None and owner_author is not None:
         reasons = []  # the owner has said who and when: that is enough to file it
+        trail.append("the owner said who and when: enough to file it")
         if decision.title is None and fallback_title:
             decision.title = fallback_title
     decision.reasons = reasons
@@ -353,19 +384,42 @@ def apply_decision(
 
 
 def reconcile_document(
-    box: Any, master: Any, item_id: str, pages: Mapping[int, str], ai_ok: bool
+    box: Any,
+    master: Any,
+    item_id: str,
+    pages: Mapping[int, str],
+    ai_ok: bool,
+    doc: Optional[Document] = None,
 ) -> list[tuple[str, str]]:
-    """Decide and apply for one document (see `decide` and `apply_decision`)."""
+    """Decide and apply for one document (see `decide` and `apply_decision`); the session log
+    gets the decision's trail and where the document ended up."""
     from pathlib import Path
 
     from caixa.documents import records
+    from caixa.documents.archive import UNRECOGNIZED
 
     document = records.get_document(master, item_id)
     decision = decide(
         document["fields"], pages, known_authors(master), ai_ok,
         fallback_title=Path(str(document["original_filename"])).stem,
     )  # fmt: skip
-    return apply_decision(box, master, item_id, decision)
+    moves = apply_decision(box, master, item_id, decision)
+    record = records.load_record(master, item_id)
+    doc = doc or Document(1, 1, str(document["original_filename"]))
+    fields: dict[str, Any] = {"confident": decision.confident, "trail": decision.trail}
+    if decision.reasons:
+        fields["reasons"] = decision.reasons
+    if moves:
+        fields["moved_from"], fields["moved_to"] = moves[-1]
+    else:
+        fields["stays"] = record.file_path
+    log = session_log.current()
+    log.event(
+        "reconcile", "decide", doc, "confident" if decision.confident else "To review", **fields
+    )
+    unrecognized = UNRECOGNIZED in Path(record.file_path).parts
+    log.outcome(doc, "Unrecognized" if unrecognized else "filed", record.review, key=item_id)
+    return moves
 
 
 __all__ = [
