@@ -7,7 +7,8 @@ status: in-progress
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: 'In progress: T01 (session log module) done; T02 next'
+notes: 'In progress: T01 and T02 done (session log; examining, OCR and filing logged);
+  T03 next'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
@@ -26,7 +27,7 @@ subtasks:
   title: Finding the log, documentation and the privacy test
   status: todo
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -158,7 +159,7 @@ This ticket only makes the decisions visible.
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:**
 
@@ -223,7 +224,7 @@ Current task: T02
 - **GREEN:** the events above, written by the parent as it files each document.
 - **Verify:** `python -m pytest -q tests/test_session_log_import.py tests/test_pdf_collector.py
   tests/test_pdf_reprocess.py`, then the project verify command.
-
+- [x] done
 ### T03: Reading, reconciliation, embedding and drawing, logged
 
 - **Files:**
@@ -293,3 +294,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-25
 T01 done: caixa/session_log.py, opened by the service for PDF import and documents enrich/embed/reprocess jobs; documents.log_quotes setting (off). Files of the other jobs are named for their commands (documents enrich, …). Checked end to end on the synthetic family (header and summary; per-document lines come in T02 and T03).
+
+### 2026-11-25
+T02 done. On the synthetic family the log shows why files wait in Unrecognized at filing: most filenames give no author (why: no_author), which only the model's reading can supply. Outcomes are keyed by item id, so a later stage replaces a document's filing outcome.
