@@ -78,6 +78,12 @@ def test_no_page_text_in_the_logs(
         assert service.call("documents.search", {"query": "Supermercado"})["hits"]
         messages = [str(j.get("message") or "") + str(j.get("error") or "")
                     for j in service.call("jobs.list", {})]  # fmt: skip
+        before = set((box.logs_dir / "sessions").iterdir())
+        sessions = _read(before)
+        settings.save(box, {"documents.log_quotes": True})
+        quoted = service.wait(service.call("documents.enrich", {"all": True})["id"], 600)
+        assert quoted["status"] == "done", quoted["error"]
+        with_quotes = _read(set((box.logs_dir / "sessions").iterdir()) - before)
     finally:
         service.close()
         reader.close()
@@ -88,6 +94,23 @@ def test_no_page_text_in_the_logs(
     everything = "\n".join([*logs, *messages, out.out, out.err, caplog.text])
     leaked = sorted(word for word in _page_words(pdf_family) if word in everything)
     assert leaked == []
+    # The session logs (D26 as amended): values, never page text, passages or summaries; the
+    # model's quotes and replies only once the owner asks for them.
+    assert sessions.count("--- summary: done") == 3  # the import, the embedding, the reading
+    assert sorted(word for word in _page_words(pdf_family) if word in sessions) == []
+    with box.master() as master:
+        written = [s for (s,) in master.connection.execute("SELECT summary FROM documents")]
+        passages = [t for (t,) in master.connection.execute("SELECT text FROM chunks")]
+    assert [s for s in written if s] and passages
+    assert not [s for s in written if s and s in sessions]
+    assert not [p for p in passages if len(p) > 40 and p in sessions]
+    assert "author_quote" not in sessions and '"reply":' not in sessions
+    assert "author_quote" in with_quotes and '"reply":' in with_quotes
+
+
+def _read(paths: set[Path]) -> str:
+    """These session logs' text and JSON lines."""
+    return "\n".join(p.read_text(encoding="utf-8") for p in sorted(paths))
 
 
 @pytest.mark.skipif(not hasattr(__import__("os"), "geteuid"), reason="POSIX permissions")

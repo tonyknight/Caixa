@@ -216,6 +216,50 @@ def test_only_document_jobs_have_a_session() -> None:
     assert session_kind({"kind": "refresh", "collector": None}) is None
 
 
+def test_a_finished_document_job_names_its_session_log(service: Any, tmp_path: Path) -> None:
+    done = service.wait(service.documents_embed()["id"], 60)
+    assert done["status"] == "done"
+    where = done["result"]["session_log"]
+    assert where.startswith(".caixa/logs/sessions/")
+    assert where.endswith(f"documents embed (job {done['id']}).log")
+    assert (tmp_path / "Box" / where).is_file()
+
+
+def test_the_latest_session_or_a_jobs_can_be_read(service: Any) -> None:
+    from caixa.service import ServiceError
+
+    first = service.wait(service.documents_embed()["id"], 60)
+    second = service.wait(service.documents_embed()["id"], 60)
+    latest = service.call("documents.log", {})
+    assert latest["job"] == second["id"] and latest["text"].startswith("Caixa ")
+    assert latest["path"] == second["result"]["session_log"]
+    assert latest["events_path"] == latest["path"].removesuffix(".log") + ".jsonl"
+    assert service.call("documents.log", {"job": first["id"]})["path"] == (
+        first["result"]["session_log"]
+    )
+    with pytest.raises(ServiceError) as missing:
+        service.call("documents.log", {"job": 999})
+    assert missing.value.kind == "not_found"
+
+
+def test_the_command_line_prints_a_session_and_names_it_in_reports(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from caixa import cli
+
+    box = Box.create(tmp_path / "Box", name="Our box")
+    assert cli.main(["documents", "log", "--box", str(box.root)]) == 1
+    assert "No session log" in capsys.readouterr().err
+    assert cli.main(["documents", "embed", "--box", str(box.root)]) == 0
+    assert "Session log: .caixa/logs/sessions/" in capsys.readouterr().out
+    assert cli.main(["documents", "log", "--box", str(box.root)]) == 0
+    out = capsys.readouterr().out
+    assert "documents embed (job 1)" in out and "--- summary: done" in out
+    assert cli.main(["documents", "log", "--job", "1", "--json", "--box", str(box.root)]) == 0
+    events = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+    assert events[0]["event"] == "session" and events[-1]["event"] == "summary"
+
+
 def test_a_document_job_that_fails_leaves_a_closed_session_with_the_error(
     service: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -173,6 +173,11 @@ def build_parser() -> argparse.ArgumentParser:
     again.add_argument("--failed", action="store_true", help="every document OCR could improve")
     again.add_argument("--languages", help="Tesseract languages for this run, such as eng+por")
     _box_argument(again)
+    told = document_commands.add_parser(
+        "log", help="a document job's session log: what was decided about each document, and why"
+    )
+    told.add_argument("--job", type=int, help="that job's (default: the latest)")
+    _box_argument(told)
     find = document_commands.add_parser(
         "search", help='find documents by their words ("a phrase", prefix*), and their facts'
     )
@@ -443,7 +448,21 @@ def _result_text(result: dict[str, Any]) -> str:
         lines.append(f"{_plural(len(unresolved), 'handle')} still unnamed: {shown}")
         lines.append("Name them with 'caixa people link'.")
     lines += [f"Note: {w}" for w in result["warnings"]]
+    if result.get("session_log"):
+        lines.append(f"Session log: {result['session_log']}")
     return "\n".join(lines)
+
+
+def _session_line(result: dict[str, Any]) -> None:
+    if result.get("session_log"):
+        print(f"Session log: {result['session_log']}")
+
+
+def _failed(done: dict[str, Any]) -> int:
+    """Say why a document job did not finish, and where to read what it decided."""
+    print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
+    print(f"What it decided, and why: caixa documents log --job {done['id']}", file=sys.stderr)
+    return 1
 
 
 def _cmd_import(args: argparse.Namespace) -> int:
@@ -846,15 +865,16 @@ def _cmd_documents(args: argparse.Namespace) -> int:
         finally:
             service.close()
         if done["status"] != "done":
-            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
-            return 1
+            return _failed(done)
         result = done["result"]
         if args.json:
             _print_json(result)
-        elif result.get("reason"):
+            return 0
+        if result.get("reason"):
             print(f"Nothing was embedded: {result['message']}")
         else:
             print(f"{result['embedded']} documents embedded, {result['failed']} failed.")
+        _session_line(result)
         return 0
     if args.action == "enrich":
         service = _open(args)
@@ -864,18 +884,19 @@ def _cmd_documents(args: argparse.Namespace) -> int:
         finally:
             service.close()
         if done["status"] != "done":
-            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
-            return 1
+            return _failed(done)
         result = done["result"]
         if args.json:
             _print_json(result)
-        elif result.get("reason"):
+            return 0
+        if result.get("reason"):
             print(f"Nothing was read: {result['message']}")
         else:
             print(
                 f"{result['enriched']} read, {result['needs_review']} need review, "
                 f"{result['failed']} failed."
             )
+        _session_line(result)
         return 0
     if args.action == "reprocess":
         service = _open(args)
@@ -887,18 +908,32 @@ def _cmd_documents(args: argparse.Namespace) -> int:
         finally:
             service.close()
         if done["status"] != "done":
-            print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
-            return 1
+            return _failed(done)
         result = done["result"]
         if args.json:
             _print_json(result)
-        else:
-            print(
-                f"{result['reprocessed']} reprocessed: {result['improved']} improved, "
-                f"{result['failed']} still failing (languages {result['languages']})."
-            )
+            return 0
+        print(
+            f"{result['reprocessed']} reprocessed: {result['improved']} improved, "
+            f"{result['failed']} still failing (languages {result['languages']})."
+        )
+        _session_line(result)
         return 0
     service = _open(args, read_only=True)
+    if args.action == "log":
+        try:
+            told = service.documents_log(job=args.job)
+        except ServiceError as error:
+            print(f"caixa: {error}", file=sys.stderr)
+            return 1
+        if args.json:  # the JSON-lines twin, one event per line
+            print(
+                (service._require_box().root / told["events_path"]).read_text(encoding="utf-8"),
+                end="",
+            )
+        else:
+            print(f"{told['path']}\n\n{told['text']}", end="")
+        return 0
     if args.action == "ask":
         answered = service.documents_ask(args.question)
         if args.json:

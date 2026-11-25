@@ -961,8 +961,10 @@ class Service:
         with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
             with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
                 try:
-                    with session_log.opened(box, number, kind) if kind else _no_session():
+                    with session_log.opened(box, number, kind) if kind else _no_session() as told:
                         result = self._execute(box, job, progress)
+                    if isinstance(told, session_log.SessionLog):
+                        result["session_log"] = told.path.relative_to(box.root).as_posix()
                     outcome = {"status": "done", "result": result, "error": None}
                 except JobCancelled:
                     outcome = {"status": "cancelled", "message": "Cancelled.", "error": None}
@@ -1854,6 +1856,35 @@ class Service:
                 embed=embed, model=model,
             )  # fmt: skip
         return {"query": document_search.fts_query(query), "hits": hits}
+
+    @method("documents.log")
+    def documents_log(self, job: Optional[int] = None) -> dict[str, Any]:
+        """A document job's session log (`caixa.session_log`): the latest, or job `job`'s. Its
+        path and its JSON-lines twin's, relative to the box, its job and its text."""
+        box = self._require_box()
+        folder = box.logs_dir / "sessions"
+        found = {}
+        for path in folder.glob("*.log") if folder.is_dir() else []:
+            named = re.search(r"\(job (\d+)\)\.log$", path.name)
+            if named and (job is None or int(named.group(1)) == int(job)):
+                found[(path.name[:19], int(named.group(1)))] = path  # started, then job
+        if not found:
+            raise ServiceError(
+                "not_found",
+                (
+                    f"No session log for job {job}."
+                    if job is not None
+                    else "No session log yet: "
+                    "PDF imports and the documents' enrich, embed and reprocess jobs write one."
+                ),
+            )
+        (_, number), path = max(found.items())
+        return {
+            "path": path.relative_to(box.root).as_posix(),
+            "events_path": path.with_suffix(".jsonl").relative_to(box.root).as_posix(),
+            "job": number,
+            "text": path.read_text(encoding="utf-8", errors="replace"),
+        }
 
     @method("documents.enrich", write=True)
     def documents_enrich(
