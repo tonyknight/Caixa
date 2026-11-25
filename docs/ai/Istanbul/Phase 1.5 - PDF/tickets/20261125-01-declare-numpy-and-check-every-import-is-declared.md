@@ -1,22 +1,21 @@
 ---
 id: 20261125-01-declare-numpy-and-check-every-import-is-declared
-title: "Declare numpy, and check every import is declared"
+title: Declare numpy, and check every import is declared
 type: bug
 priority: high
 status: todo
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: "Hot fix: numpy is used by validation, embeddings, search and Ask but not declared"
+notes: 'Hot fix: numpy is used by validation, embeddings, search and Ask but not declared'
 parent:
 depends_on: []
 subtasks:
 - id: T01
   title: numpy declared, imports checked, doctor and the import check packages first
   status: todo
-plan_status: draft
+plan_status: approved
 ---
-
 ## Description
 
 The maintainer's first real PDF import on the Mac stopped at once with
@@ -34,25 +33,19 @@ no test noticed. A scan of every import in `caixa/` (including imports inside fu
 | `pymupdf` | collector, inspection, OCR, validation | yes |
 | `ocrmypdf`, `pikepdf` | OCR, validation | optional (`[ocr]`); their absence is handled |
 
-**Why it failed twice:**
+**The two failures:**
 
-1. The first failure was validation, the first numpy use, which runs in the worker processes as
-   soon as a scanned page has been OCR'd.
-2. The second came after filing (files were in the box), so the reading stages had begun. The
-   next numpy use in that order is `embed_documents`, which imports numpy before anything else.
-   It runs in the long-lived `caixa serve` process, and only when an embedding model is set.
-   This also explains the other symptoms: drawing the document pages comes after embedding and
-   never ran, so the window showed nothing finished.
-
-   Why numpy was still missing there needs the traceback from `.caixa/logs/job-<N>.log` and
-   `caixa doctor`'s output. The likeliest explanation is that `caixa serve` runs under a
-   different Python from the `pip` that installed numpy, or was started before it was installed.
+1. The first was numpy: validation (its first use) runs in the worker processes as soon as a
+   scanned page has been OCR'd.
+2. The second, an hour in, was **not** numpy. The job log shows a `TypeError` in
+   `enrich.verify_quote`: a model answered an author's `evidence` with a list. That is
+   `20261125-03`.
 
 **This ticket:** declare what Caixa imports, prove it with a test, and say plainly (in
 `caixa doctor` and before an import reads its first file) when a package is missing from the
 Python that Caixa actually runs. That turns a failure an hour in into one at second zero.
 
-Surviving a failure partway through a long run is a separate ticket (to plan).
+Surviving a failure partway through a long run is `20261125-03`.
 
 ## Acceptance criteria
 
@@ -84,7 +77,7 @@ Surviving a failure partway through a long run is a separate ticket (to plan).
 
 ## Implementation plan
 
-Status: draft
+Status: approved
 Current task:
 
 ### T01: numpy declared, imports checked, doctor and the import check packages first
@@ -126,3 +119,5 @@ Append-only running log. Each entry dated.
 
 - 2026-11-25: Planned from the maintainer's first real import. Waiting for the maintainer's yes
   on the plan.
+- 2026-11-25: Approved by the maintainer. The job log showed the second failure was a model's
+  answer, not numpy (`20261125-03`); the diagnosis above is corrected.

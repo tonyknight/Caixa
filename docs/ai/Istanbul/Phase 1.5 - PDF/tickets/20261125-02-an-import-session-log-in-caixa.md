@@ -1,16 +1,18 @@
 ---
 id: 20261125-02-an-import-session-log-in-caixa
-title: "An import session log in .caixa"
+title: An import session log in .caixa
 type: feature
 priority: high
 status: todo
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: "Hot fix: a verbose log of each document import's decisions; plan waits on D26 and the file name"
+notes: 'Hot fix: a verbose log of each document import''s decisions; plan waits on
+  D26 and the file name'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
+- 20261125-03-one-document-s-error-no-longer-ends-an-import
 subtasks:
 - id: T01
   title: The session log
@@ -24,9 +26,8 @@ subtasks:
 - id: T04
   title: Finding the log, documentation and the privacy test
   status: todo
-plan_status: draft
+plan_status: approved
 ---
-
 ## Description
 
 The maintainer's first real import (about 150 PDFs, about an hour) ended with more than 70% of
@@ -75,11 +76,11 @@ bake-off between Apple Intelligence and the local Qwen model.
 
 This ticket only makes the decisions visible.
 
-## Decisions needed before code (maintainer)
+## Decisions (maintainer, 2026-11-25)
 
-1. **D26 privacy.** The Requirements say: *"No page text or extracted value goes into a log."*
-   A log that explains decisions needs extracted values (author, date, title). The proposal is
-   to amend D26 as follows:
+1. **D26 privacy**, amended as proposed. The Requirements said: *"No page text or extracted value
+   goes into a log."* A log that explains decisions needs extracted values (author, date,
+   title), so D26 now reads:
    - **Always allowed** in the session log: extracted values (type, category, title, author,
      date and its kind, tags); review reasons; page numbers; whether each quote was verified;
      sizes, times and errors.
@@ -91,7 +92,7 @@ This ticket only makes the decisions visible.
 
    The master database already holds all of these values and quotes, in the same `.caixa`
    folder.
-2. **Where it lives and what it is called** (a file meant for people). Proposal:
+2. **Where it lives and what it is called**, as proposed:
    `.caixa/logs/sessions/<YYYY-MM-DD HH-MM-SS> <job kind> (job <N>).log`, for example
    `2026-11-25 00-20-14 PDF import (job 12).log`. A `.jsonl` twin with the same events, one JSON
    object per line, is there for scoring the bake-off. Sessions are kept until the owner deletes
@@ -156,7 +157,7 @@ This ticket only makes the decisions visible.
 
 ## Implementation plan
 
-Status: draft
+Status: approved
 Current task:
 
 **Design:**
@@ -286,3 +287,6 @@ Append-only running log. Each entry dated.
 - 2026-11-25: Planned after the maintainer's first real import (about 150 PDFs, more than 70% in
   Unrecognized, stopped by a missing numpy). Waiting for the maintainer on D26 and the file name
   before code.
+- 2026-11-25: Approved: D26 amended (values always; quotes and raw replies opt-in; never page
+  text, passages or summaries) and the sessions folder as proposed. Runs after `20261125-03`, so
+  the log records the failures that ticket catches.
