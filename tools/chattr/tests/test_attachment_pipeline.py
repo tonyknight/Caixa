@@ -25,6 +25,19 @@ def no_exiftool(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("PATH", str(empty) + os.pathsep + "/usr/bin" + os.pathsep + "/bin")
     for tool in ("exiftool",):
         assert not (empty / tool).exists()
+    # The PATH above still holds /usr/bin, where apt installs exiftool: an exiftool is found only
+    # when a test made its own (a fake, under its tmp_path).
+    import shutil
+
+    real_which = shutil.which
+
+    def which(name: str, *args: object, **kwargs: object) -> "str | None":
+        found = real_which(name, *args, **kwargs)  # type: ignore[arg-type]
+        if name == "exiftool" and found and not Path(found).is_relative_to(tmp_path):
+            return None
+        return found
+
+    monkeypatch.setattr(shutil, "which", which)
 
 
 def _source(folder: Path, name: str, data: bytes) -> Path:
