@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import re
+import traceback
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Optional, Sequence
@@ -40,7 +41,7 @@ from chattr.translation import (
 
 from caixa import settings, summaries
 from caixa.box import Box
-from caixa.collectors.base import Progress
+from caixa.collectors.base import Cancelled, Progress
 from caixa.documents import evidence, records
 from caixa.documents import types as document_types
 from caixa.documents.tags import normalize_tags, starter_tags
@@ -633,57 +634,89 @@ def enrich_documents(
                     "documents wait to be read later."
                 )
                 break
-            with box.master() as master:
-                document = _input(master, item_id)
-                _set_status(master, item_id, "processing")
-            progress(Progress("enriching", number, len(chosen), document.filename))
-            found: Optional[Classified] = None
-            typed: Optional[Classified] = None
-            problem: Optional[str] = None
-            type_problem: Optional[str] = None
             try:
-                found = classify(client, document, int(info["budget"]))
-            except TranslationError as failure:
-                problem = str(failure)
-            kind = str(found.answer.get("type")) if found is not None and found.ok else ""
-            if kind in TYPE_FIELDS:
-                try:
-                    typed = classify_type(client, document, kind, int(info["budget"]))
-                except TranslationError as failure:
-                    type_problem = str(failure)
-            with box.master() as master:
-                if found is None:
-                    status = "failed"
-                elif found.ok:
-                    status = "completed"
-                else:
-                    status, problem = "needs_review", found.error
-                run = records.add_run(
-                    master, item_id, "enrich", status, tool=info["provider"],
-                    model=info["model"], provider=info["provider"],
-                    prompt_version=PROMPT_VERSION, schema_version=SCHEMA_VERSION,
-                    report={
-                        "attempts": found.attempts if found else 0,
-                        "error": problem,
-                        "type_attempts": typed.attempts if typed else 0,
-                        "type_error": typed.error if typed and not typed.ok else type_problem,
-                    },
-                )  # fmt: skip
-                if found is not None and found.ok:
-                    records.clear_fields(master, item_id, "ai_inference")
-                    _record(master, item_id, found.answer, run)
-                    if typed is not None and typed.ok:
-                        _record_type(master, item_id, typed.answer, run)
-                    _summary_and_tags(master, item_id, found.answer, str(info["model"]))
-                _set_status(master, item_id, status)
-                if status in ("completed", "needs_review"):
-                    from caixa.documents.reconcile import reconcile_document
-
-                    moved += reconcile_document(
-                        box, master, item_id, dict(document.pages), status == "completed"
-                    )
+                with box.master() as master:
+                    document = _input(master, item_id)
+                    _set_status(master, item_id, "processing")
+                progress(Progress("enriching", number, len(chosen), document.filename))
+                status = _read_one(box, client, info, item_id, document, moved)
+            except Cancelled:
+                raise
+            except Exception as error:  # one document's surprise must not cost the others
+                traceback.print_exc()
+                status = "failed"
+                _record_failure(box, info, item_id, error)
             result["enriched" if status == "completed" else status] += 1
             in_a_row = in_a_row + 1 if status == "failed" else 0
     finally:
         close(client)
     return result
+
+
+def _read_one(
+    box: Box,
+    client: Any,
+    info: Mapping[str, Any],
+    item_id: str,
+    document: DocumentInput,
+    moved: list[tuple[str, str]],
+) -> str:
+    """Read one document, record what the model proposed and reconcile it; returns its status."""
+    found: Optional[Classified] = None
+    typed: Optional[Classified] = None
+    problem: Optional[str] = None
+    type_problem: Optional[str] = None
+    try:
+        found = classify(client, document, int(info["budget"]))
+    except TranslationError as failure:
+        problem = str(failure)
+    kind = str(found.answer.get("type")) if found is not None and found.ok else ""
+    if kind in TYPE_FIELDS:
+        try:
+            typed = classify_type(client, document, kind, int(info["budget"]))
+        except TranslationError as failure:
+            type_problem = str(failure)
+    with box.master() as master:
+        if found is None:
+            status = "failed"
+        elif found.ok:
+            status = "completed"
+        else:
+            status, problem = "needs_review", found.error
+        run = records.add_run(
+            master, item_id, "enrich", status, tool=info["provider"],
+            model=info["model"], provider=info["provider"],
+            prompt_version=PROMPT_VERSION, schema_version=SCHEMA_VERSION,
+            report={
+                "attempts": found.attempts if found else 0,
+                "error": problem,
+                "type_attempts": typed.attempts if typed else 0,
+                "type_error": typed.error if typed and not typed.ok else type_problem,
+            },
+        )  # fmt: skip
+        if found is not None and found.ok:
+            records.clear_fields(master, item_id, "ai_inference")
+            _record(master, item_id, found.answer, run)
+            if typed is not None and typed.ok:
+                _record_type(master, item_id, typed.answer, run)
+            _summary_and_tags(master, item_id, found.answer, str(info["model"]))
+        _set_status(master, item_id, status)
+        if status in ("completed", "needs_review"):
+            from caixa.documents.reconcile import reconcile_document
+
+            moved += reconcile_document(
+                box, master, item_id, dict(document.pages), status == "completed"
+            )
+    return status
+
+
+def _record_failure(box: Box, info: Mapping[str, Any], item_id: str, error: Exception) -> None:
+    """A document whose reading raised: `failed`, with the error in its run (the traceback went to
+    the job's log). Whatever its reading had written was rolled back with it."""
+    with box.master() as master:
+        records.add_run(
+            master, item_id, "enrich", "failed", tool=info["provider"], model=info["model"],
+            provider=info["provider"], prompt_version=PROMPT_VERSION,
+            schema_version=SCHEMA_VERSION, report={"error": f"{type(error).__name__}: {error}"},
+        )  # fmt: skip
+        _set_status(master, item_id, "failed")

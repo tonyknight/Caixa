@@ -404,8 +404,45 @@ def test_list_shaped_evidence_every_time_goes_to_review_and_the_import_ends(
     assert all(d["ai_status"] == "completed" for d in others)
 
 
+def test_an_unexpected_error_on_one_document_does_not_stop_the_others(
+    server: StubServer, family: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    real = enrich.classify
+
+    def classify(client: Any, document: DocumentInput, budget: int) -> Any:
+        if document.filename == "2022 Car Insurance.pdf":
+            raise TypeError("normalize() argument 2 must be str, not list")
+        return real(client, document, budget)
+
+    monkeypatch.setattr(enrich, "classify", classify)
+    box = _box(tmp_path, server)
+    _import(box, family)
+    documents = _documents(box)
+    bill = documents["2022 Car Insurance.pdf"]
+    assert bill["ai_status"] == "failed"
+    run = next(r for r in bill["runs"] if r["stage"] == "enrich")
+    assert "TypeError" in json.dumps(run["report"])
+    others = [
+        d
+        for n, d in documents.items()
+        if n not in ("2022 Car Insurance.pdf", "extrato_protegido.pdf")
+    ]
+    assert all(d["ai_status"] == "completed" for d in others)
 
 
+def test_cancelling_while_documents_are_read_still_cancels(
+    server: StubServer, family: Path, tmp_path: Path
+) -> None:
+    from caixa.collectors.pdfImport import PdfCollector
+    from caixa.service import JobCancelled
+
+    def progress(step: Any) -> None:
+        if step.stage == "enriching" and step.current == 2:
+            raise JobCancelled()
+
+    box = _box(tmp_path, server)
+    with pytest.raises(JobCancelled):
+        PdfCollector().run(box, family, {"workers": 1}, progress)
 
 
 @pytest.fixture

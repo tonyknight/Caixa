@@ -304,3 +304,53 @@ def test_a_missing_package_stops_the_import_before_any_file_is_read(
     assert "numpy" in raised.value.summary
     assert f"{sys.executable} -m pip install numpy" in str(raised.value)
 
+
+# --- One file or one stage cannot end the import (20261125-03) -----------------------------------
+
+
+def _without_ocr(box: Box) -> Box:
+    from caixa import settings
+
+    settings.save(box, {"documents.ocr": False, "documents.enrich": False})
+    return box
+
+
+def test_a_file_that_breaks_examination_is_reported_and_the_rest_are_filed(
+    family: Path, box: Box, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.collectors import pdfImport
+
+    real = pdfImport.inspect_pdf
+
+    def inspect(doc: Any) -> Any:
+        if Path(doc.name).name == "2022 Car Insurance.pdf":
+            raise TypeError("an unexpected error")
+        return real(doc)
+
+    monkeypatch.setattr(pdfImport, "inspect_pdf", inspect)
+    result = PdfCollector().run(_without_ocr(box), family, {"workers": 1}, _quiet)
+    assert result.inserted == READABLE - 1
+    warning = next(w for w in result.warnings if "2022 Car Insurance.pdf" in w)
+    assert "could not be examined" in warning and "TypeError" in warning
+
+
+@pytest.mark.parametrize("stage", ["enrich", "embed"])
+def test_a_later_stage_that_fails_leaves_a_warning_and_the_pages_drawn(
+    stage: str, family: Path, box: Box, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.documents import embeddings, enrich
+
+    def broken(*args: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("something unexpected")
+
+    if stage == "enrich":
+        monkeypatch.setattr(enrich, "enrich_documents", broken)
+    else:
+        monkeypatch.setattr(embeddings, "model_name", lambda values: "stand-in-embeddings")
+        monkeypatch.setattr(embeddings, "embed_documents", broken)
+    result = PdfCollector().run(_without_ocr(box), family, {"workers": 1}, _quiet)
+    assert result.inserted == READABLE
+    named = "Reading" if stage == "enrich" else "Embedding"
+    warning = next(w for w in result.warnings if w.startswith(named))
+    assert "RuntimeError" in warning and f"caixa documents {stage}" in warning
+    assert result.pages > 0 and (box.root / "Documents" / "PDF" / "PDF.html").is_file()

@@ -41,7 +41,7 @@ from chattr.translation import TranslationError, is_local_endpoint
 from caixa import owner as owner_file
 from caixa import apple_intelligence, settings, summaries, translation, undo
 from caixa.box import LAYOUT, Box, BoxError
-from caixa.collectors.base import Collector, PeopleAware, Progress
+from caixa.collectors.base import Cancelled, Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
 from caixa.documents import records as document_records
 from caixa.collectors.messages import alias_kind
@@ -138,7 +138,7 @@ def _readable(folder: Path) -> bool:
     return True
 
 
-class JobCancelled(Exception):
+class JobCancelled(Cancelled):
     """Raised inside a running import, from its progress callback, when a person cancelled it."""
 
 
