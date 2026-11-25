@@ -241,3 +241,61 @@ def test_status_counts_what_is_in_the_box(tmp_path: Path) -> None:
     assert status["imports"] == [] and status["by_type"] == {}
     assert box.master_path == box.root / ".caixa" / "caixa.sqlite"
     assert box.work_dir("chattr") == box.root / ".caixa" / "work" / "chattr"
+
+
+# --- Caixa's own collectors, whatever the install recorded (hot fix 20261125-01) ----------------
+
+
+def _installed(*names: str) -> list[Any]:
+    from importlib.metadata import entry_points
+
+    return [e for e in entry_points(group="caixa.collectors") if e.name in names]
+
+
+def test_a_stale_install_still_has_the_pdf_collector() -> None:
+    stale = _installed("chattr")  # installed before the pdf entry point existed
+    registry = discover(stale, built_in=True)
+    ids = [c.info.id for c in registry.all()]
+    assert "pdf" in ids and "whatsapp" in ids
+    assert len(ids) == len(set(ids))
+    assert registry.fallbacks == ["pdf"] and registry.problems == []
+
+
+def test_an_installed_entry_point_comes_first() -> None:
+    registry = discover(_installed("chattr", "pdf"), built_in=True)
+    assert registry.fallbacks == []
+    assert [c.info.id for c in registry.all()].count("pdf") == 1
+
+
+def test_given_plugins_alone_are_loaded_unless_asked() -> None:
+    registry = discover([_EntryPoint("fake", lambda: Fake())])
+    assert [c.info.id for c in registry.all()] == ["fake"] and registry.fallbacks == []
+
+
+def _broken() -> Any:
+    raise ImportError("No module named 'something'")
+
+
+def test_doctor_tells_of_fallbacks_and_broken_collectors() -> None:
+    from caixa import diagnostics
+    from caixa.service import Service
+
+    registry = discover([*_installed("chattr"), _EntryPoint("broken", _broken)], built_in=True)
+    text = diagnostics.report(Service(registry=registry, read_only=True))
+    section = text[text.index("== Collectors ==") :]
+    assert "pdf" in section and "whatsapp" in section
+    assert "not in this install's records" in section and "tools/install.sh" in section
+    assert "broken: ImportError: No module named 'something'" in section
+
+
+def test_the_collectors_command_tells_of_a_broken_collector(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from caixa import cli
+
+    registry = discover([_EntryPoint("broken", _broken)], built_in=True)
+    monkeypatch.setattr("caixa.service.discover", lambda: registry)
+    assert cli.main(["collectors"]) == 0
+    captured = capsys.readouterr()
+    assert "pdf" in captured.out
+    assert "broken: ImportError" in captured.err

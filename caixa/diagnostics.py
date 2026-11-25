@@ -66,6 +66,19 @@ def _programs() -> list[str]:
     return lines
 
 
+def _collectors(service: "Service") -> list[str]:
+    registry = service.registry
+    lines = [", ".join(c.info.id for c in registry.all()) or "none found"]
+    if registry.fallbacks:
+        lines.append(
+            f"{', '.join(registry.fallbacks)}: not in this install's records, loaded all the same; "
+            "install again to bring them up to date (./tools/install.sh, or "
+            'pip install -e tools/chattr -e ".[ocr]")'
+        )
+    lines += [f"could not load {problem}" for problem in registry.problems]
+    return lines
+
+
 def _interface() -> list[str]:
     home = caixa_home()
     lines = [f"Caixa's folder: {home}"]
@@ -159,6 +172,7 @@ def report(
             ],
         ),
         ("Programs", _programs()),
+        ("Collectors", _collectors(service)),
         ("Interface", _interface()),
         ("Box", _box(service)),
     ]

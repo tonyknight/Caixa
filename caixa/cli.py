@@ -398,7 +398,10 @@ def _cmd_doctor(args: argparse.Namespace) -> int:
 
 
 def _cmd_collectors(args: argparse.Namespace) -> int:
-    described = Service().collectors_list()
+    service = Service()
+    for problem in service.registry.problems:
+        print(f"caixa: a collector could not be loaded: {problem}", file=sys.stderr)
+    described = service.collectors_list()
     if args.id:
         found = [c for c in described if c["id"] == args.id]
         if not found:

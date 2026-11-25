@@ -6,17 +6,29 @@ A package registers collectors in its `pyproject.toml`:
     chattr = "caixa.collectors.chattr:collectors"
 
 The entry point is a callable returning one collector or a list of them. One broken plugin never
-hides the others: its problem is recorded on the registry (`problems`) for the UI to show.
+hides the others: its problem is recorded on the registry (`problems`) for `caixa doctor` and
+`caixa collectors` to tell.
+
+Entry points are written into a package's metadata when it is installed, not read from
+`pyproject.toml` as it runs: a checkout brought up to date with `git pull` but not installed
+again keeps the list it was installed with. So Caixa's own collectors (`BUILT_IN`) are loaded
+even when the installed metadata lacks them; such a fallback is noted (`fallbacks`), so the doctor
+can say to install again.
 """
 
 from __future__ import annotations
 
-from importlib.metadata import entry_points
+from importlib.metadata import EntryPoint, entry_points
 from typing import Any, Callable, Iterable, Optional
 
 from caixa.collectors.base import Collector
 
 GROUP = "caixa.collectors"
+#: Caixa's own collectors, as `pyproject.toml` registers them.
+BUILT_IN = {
+    "chattr": "caixa.collectors.chattr:collectors",
+    "pdf": "caixa.collectors.pdfImport:collectors",
+}
 
 
 class Registry:
@@ -24,6 +36,8 @@ class Registry:
         self._collectors: dict[str, Collector] = {}
         self._sources: dict[str, str] = {}
         self.problems: list[str] = []
+        #: Caixa's own entry points the installed metadata lacked, loaded all the same.
+        self.fallbacks: list[str] = []
 
     def register(self, collector: Collector, source: str = "") -> None:
         if not isinstance(collector, Collector):
@@ -60,10 +74,18 @@ class Registry:
         ]
 
 
-def discover(plugins: Optional[Iterable[Any]] = None) -> Registry:
-    """Load every registered collector (`plugins` replaces the installed entry points, for tests)."""
+def discover(plugins: Optional[Iterable[Any]] = None, built_in: Optional[bool] = None) -> Registry:
+    """Load every registered collector, and Caixa's own whether or not the install recorded them
+    (see the module text). `plugins` replaces the installed entry points, for tests; then the
+    built-in collectors are added only with `built_in=True`."""
     registry = Registry()
     found = list(plugins) if plugins is not None else list(entry_points(group=GROUP))
+    if built_in if built_in is not None else plugins is None:
+        named = {getattr(plugin, "name", None) for plugin in found}
+        for name, value in BUILT_IN.items():
+            if name not in named:
+                found.append(EntryPoint(name=name, value=value, group=GROUP))
+                registry.fallbacks.append(name)
     for plugin in found:
         name = getattr(plugin, "name", "?")
         try:
