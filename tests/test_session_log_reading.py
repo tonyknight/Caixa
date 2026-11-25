@@ -126,7 +126,8 @@ def test_raw_replies_and_quotes_are_logged_only_when_asked(
 ) -> None:
     events = _import(_box(tmp_path, server, **{"documents.log_quotes": True}), family)
     read = _by(events, "read")[STATEMENT]
-    assert '"type"' in read["attempts"][0]["reply"]
+    reply = json.loads(read["attempts"][0]["reply"])
+    assert reply["type"] and "summary" not in reply  # D26: never a summary, even opted in
     assert _by(events, "propose")[STATEMENT]["author_quote"]
 
 

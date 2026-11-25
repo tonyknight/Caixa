@@ -489,6 +489,8 @@ def _cmd_import(args: argparse.Namespace) -> int:
         return 130
     finally:
         service.close()
+    if done["status"] != "done" and args.collector == "pdf":
+        return _failed(done)
     if done["status"] != "done":
         print(f"caixa: {done['error'] or done['status']}", file=sys.stderr)
         return 1

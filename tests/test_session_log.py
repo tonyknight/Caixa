@@ -189,6 +189,52 @@ def test_a_session_that_cannot_be_written_does_not_stop_the_work(
     assert type(log) is session_log.QuietLog
 
 
+def test_a_log_that_stops_being_written_costs_only_the_log(
+    box: Box, capsys: pytest.CaptureFixture[str]
+) -> None:
+    with session_log.opened(box, 3, "PDF import") as log:
+        assert isinstance(log, SessionLog)
+        log.event("import", "file", CAR, pages=1)
+
+        def refuse(text: str) -> int:
+            raise OSError("No space left on device")
+
+        log._text.write = refuse  # type: ignore[method-assign]
+        log.event("import", "file", CAR, pages=2)
+        log.event("import", "file", CAR, pages=3)
+        try:
+            raise RuntimeError("one document's error")
+        except RuntimeError as error:
+            log.error("read", error, CAR)
+    assert log._text.closed and log._events.closed
+    assert capsys.readouterr().err.count("The session log") == 1
+    assert [e.get("pages") for e in _events(log)][1:] == [1]
+
+
+def test_an_error_that_ends_the_job_names_its_stage_and_document_once(box: Box) -> None:
+    with pytest.raises(OSError):
+        with session_log.opened(box, 3, "PDF import") as log:
+            with log.stage("file"), log.on(CAR):
+                raise OSError("the box went away")
+    assert isinstance(log, SessionLog)
+    errors = [e for e in _events(log) if e["event"] == "error"]
+    assert [(e["stage"], e["document"]) for e in errors] == [("file", str(CAR))]
+    assert f"{CAR} in file: OSError: the box went away" in log.path.read_text()
+
+
+def test_an_error_logged_where_it_happened_is_not_logged_again(box: Box) -> None:
+    with pytest.raises(RuntimeError):
+        with session_log.opened(box, 3, "documents enrich") as log:
+            try:
+                raise RuntimeError("stand-in failure")
+            except RuntimeError as error:
+                log.error("read", error, CAR)
+                raise
+    assert isinstance(log, SessionLog)
+    assert [e["stage"] for e in _events(log) if e["event"] == "error"] == ["read"]
+    assert _events(log)[-1]["errors"][0]["stage"] == "read"
+
+
 # --- Jobs -----------------------------------------------------------------------------------------
 
 

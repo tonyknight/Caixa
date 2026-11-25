@@ -31,7 +31,7 @@ import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Iterator, Mapping, Optional, Sequence, TypeVar, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
 from chattr.pages import templates_fingerprint
@@ -151,11 +151,6 @@ def session_kind(job: Mapping[str, Any]) -> Optional[str]:
     if job["kind"] == "import" and job.get("collector") == "pdf":
         return "PDF import"
     return SESSION_KINDS.get(job["kind"])
-
-
-@contextlib.contextmanager
-def _no_session() -> Iterator[None]:
-    yield
 
 
 class JobCancelled(Cancelled):
@@ -961,7 +956,9 @@ class Service:
         with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
             with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
                 try:
-                    with session_log.opened(box, number, kind) if kind else _no_session() as told:
+                    with (
+                        session_log.opened(box, number, kind) if kind else contextlib.nullcontext()
+                    ) as told:
                         result = self._execute(box, job, progress)
                     if isinstance(told, session_log.SessionLog):
                         result["session_log"] = told.path.relative_to(box.root).as_posix()

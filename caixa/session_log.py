@@ -71,6 +71,9 @@ class Document:
 class QuietLog:
     """The log stages write to when no session is open: it keeps nothing."""
 
+    failed_in: Optional[str] = None  # the innermost stage an error left
+    failed_on: Optional[Document] = None  # the document it left
+
     def event(
         self,
         stage: str,
@@ -95,6 +98,11 @@ class QuietLog:
 
     @contextlib.contextmanager
     def stage(self, name: str) -> Iterator[None]:
+        yield
+
+    @contextlib.contextmanager
+    def on(self, document: Document) -> Iterator[None]:
+        """Working on `document`: an error that leaves it ends the job, logged as this one's."""
         yield
 
     def close(self, status: str) -> None:
@@ -122,14 +130,22 @@ class SessionLog(QuietLog):
         self.events_path = self.path.with_suffix(".jsonl")
         self._lock = threading.Lock()
         self._clock = time.monotonic()
-        self._text = _owner_only(self.path)
-        self._events = _owner_only(self.events_path)
-        saved = settings.load(box)
-        self.quotes = bool(saved.get("documents.log_quotes"))
+        self._broken = False
         self._outcomes: dict[str, tuple[str, tuple[str, ...]]] = {}
         self._stages: dict[str, float] = {}  # seconds spent in each stage
         self._errors: list[dict[str, Any]] = []
-        self._header(job, kind, saved)
+        self._logged: list[BaseException] = []
+        self._text = _owner_only(self.path)
+        try:
+            self._events = _owner_only(self.events_path)
+            saved = settings.load(box)
+            self.quotes = bool(saved.get("documents.log_quotes"))
+            self._header(job, kind, saved)
+        except BaseException:
+            self._text.close()
+            if hasattr(self, "_events"):
+                self._events.close()
+            raise
 
     def event(
         self,
@@ -140,8 +156,21 @@ class SessionLog(QuietLog):
         **fields: Any,
     ) -> None:
         refused = sorted(NEVER.intersection(fields))
-        if refused:
+        if refused:  # a caller's mistake, which the tests catch: refused, not written
             raise ValueError(f"{', '.join(refused)}: page text never goes into a log")
+        try:
+            self._event(stage, name, document, message, fields)
+        except Exception:
+            self._give_up()
+
+    def _event(
+        self,
+        stage: str,
+        name: str,
+        document: Optional[Document],
+        message: str,
+        fields: dict[str, Any],
+    ) -> None:
         kept = fields if self.quotes else _without_private(fields)
         head = " ".join(part for part in (str(document or ""), message) if part)
         parts = [head] if head else []
@@ -159,6 +188,17 @@ class SessionLog(QuietLog):
         self._write(f"{datetime.now():%H:%M:%S} {name:<10} {body}".rstrip(), record | kept)
 
     def error(self, stage: str, error: BaseException, document: Optional[Document] = None) -> None:
+        """Log `error` once: an error already logged where it happened is not logged again as
+        it passes up through the job."""
+        if any(error is seen for seen in self._logged):
+            return
+        self._logged.append(error)
+        try:
+            self._error(stage, error, document)
+        except Exception:
+            self._give_up()
+
+    def _error(self, stage: str, error: BaseException, document: Optional[Document]) -> None:
         trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
         found = {
             "stage": stage,
@@ -188,12 +228,33 @@ class SessionLog(QuietLog):
         began = time.monotonic()
         try:
             yield
+        except BaseException:
+            self.failed_in = self.failed_in or name
+            raise
         finally:
             self._stages[name] = self._stages.get(name, 0.0) + time.monotonic() - began
+
+    @contextlib.contextmanager
+    def on(self, document: Document) -> Iterator[None]:
+        try:
+            yield
+        except BaseException:
+            self.failed_on = self.failed_on or document
+            raise
 
     def close(self, status: str) -> None:
         if self._text.closed:
             return
+        try:
+            self._summary(status)
+        except Exception:
+            self._give_up()
+        finally:
+            with self._lock:
+                self._text.close()
+                self._events.close()
+
+    def _summary(self, status: str) -> None:
         outcomes = Counter(outcome for outcome, _ in self._outcomes.values())
         reasons: dict[str, Counter[str]] = {}
         for outcome, given in self._outcomes.values():
@@ -229,9 +290,6 @@ class SessionLog(QuietLog):
                 "errors": self._errors,
             },
         )
-        with self._lock:
-            self._text.close()
-            self._events.close()
 
     def _header(self, job: int, kind: str, saved: dict[str, Any]) -> None:
         import caixa
@@ -270,10 +328,20 @@ class SessionLog(QuietLog):
         )
 
     def _write(self, text: str, record: dict[str, Any]) -> None:
+        if self._broken:
+            return
         record = {"time": datetime.now().astimezone().isoformat(timespec="seconds"), **record}
         with self._lock:
             self._text.write(text + "\n")
             self._events.write(json.dumps(record, ensure_ascii=False, default=str) + "\n")
+
+    def _give_up(self) -> None:
+        """A log that cannot be written (a full disk, a box that went away) costs only the log:
+        the job goes on, and says once, in its job log, why the session log stopped."""
+        if not self._broken:
+            self._broken = True
+            print(f"The session log {self.path.name} stopped:", file=sys.stderr)
+            traceback.print_exc()
 
 
 @contextlib.contextmanager
@@ -295,7 +363,7 @@ def opened(box: Box, job: int, kind: str) -> Iterator[QuietLog]:
         status = "cancelled"
         raise
     except BaseException as error:
-        log.error("job", error)
+        log.error(log.failed_in or "job", error, log.failed_on)
         raise
     finally:
         _current.reset(token)

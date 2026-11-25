@@ -106,6 +106,7 @@ def test_no_page_text_in_the_logs(
     assert not [p for p in passages if len(p) > 40 and p in sessions]
     assert "author_quote" not in sessions and '"reply":' not in sessions
     assert "author_quote" in with_quotes and '"reply":' in with_quotes
+    assert not [s for s in written if s and s[:40] in with_quotes]
 
 
 def _read(paths: set[Path]) -> str:

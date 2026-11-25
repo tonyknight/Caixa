@@ -662,9 +662,11 @@ outcomes: Unrecognized 13 (no_author 12, no_date 9, no_title 4, probable_duplica
 
 - No page text, summary, passage, question or answer goes into a log; a test checks it.
 - A session log keeps the values Caixa decided on (dates, authors, titles, types) and the names of
-  the facts found, not their values. The model's quotes and its raw replies are kept only when
-  Settings, Documents, **Keep the model's quotes and replies in session logs** is on: they are
-  words from your pages.
+  the facts found, not their values. The model's quotes and its replies (without their summaries)
+  are kept only when Settings, Documents, **Keep the model's quotes and replies in session logs**
+  is on: they are words from your pages.
+- A session log that cannot be written (a full disk) stops; the job goes on, and its job log says
+  why.
 - Session logs and the working copies in `.caixa/work/documents/` are readable by you alone.
 - What a model wrote is always told apart from what you set.
 

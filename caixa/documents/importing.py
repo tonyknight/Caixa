@@ -73,94 +73,97 @@ def import_examined(
             progress(Progress("filing", number, total, one.name))
             where = origin(Path(one.path), source, workdir)
             doc = Document(number, total, one.name)
-            if one.error:
-                result.warnings.append(f"{one.name}: {one.error}. Left where it is: {where}")
-                log.event("import", "unreadable", doc, "left where it is", reason=one.error)
-                log.outcome(doc, "unreadable")
-                continue
-            known = records.find_by_source(master, one.sha256)
-            if known is not None:
-                records.add_source(master, known, where, one.size, one.modified, import_id)
+            with log.on(doc):
+                if one.error:
+                    result.warnings.append(f"{one.name}: {one.error}. Left where it is: {where}")
+                    log.event("import", "unreadable", doc, "left where it is", reason=one.error)
+                    log.outcome(doc, "unreadable")
+                    continue
+                known = records.find_by_source(master, one.sha256)
+                if known is not None:
+                    records.add_source(master, known, where, one.size, one.modified, import_id)
+                    master.commit()
+                    result.unchanged += 1
+                    log.event("import", "known", doc, "already in the box (the same bytes)")
+                    log.outcome(doc, "already in the box")
+                    continue
+                log_examination(log, doc, one)
+                done = one.ocr or {}
+                output = Path(done["output"]) if done.get("output") else None
+                archived = str(done["sha256"]) if output is not None else one.sha256
+                texts = {int(number): text for number, text in (done.get("texts") or {}).items()}
+                named = evidence.read_filename(one.name, records.author_names(master))
+                stated = evidence.read_properties(one.properties)
+                filed = facts(one) if facts else evidence.provisional_facts(named, stated)
+                relative = place(box, one.name, one.sha256, filed, format)
+                copy_into(box, output or Path(one.path), relative, archived)
+                review = ["locked"] if one.locked else []
+                if one.text_hash and records.find_by_text(master, one.text_hash):
+                    review.append("probable_duplicate")
+                status = str(done.get("status") or ("needs_ocr" if one.ocr_pages else "not_needed"))
+                if status == "failed":
+                    review.append("ocr_failed")
+                validation = done.get("validation")
+                checked = "unchanged_copy" if validation and not validation["passed"] else "passed"
+                record = records.DocumentRecord(
+                    format=format,
+                    original_filename=one.name,
+                    source_sha256=one.sha256,
+                    size=one.size,
+                    file_path=relative,
+                    archived_sha256=archived,
+                    pages=one.pages,
+                    processing_status="needs_review" if review else "archived",
+                    ocr_status=status,
+                    validation_status=checked,
+                    review=review,
+                    text_hash=one.text_hash,
+                    title=filed.title if filed else None,
+                    author=filed.author if filed else None,
+                    date=filed.date if filed else None,
+                    date_precision=(named.date.precision if filed and named.date else None),
+                    date_kind="filename" if filed else None,
+                )
+                item_id, _ = records.save_document(master, record, import_id)
+                records.set_pages(
+                    master,
+                    item_id,
+                    [
+                        records.PageText(
+                            page["number"],
+                            texts.get(page["number"], page["text"]),
+                            "ocr" if page["number"] in texts else "pdf",
+                            page["page_class"],
+                            page["quality"],
+                        )
+                        for page in one.inspection
+                    ],
+                )
+                if done and status != "not_needed":
+                    records.add_run(
+                        master, item_id, "ocr", status, tool=done.get("tool"),
+                        version=(done.get("versions") or {}).get("ocrmypdf"),
+                        settings={**(done.get("settings") or {}), "versions": done.get("versions")},
+                        report={"error": done["error"]} if done.get("error") else None,
+                    )  # fmt: skip
+                _record_evidence(master, item_id, named, stated, one, texts, filed)
+                if validation:
+                    records.add_run(
+                        master, item_id, "validate", "passed" if validation["passed"] else "failed",
+                        tool="caixa", version=__version__, report=validation,
+                    )  # fmt: skip
+                if output is not None:
+                    output.unlink(missing_ok=True)  # the working copy, now in the box
+                records.add_source(master, item_id, where, one.size, one.modified, import_id)
+                records.add_run(
+                    master, item_id, "import", "ok", tool="caixa", version=__version__,
+                    report={"locked": one.locked, "pages": one.pages},
+                )  # fmt: skip
                 master.commit()
-                result.unchanged += 1
-                log.event("import", "known", doc, "already in the box (the same bytes)")
-                log.outcome(doc, "already in the box")
-                continue
-            log_examination(log, doc, one)
-            done = one.ocr or {}
-            output = Path(done["output"]) if done.get("output") else None
-            archived = str(done["sha256"]) if output is not None else one.sha256
-            texts = {int(number): text for number, text in (done.get("texts") or {}).items()}
-            named = evidence.read_filename(one.name, records.author_names(master))
-            stated = evidence.read_properties(one.properties)
-            filed = facts(one) if facts else evidence.provisional_facts(named, stated)
-            relative = place(box, one.name, one.sha256, filed, format)
-            copy_into(box, output or Path(one.path), relative, archived)
-            review = ["locked"] if one.locked else []
-            if one.text_hash and records.find_by_text(master, one.text_hash):
-                review.append("probable_duplicate")
-            status = str(done.get("status") or ("needs_ocr" if one.ocr_pages else "not_needed"))
-            if status == "failed":
-                review.append("ocr_failed")
-            validation = done.get("validation")
-            checked = "unchanged_copy" if validation and not validation["passed"] else "passed"
-            record = records.DocumentRecord(
-                format=format,
-                original_filename=one.name,
-                source_sha256=one.sha256,
-                size=one.size,
-                file_path=relative,
-                archived_sha256=archived,
-                pages=one.pages,
-                processing_status="needs_review" if review else "archived",
-                ocr_status=status,
-                validation_status=checked,
-                review=review,
-                text_hash=one.text_hash,
-                title=filed.title if filed else None,
-                author=filed.author if filed else None,
-                date=filed.date if filed else None,
-                date_precision=(named.date.precision if filed and named.date else None),
-                date_kind="filename" if filed else None,
-            )
-            item_id, _ = records.save_document(master, record, import_id)
-            records.set_pages(
-                master,
-                item_id,
-                [
-                    records.PageText(
-                        page["number"],
-                        texts.get(page["number"], page["text"]),
-                        "ocr" if page["number"] in texts else "pdf",
-                        page["page_class"],
-                        page["quality"],
-                    )
-                    for page in one.inspection
-                ],
-            )
-            if done and status != "not_needed":
-                records.add_run(
-                    master, item_id, "ocr", status, tool=done.get("tool"),
-                    version=(done.get("versions") or {}).get("ocrmypdf"),
-                    settings={**(done.get("settings") or {}), "versions": done.get("versions")},
-                    report={"error": done["error"]} if done.get("error") else None,
-                )  # fmt: skip
-            _record_evidence(master, item_id, named, stated, one, texts, filed)
-            if validation:
-                records.add_run(
-                    master, item_id, "validate", "passed" if validation["passed"] else "failed",
-                    tool="caixa", version=__version__, report=validation,
-                )  # fmt: skip
-            if output is not None:
-                output.unlink(missing_ok=True)  # the working copy, now in the box
-            records.add_source(master, item_id, where, one.size, one.modified, import_id)
-            records.add_run(
-                master, item_id, "import", "ok", tool="caixa", version=__version__,
-                report={"locked": one.locked, "pages": one.pages},
-            )  # fmt: skip
-            master.commit()
-            result.inserted += 1
-            _log_filing(log, doc, item_id, relative, named, stated, filed, facts is None, review)
+                result.inserted += 1
+                _log_filing(
+                    log, doc, item_id, relative, named, stated, filed, facts is None, review
+                )
         master.finish_import(
             import_id,
             inserted=result.inserted,

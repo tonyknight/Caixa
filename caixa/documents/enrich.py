@@ -117,6 +117,10 @@ SCHEMA: dict[str, Any] = {
         "filename_conflicts": {"type": "array", "items": {"type": "string"}},
     },
 }
+#: What a model may name in `filename_conflicts` and the session log keeps without the opt-in;
+#: anything longer could be words from the page.
+NAMED_CONFLICTS = frozenset({"year", "date", "month", "day", "type", "author", "title"})
+
 RESPONSE_FORMAT = {
     "type": "json_schema",
     "json_schema": {"name": "caixa_document", "strict": True, "schema": SCHEMA},
@@ -304,6 +308,15 @@ def verify_quote(
     return False, None
 
 
+def _reply_to_log(reply: str, answer: Any) -> Reply:
+    """A reply as the session log keeps it (with the owner's opt-in): without its summary, which
+    never goes into a log (D26). A reply that could not be read is kept as it came."""
+    if isinstance(answer, dict):
+        kept = {key: value for key, value in answer.items() if key != "summary"}
+        return Reply(json.dumps(kept, ensure_ascii=False))
+    return Reply(reply)
+
+
 def parse_answer(reply: str) -> Any:
     """The JSON object in a reply, also inside code fences or other words; `ValueError` without."""
     text = reply.strip()
@@ -440,7 +453,7 @@ def ask(
                 "attempt": attempt,
                 "seconds": round(time.monotonic() - began, 1),
                 "problem": "; ".join(wrong) or None,
-                "reply": Reply(reply),
+                "reply": _reply_to_log(reply, answer),
             }
         )
         if not wrong:
@@ -809,7 +822,10 @@ def _log_reading(
             for other in answer.get("other_dates") or []
         ],
         "tags": answer.get("tags") or [],
-        "filename_conflicts": answer.get("filename_conflicts") or [],
+        "filename_conflicts": [
+            conflict if str(conflict).lower() in NAMED_CONFLICTS else Quote(str(conflict))
+            for conflict in answer.get("filename_conflicts") or []
+        ],
     }
     if author.get("evidence"):
         proposal["author_quote"] = Quote(author["evidence"])
