@@ -281,7 +281,9 @@ def verify_quote(
     quote: Optional[str], page: Optional[int], pages: Mapping[int, str]
 ) -> tuple[bool, Optional[int]]:
     """Whether `quote` is on `page` (on any page when none is given), accents, case and spacing
-    aside; and the page it is on."""
+    aside; and the page it is on. A quote that is not text is never found."""
+    if not isinstance(quote, (str, type(None))):
+        return False, None
     wanted = _plain(quote or "")
     if len(wanted) < 2:
         return False, page
@@ -328,7 +330,9 @@ def problems(answer: Any) -> list[str]:
         isinstance(author, dict) and isinstance(author.get("name"), str)
     ):
         found.append("author must be null or {name, evidence, page}")
+    found += document_types.quote_problems("author", author)
     date = answer.get("date")
+    found += document_types.quote_problems("date", date)
     if date is not None:
         try:
             NamingDate.parse(str((date or {}).get("value") if isinstance(date, dict) else ""))
@@ -370,8 +374,14 @@ def _checked(answer: dict[str, Any], pages: Mapping[int, str]) -> dict[str, Any]
         date["precision"] = NamingDate.parse(str(date["value"])).precision
         date["verified"], date["page"] = verify_quote(date.get("evidence"), date.get("page"), pages)
     kept = []
-    for other in answer.get("other_dates") or []:
-        if isinstance(other, dict) and other.get("value"):
+    for other in (
+        answer.get("other_dates") or []
+    ):  # supporting dates: one of the wrong shape is left out
+        if (
+            isinstance(other, dict)
+            and other.get("value")
+            and not document_types.quote_problems("other_dates", other)
+        ):
             other["verified"], other["page"] = verify_quote(
                 other.get("evidence"), other.get("page"), pages
             )

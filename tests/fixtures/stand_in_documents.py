@@ -7,7 +7,9 @@ type, category, title, author and date with quotes taken from the pages in the r
 verify), people, filename conflicts and a summary of 30–50 words.
 
 Ways to misbehave, by file name: `not_json` answers prose, `schema` answers JSON that breaks the
-schema, `twice` misbehaves only on the first attempt. (An HTTP error is the server's `status`.)
+schema, `twice` misbehaves only on the first attempt, `list_evidence` gives the author's evidence
+as a list of quotes (as a real model did), and `list_evidence_once` does so only on the first
+attempt. (An HTTP error is the server's `status`.)
 """
 
 from __future__ import annotations
@@ -204,6 +206,9 @@ class DocumentModel:
         answer = self.answer_for(
             name, pages_of(first if prompt.startswith("That answer") else prompt)
         )
+        if mode == "list_evidence" or (mode == "list_evidence_once" and self.asked[name] == 1):
+            author = answer.get("author") or {"name": "Energia do Norte", "page": 1}
+            answer["author"] = {**author, "evidence": [author["name"], "Rua das Flores 12"]}
         return {"choices": [{"message": {"content": json.dumps(answer, ensure_ascii=False)}}]}
 
 

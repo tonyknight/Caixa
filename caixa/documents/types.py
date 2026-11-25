@@ -99,6 +99,20 @@ def parse_amount(written: Optional[str]) -> Optional[float]:
         return None
 
 
+def quote_problems(name: str, value: Any) -> list[str]:
+    """What is wrong with the `evidence` and `page` of a fact {…, evidence, page} named `name`:
+    a quote is text or null, a page a whole number or null."""
+    if not isinstance(value, dict):
+        return []
+    found = []
+    if not isinstance(value.get("evidence"), (str, type(None))):
+        found.append(f"{name}.evidence must be words copied from one page, or null")
+    page = value.get("page")
+    if isinstance(page, bool) or not isinstance(page, (int, type(None))):
+        found.append(f"{name}.page must be a page number, or null")
+    return found
+
+
 def type_problems(kind: str, answer: Any) -> list[str]:
     """What keeps a type's answer from being used, in words; empty when it can be."""
     if not isinstance(answer, dict):
@@ -119,10 +133,14 @@ def type_problems(kind: str, answer: Any) -> list[str]:
             ):
                 found.append(f"{name} must be null or {{value, evidence, page}}")
                 break
+            wrong = quote_problems(name, one)
+            if wrong:
+                found += wrong
+                break
     return found
 
 
 __all__ = [
     "AMOUNTS", "FIELDS", "LISTS", "MEANINGS", "TYPE_SCHEMAS", "TYPE_SCHEMA_VERSION",
-    "parse_amount", "type_problems",
+    "parse_amount", "quote_problems", "type_problems",
 ]  # fmt: skip

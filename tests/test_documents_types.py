@@ -84,6 +84,17 @@ def test_answers_that_break_a_schema_are_named() -> None:
     assert type_problems("invoice", "nonsense")
 
 
+def test_evidence_and_pages_of_the_wrong_kind_are_named() -> None:
+    answer = {name: _field("x") for name in FIELDS["invoice"]}
+    listed = {**answer, "vendor": {**answer["vendor"], "evidence": ["Livraria", "Rua"]}}
+    assert "vendor.evidence" in " ".join(type_problems("invoice", listed))
+    paged = {**answer, "total": {**answer["total"], "page": "2"}}
+    assert "total.page" in " ".join(type_problems("invoice", paged))
+    parties = {n: _field("x") for n in FIELDS["agreement"]}
+    parties["parties"] = [{"value": "Maria Costa", "evidence": ["Maria"], "page": 1}]
+    assert "parties.evidence" in " ".join(type_problems("agreement", parties))
+
+
 # --- Asking for a type's fields (T02) ----------------------------------------------------------
 
 

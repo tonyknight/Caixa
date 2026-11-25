@@ -1,26 +1,27 @@
 ---
 id: 20261125-03-one-document-s-error-no-longer-ends-an-import
-title: "One document's error no longer ends an import"
+title: One document's error no longer ends an import
 type: bug
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-25
 updated: 2026-11-25
 closed:
-notes: "Hot fix: a model's list-shaped evidence crashed an hour-long import at the reading stage"
+notes: 'Hot fix: a model''s list-shaped evidence crashed an hour-long import at the
+  reading stage'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
 subtasks:
 - id: T01
   title: An answer of the wrong shape is a problem, not a crash
-  status: todo
+  status: done
 - id: T02
   title: One document, or one stage, cannot end the import
   status: todo
 plan_status: approved
+current_task: T02
 ---
-
 ## Description
 
 The maintainer's first real import (about 150 PDFs, about an hour) stopped in the reading stage
@@ -55,10 +56,12 @@ recorded against that document while the run carries on. An unexpected error in 
 
 ## Acceptance criteria
 
-- [ ] `problems()` reports an `evidence` that is not text or null, and a `page` that is not a
-      whole number or null, for `author`, `date` and each of `other_dates`. `type_problems` does
-      the same for each type field. A model that answers so is asked again, naming the fault.
-- [ ] `verify_quote` never raises on a value that is not text; it reports it as not verified.
+- [x] `problems()` reports an `evidence` that is not text or null, and a `page` that is not a
+      whole number or null, for `author` and `date`. `type_problems` does the same for each type
+      field. A model that answers so is asked again, naming the fault. A supporting date in
+      `other_dates` of the wrong shape is left out, as non-objects already were: it decides
+      nothing, so it does not cost the whole answer.
+- [x] `verify_quote` never raises on a value that is not text; it reports it as not verified.
 - [ ] An unexpected exception while reading one document marks that document `failed`. Its
       `enrich` run records the error's type and message, the traceback goes to the job log, and
       the next document is read. Two failures in a row still stop the stage as today, without
@@ -83,13 +86,13 @@ recorded against that document while the run carries on. An unexpected error in 
 
 ## Subtasks
 
-- [ ] T01 An answer of the wrong shape is a problem, not a crash
+- [x] T01 An answer of the wrong shape is a problem, not a crash
 - [ ] T02 One document, or one stage, cannot end the import
 
 ## Implementation plan
 
 Status: approved
-Current task:
+Current task: T02
 
 ### T01: An answer of the wrong shape is a problem, not a crash
 
@@ -147,3 +150,6 @@ Append-only running log. Each entry dated.
 
 - 2026-11-25: Planned from the job log of the maintainer's first real import, under the
   maintainer's direction that long imports must fail gracefully.
+- 2026-11-25: T01 done. RED reproduced the maintainer's `TypeError` through the stand-in
+  (`list_evidence`). Changed from the plan: a malformed supporting date is dropped, not
+  retried, because it decides nothing.

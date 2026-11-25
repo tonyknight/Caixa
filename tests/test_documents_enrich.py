@@ -212,6 +212,56 @@ def test_checking_an_answer_names_what_is_wrong() -> None:
     assert enrich.problems({**good, "author": None, "date": None}) == []  # unknown is allowed
 
 
+def test_evidence_and_pages_of_the_wrong_kind_are_problems() -> None:
+    """20261125-03: a real model gave an author's evidence as a list, and it crashed the import."""
+    good = {
+        "category": "financial", "type": "bill", "title": "Electricity Bill",
+        "author": {"name": "Energia do Norte", "evidence": "Energia do Norte", "page": 1},
+        "date": {"value": "2024-01-10", "precision": "day", "kind": "issue", "evidence": "x", "page": 1},
+        "other_dates": [{"value": "2024-02-01", "kind": "due", "evidence": "x", "page": 1}],
+        "people": [], "organizations": [], "tags": [], "summary": "s", "filename_conflicts": [],
+    }  # fmt: skip
+    assert enrich.problems(good) == []
+    listed = {**good, "author": {**good["author"], "evidence": ["Energia do Norte", "Rua"]}}
+    assert "author.evidence" in " ".join(enrich.problems(listed))
+    paged = {**good, "date": {**good["date"], "page": "1"}}
+    assert "date.page" in " ".join(enrich.problems(paged))
+    unknown = {**good, "author": {**good["author"], "evidence": None, "page": None}}
+    assert enrich.problems(unknown) == []
+
+
+def test_other_dates_of_the_wrong_shape_are_left_out() -> None:
+    """Supporting dates do not decide anything: one of the wrong shape is dropped, not retried."""
+    pages = {1: "Issued 10 January 2024. Pay by 1 February 2024."}
+    answer = {
+        "author": None, "date": None,
+        "other_dates": [
+            {"value": "2024-02-01", "kind": "due", "evidence": "1 February 2024", "page": 1},
+            {"value": "2024-01-10", "kind": "issue", "evidence": ["10 January"], "page": 1},
+            "2024-03-01",
+        ],
+    }  # fmt: skip
+    checked = enrich._checked(answer, pages)
+    assert [d["value"] for d in checked["other_dates"]] == ["2024-02-01"]
+    assert checked["other_dates"][0]["verified"] is True
+
+
+def test_a_quote_that_is_not_text_is_not_verified() -> None:
+    pages = {1: "Energia do Norte\nRua das Flores 12"}
+    assert enrich.verify_quote(["Energia do Norte", "Rua"], 1, pages) == (False, None)  # type: ignore[arg-type]
+    assert enrich.verify_quote({"text": "Energia"}, None, pages) == (False, None)  # type: ignore[arg-type]
+
+
+def test_list_shaped_evidence_is_asked_again(server: StubServer, pdf_family: PdfFamily) -> None:
+    server.model.misbehave["2022 Car Insurance.pdf"] = "list_evidence_once"  # type: ignore[attr-defined]
+    client, info = enrich.provider(_values(server))
+    found = enrich.classify(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    assert found.ok and found.attempts == 2
+    assert found.answer["author"]["verified"] is True
+    retry = server.requests[1]["json"]["messages"][-1]["content"]
+    assert "author.evidence" in retry
+
+
 def test_a_provider_that_fails_is_an_error(server: StubServer, pdf_family: PdfFamily) -> None:
     from chattr.translation import TranslationError
 
@@ -334,6 +384,28 @@ def test_reading_again_replaces_the_models_fields_and_keeps_the_owners(
     assert len(again["fields"]) == before + 1  # the owner's, and the model's once
     assert any(f["source"] == "user_verified" for f in again["fields"])
     assert len([r for r in again["runs"] if r["stage"] == "enrich"]) == 2
+
+
+def test_list_shaped_evidence_every_time_goes_to_review_and_the_import_ends(
+    server: StubServer, family: Path, tmp_path: Path
+) -> None:
+    """The maintainer's crash (20261125-03), replayed: the import ends, the rest are read."""
+    server.model.misbehave["2022 Car Insurance.pdf"] = "list_evidence"  # type: ignore[attr-defined]
+    box = _box(tmp_path, server)
+    _import(box, family)
+    documents = _documents(box)
+    assert documents["2022 Car Insurance.pdf"]["ai_status"] == "needs_review"
+    assert "ai_unusable" in documents["2022 Car Insurance.pdf"]["review"]
+    others = [
+        d
+        for n, d in documents.items()
+        if n not in ("2022 Car Insurance.pdf", "extrato_protegido.pdf")
+    ]
+    assert all(d["ai_status"] == "completed" for d in others)
+
+
+
+
 
 
 @pytest.fixture
