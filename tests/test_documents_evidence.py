@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from caixa.documents.evidence import (
+    lacking,
     provisional_facts,
     read_filename,
     read_properties,
@@ -299,3 +300,18 @@ def test_importing_again_adds_no_fields(imported: Any) -> None:
     before = {name: len(doc["fields"]) for name, doc in _by_name(box).items()}
     PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
     assert {name: len(doc["fields"]) for name, doc in _by_name(box).items()} == before
+
+
+@pytest.mark.parametrize(
+    "name, properties, missing",
+    [
+        ("2022 Car Insurance.pdf", {}, ["no_author"]),
+        ("Document1.pdf", {}, ["no_date", "no_author", "no_title"]),
+        ("2024-11 Banco Atlântico Checking Statement.pdf", {"author": "Banco Atlântico"}, []),
+        ("2022 Car Insurance.pdf", {"author": "Seguradora Horizonte"}, []),
+    ],
+)
+def test_lacking_names_what_filing_by_evidence_needed(
+    name: str, properties: dict[str, str], missing: list[str]
+) -> None:
+    assert lacking(read_filename(name), read_properties(properties)) == missing

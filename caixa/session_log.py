@@ -84,7 +84,13 @@ class QuietLog:
     def error(self, stage: str, error: BaseException, document: Optional[Document] = None) -> None:
         pass
 
-    def outcome(self, document: Document, outcome: str, reasons: Sequence[str] = ()) -> None:
+    def outcome(
+        self,
+        document: Document,
+        outcome: str,
+        reasons: Sequence[str] = (),
+        key: Optional[str] = None,
+    ) -> None:
         pass
 
     @contextlib.contextmanager
@@ -154,7 +160,7 @@ class SessionLog(QuietLog):
             }
         if message:
             record["message"] = message
-        self._write(f"{datetime.now():%H:%M:%S} {name:<8} {body}".rstrip(), record | kept)
+        self._write(f"{datetime.now():%H:%M:%S} {name:<10} {body}".rstrip(), record | kept)
 
     def error(self, stage: str, error: BaseException, document: Optional[Document] = None) -> None:
         trace = "".join(traceback.format_exception(type(error), error, error.__traceback__))
@@ -166,12 +172,20 @@ class SessionLog(QuietLog):
         }
         self._errors.append(found)
         head = " ".join(part for part in (str(document or ""), f"in {stage}:") if part)
-        lines = [f"{datetime.now():%H:%M:%S} {'error':<8} {head} {found['type']}: {error}"]
+        lines = [f"{datetime.now():%H:%M:%S} {'error':<10} {head} {found['type']}: {error}"]
         lines += [f"    {line}" for line in trace.rstrip().splitlines()]
         self._write("\n".join(lines), {"event": "error", **found, "traceback": trace})
 
-    def outcome(self, document: Document, outcome: str, reasons: Sequence[str] = ()) -> None:
-        self._outcomes[document.name] = (outcome, tuple(reasons))
+    def outcome(
+        self,
+        document: Document,
+        outcome: str,
+        reasons: Sequence[str] = (),
+        key: Optional[str] = None,
+    ) -> None:
+        """Where a document ended up, and why; a later stage's outcome for the same `key` (its
+        item id, when it has one) replaces an earlier one."""
+        self._outcomes[key or str(document)] = (outcome, tuple(reasons))
 
     @contextlib.contextmanager
     def stage(self, name: str) -> Iterator[None]:
@@ -309,7 +323,7 @@ def _show(value: Any) -> str:
     if value is None or value == "":
         return "none"
     if isinstance(value, bool):
-        return "on" if value else "off"
+        return "yes" if value else "no"
     if isinstance(value, (Quote, Reply)):
         return f'"{value}"'
     if isinstance(value, float):

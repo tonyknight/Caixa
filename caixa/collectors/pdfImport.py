@@ -22,13 +22,14 @@ import concurrent.futures
 import functools
 import hashlib
 import multiprocessing
+import time
 import traceback
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
-from caixa import requirements
+from caixa import requirements, session_log
 from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import Cancelled, CollectorInfo, Preview, Progress, RunResult
@@ -81,6 +82,7 @@ class Examined:
     text_hash: Optional[str] = None
     #: What OCR did (`caixa.documents.pdf.ocr.OcrOutcome` as plain values), when it was asked to.
     ocr: Optional[dict[str, Any]] = None
+    seconds: float = 0.0  # how long examining it took, OCR and validation included
 
     @property
     def ocr_pages(self) -> int:
@@ -108,13 +110,15 @@ def examine(path: Path, ocr: Optional[Mapping[str, Any]] = None) -> Examined:
     """Read one file, never writing to it; with `ocr` (`enabled`, `languages`, `workdir`), also
     OCR the pages that need it into the working folder. A file that raises anything unexpected
     is reported as one that could not be examined (its traceback printed), so the others go on."""
+    began = time.monotonic()
     try:
-        return _examine(path, ocr)
+        seen = _examine(path, ocr)
     except Exception as error:  # in a worker: one file's surprise must not end the import
         traceback.print_exc()
-        return Examined(
+        seen = Examined(
             str(path), error=f"it could not be examined ({type(error).__name__}: {error})"
         )
+    return replace(seen, seconds=round(time.monotonic() - began, 2))
 
 
 def _examine(path: Path, ocr: Optional[Mapping[str, Any]]) -> Examined:
@@ -322,28 +326,41 @@ class PdfCollector:
             "languages": str(saved.get("documents.ocr_languages") or "eng"),
             "workdir": str(box.work_dir("documents") / "ocr"),
         }
-        seen = _examine_all(files, self._workers(box, options), progress, ocr)
-        result = import_examined(box, source, seen, progress, FORMAT, workdir)
+        workers = self._workers(box, options)
+        log = session_log.current()
+        log.event(
+            "locate", "found", message=f"{len(files)} PDF files in {source}", files=len(files),
+            workers=workers, ocr=ocr["enabled"], languages=ocr["languages"],
+        )  # fmt: skip
+        with log.stage("examine"):
+            seen = _examine_all(files, workers, progress, ocr)
+        with log.stage("file"):
+            result = import_examined(box, source, seen, progress, FORMAT, workdir)
         # Every document is filed and committed by now: a later stage that fails costs only
         # itself (a warning says how to carry on), and the pages are still drawn.
         try:
-            self._read(box, result, progress)
+            with log.stage("read"):
+                self._read(box, result, progress)
         except Cancelled:
             raise
         except Exception as error:
             traceback.print_exc()
+            log.error("read", error)
             result.warnings.append(_stopped("Reading by a model", error, "enrich"))
         try:
-            self._embed(box, result, progress)
+            with log.stage("embed"):
+                self._embed(box, result, progress)
         except Cancelled:
             raise
         except Exception as error:
             traceback.print_exc()
+            log.error("embed", error)
             result.warnings.append(_stopped("Embedding for search by meaning", error, "embed"))
         from caixa.documents.pages import draw_documents
 
         progress(Progress("rendering", message="Drawing the document pages"))
-        result.pages += len(draw_documents(box).written)
+        with log.stage("draw"):
+            result.pages += len(draw_documents(box).written)
         return result
 
     @staticmethod
