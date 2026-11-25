@@ -3,7 +3,7 @@ id: 20261125-02-an-import-session-log-in-caixa
 title: An import session log in .caixa
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-25
 updated: 2026-11-25
 closed:
@@ -26,7 +26,8 @@ subtasks:
 - id: T04
   title: Finding the log, documentation and the privacy test
   status: todo
-plan_status: approved
+plan_status: in-progress
+current_task: T01
 ---
 ## Description
 
@@ -157,8 +158,8 @@ This ticket only makes the decisions visible.
 
 ## Implementation plan
 
-Status: approved
-Current task:
+Status: in-progress
+Current task: T01
 
 **Design:**
 

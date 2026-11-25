@@ -3,12 +3,12 @@ id: 20261125-03-one-document-s-error-no-longer-ends-an-import
 title: One document's error no longer ends an import
 type: bug
 priority: high
-status: in-progress
+status: done
 created: 2026-11-25
 updated: 2026-11-25
-closed:
-notes: 'Hot fix: a model''s list-shaped evidence crashed an hour-long import at the
-  reading stage'
+closed: 2026-11-25
+notes: 'Done: wrong-shaped answers are retried; one document''s or stage''s error
+  no longer ends an import'
 parent:
 depends_on:
 - 20261125-01-declare-numpy-and-check-every-import-is-declared
@@ -19,8 +19,8 @@ subtasks:
 - id: T02
   title: One document, or one stage, cannot end the import
   status: todo
-plan_status: approved
-current_task: T02
+plan_status: done
+current_task: T01
 ---
 ## Description
 
@@ -62,16 +62,16 @@ recorded against that document while the run carries on. An unexpected error in 
       `other_dates` of the wrong shape is left out, as non-objects already were: it decides
       nothing, so it does not cost the whole answer.
 - [x] `verify_quote` never raises on a value that is not text; it reports it as not verified.
-- [ ] An unexpected exception while reading one document marks that document `failed`. Its
+- [x] An unexpected exception while reading one document marks that document `failed`. Its
       `enrich` run records the error's type and message, the traceback goes to the job log, and
       the next document is read. Two failures in a row still stop the stage as today, without
       ending the job.
-- [ ] An unexpected exception in one file's examination reports that file as unreadable (named
+- [x] An unexpected exception in one file's examination reports that file as unreadable (named
       in the warnings with the error) and the other files are examined and filed.
-- [ ] If the reading or embedding stage raises, the import still ends `done`: a warning says
+- [x] If the reading or embedding stage raises, the import still ends `done`: a warning says
       which stage stopped and how to carry on (`caixa documents enrich` or `embed`), and the
       document pages are drawn.
-- [ ] Every test uses the synthetic family and the stand-in models.
+- [x] Every test uses the synthetic family and the stand-in models.
 
 ## Context
 
@@ -87,12 +87,12 @@ recorded against that document while the run carries on. An unexpected error in 
 ## Subtasks
 
 - [x] T01 An answer of the wrong shape is a problem, not a crash
-- [ ] T02 One document, or one stage, cannot end the import
+- [x] T02 One document, or one stage, cannot end the import
 
 ## Implementation plan
 
-Status: approved
-Current task: T02
+Status: done
+Current task: T01
 
 ### T01: An answer of the wrong shape is a problem, not a crash
 
@@ -136,13 +136,49 @@ Current task: T02
 - **Verify:** `python -m pytest -q tests/test_documents_enrich.py tests/test_pdf_collector.py`,
   then the project verify command:
   `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`.
-
+- [x] done
 ## Completion report
 
 - **Outcome:**
-- **Files:**
+  - An answer whose `evidence` is not text or whose `page` is not a whole number is unusable:
+    asked again, naming the fault, then To review as `ai_unusable`. The maintainer's
+    list-shaped evidence now ends there, not in a crash. A malformed supporting date is left
+    out.
+  - `verify_quote` reports a quote that is not text as not verified.
+  - An unexpected error while reading one document marks it `failed`, with
+    `"TypeError: …"` in its `enrich` run and the traceback in the job log. The next document is
+    read, and two failures in a row still stop the stage, not the job.
+  - An unexpected error examining one file reports it as "could not be examined (Type:
+    message)"; the other files are examined and filed.
+  - If the reading or embedding stage raises, the import still ends `done`, with a warning
+    such as "Reading by a model stopped (RuntimeError: …). The documents are filed; caixa
+    documents enrich carries on, and the job's log has the details." The pages are drawn.
+  - Cancelling still stops the job: `JobCancelled` is now a `collectors.base.Cancelled`, which
+    each new guard lets through.
+- **Files:** `caixa/documents/enrich.py` (`problems`, `verify_quote`, `_checked`,
+  `enrich_documents` split into `_read_one` and `_record_failure`); `caixa/documents/types.py`
+  (`quote_problems`); `caixa/collectors/pdfImport.py` (`examine`, `run` with `_read` and
+  `_embed`); `caixa/collectors/base.py` (`Cancelled`); `caixa/service.py`;
+  `tests/fixtures/stand_in_documents.py`; `tests/test_documents_enrich.py`,
+  `tests/test_documents_types.py`, `tests/test_pdf_collector.py`.
 - **Errors:**
+  - RED reproduced the maintainer's `TypeError` through the stand-in model (`list_evidence`).
+  - Changed from the plan: a malformed supporting date is dropped rather than retried.
+  - Known limit: `examine` runs in worker processes, so its traceback goes to the worker's
+    standard error (the terminal running `caixa serve`), not the job log. The warning carries
+    the error's type and message; the session log (`20261125-02`) records it per document.
 - **Verify:**
+  - `python -m pytest -q tests/test_documents_enrich.py tests/test_pdf_collector.py`: 54 passed.
+  - Full suite: 2001 passed, 10 failed (the Chattr tests recorded in `20261125-01`, unchanged).
+  - mypy: the 8 errors of the baseline. black: clean on every changed file.
+  - web: `tsc` clean; vitest 285 passed.
+
+### Review
+
+2026-11-25, in session. Clean, with one minor (the worker traceback above, which the session
+log covers). Every new broad `except` re-raises `Cancelled` first. A document that fails
+partway leaves nothing half-written: `Master` rolls back on an exception, and the failure is
+recorded in a new transaction.
 
 ## Notes
 
@@ -153,3 +189,6 @@ Append-only running log. Each entry dated.
 - 2026-11-25: T01 done. RED reproduced the maintainer's `TypeError` through the stand-in
   (`list_evidence`). Changed from the plan: a malformed supporting date is dropped, not
   retried, because it decides nothing.
+
+### 2026-11-25
+T02 done; review clean (one minor: worker tracebacks go to the serve terminal, covered by the session log). Ticket done.
