@@ -27,6 +27,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
+from caixa import requirements
 from caixa.box import Box
 from caixa.collectors import inputs
 from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
@@ -240,6 +241,7 @@ class PdfCollector:
         box: Optional[Box] = None,
         progress: Optional[Callable[[Progress], None]] = None,
     ) -> Preview:
+        requirements.check("read PDFs")
         files = self.locate(source, self._workdir(box, source))
         seen = _examine_all(files, self._workers(box, options), progress or (lambda step: None))
         known: set[str] = set()
@@ -292,6 +294,7 @@ class PdfCollector:
 
         from caixa import settings
 
+        requirements.check("read PDFs")
         workdir = self._workdir(box, source)
         files = self.locate(source, workdir)
         saved = settings.load(box)

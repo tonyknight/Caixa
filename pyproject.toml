@@ -10,12 +10,13 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Tony Knight" }]
-dependencies = ["chattr", "pymupdf>=1.26"]
+# Every third-party module Caixa imports is here or in an extra (tests/test_dependencies.py).
+dependencies = ["chattr", "jinja2>=3.0", "numpy>=1.24", "pymupdf>=1.26"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "black>=24.0", "mypy>=1.10"]
 # OCR of scanned PDFs (also needs Tesseract and Ghostscript: `brew install ocrmypdf` on a Mac).
-ocr = ["ocrmypdf>=16"]
+ocr = ["ocrmypdf>=16", "pikepdf>=8"]
 
 [project.scripts]
 caixa = "caixa.cli:main"

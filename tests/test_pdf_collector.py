@@ -276,3 +276,31 @@ def test_reset_takes_the_documents_and_keeps_what_the_owner_added(family: Path, 
     result = reset_box(box)
     assert not any((box.root / "Documents").rglob("*.pdf"))
     assert mine.is_file() and "Documents/PDF/my own note.txt" in result.left
+
+
+# --- Packages checked first (20261125-01) --------------------------------------------------------
+
+
+@pytest.mark.parametrize("step", ["preview", "run"])
+def test_a_missing_package_stops_the_import_before_any_file_is_read(
+    step: str, family: Path, box: Box, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sys
+
+    from caixa import requirements
+
+    monkeypatch.setattr(requirements, "_found", lambda module: module != "numpy")
+
+    def never(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a file was looked for before the packages were checked")
+
+    monkeypatch.setattr(PdfCollector, "locate", never)
+    collector = PdfCollector()
+    with pytest.raises(InputError) as raised:
+        if step == "preview":
+            collector.preview(family, {}, box)
+        else:
+            collector.run(box, family, {}, _quiet)
+    assert "numpy" in raised.value.summary
+    assert f"{sys.executable} -m pip install numpy" in str(raised.value)
+

@@ -3,18 +3,18 @@ id: 20261125-01-declare-numpy-and-check-every-import-is-declared
 title: Declare numpy, and check every import is declared
 type: bug
 priority: high
-status: todo
+status: done
 created: 2026-11-25
 updated: 2026-11-25
-closed:
-notes: 'Hot fix: numpy is used by validation, embeddings, search and Ask but not declared'
+closed: 2026-11-25
+notes: numpy and jinja2 declared; imports checked; doctor and the import check packages
 parent:
 depends_on: []
 subtasks:
 - id: T01
   title: numpy declared, imports checked, doctor and the import check packages first
-  status: todo
-plan_status: approved
+  status: done
+plan_status: done
 ---
 ## Description
 
@@ -49,17 +49,17 @@ Surviving a failure partway through a long run is `20261125-03`.
 
 ## Acceptance criteria
 
-- [ ] `numpy` and `jinja2` are in `[project] dependencies`; `pikepdf` is in the `[ocr]` extra
+- [x] `numpy` and `jinja2` are in `[project] dependencies`; `pikepdf` is in the `[ocr]` extra
       beside `ocrmypdf`.
-- [ ] A test scans every import in `caixa/` (including those inside functions) and fails on a
+- [x] A test scans every import in `caixa/` (including those inside functions) and fails on a
       third-party module that is not declared, or that is optional but not imported under
       `except ImportError`.
-- [ ] `caixa doctor` lists the Python packages Caixa needs, each with its version, or *missing*
+- [x] `caixa doctor` lists the Python packages Caixa needs, each with its version, or *missing*
       with the exact command for this Python (`<sys.executable> -m pip install …`). It lists the
       optional ones separately.
-- [ ] A PDF import (window and command line) checks that the packages it needs load in this
+- [x] A PDF import (window and command line) checks that the packages it needs load in this
       Python before it reads any file, and otherwise stops at once with the same message.
-- [ ] The completion's testing guide says to run `tools/install.sh` again after pulling, so the
+- [x] The completion's testing guide says to run `tools/install.sh` again after pulling, so the
       new dependencies are installed.
 
 ## Context
@@ -73,12 +73,12 @@ Surviving a failure partway through a long run is `20261125-03`.
 
 ## Subtasks
 
-- [ ] T01 numpy declared, imports checked, doctor and the import check packages first
+- [x] T01 numpy declared, imports checked, doctor and the import check packages first
 
 ## Implementation plan
 
-Status: approved
-Current task:
+Status: done
+Current task: 
 
 ### T01: numpy declared, imports checked, doctor and the import check packages first
 
@@ -105,13 +105,46 @@ Current task:
 - **Verify:** `python -m pytest -q tests/test_dependencies.py tests/test_diagnostics.py
   tests/test_pdf_collector.py`, then the project verify command:
   `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`.
-
+- [x] done
 ## Completion report
 
 - **Outcome:**
-- **Files:**
+  - numpy and jinja2 are declared, and pikepdf is in `[ocr]`.
+  - `tests/test_dependencies.py` reads every import in `caixa/` (inside functions too), and
+    fails on one that `caixa.requirements` and `pyproject.toml` do not account for.
+  - `caixa doctor` has a *Python packages* section, e.g. `numpy 2.5.5`, or
+    `numpy: missing (/…/.venv/bin/python -m pip install numpy)`; optional packages are listed
+    with what they are for.
+  - A PDF preview or import checks the packages before looking for a file, and stops with
+    "Caixa cannot read PDFs: numpy is missing from the Python it runs on." and the command.
+  - The testing guide now installs with `tools/install.sh` and says to run it after every pull.
+- **Files:** `pyproject.toml`; `caixa/requirements.py` (new); `caixa/diagnostics.py`;
+  `caixa/collectors/pdfImport.py`; `tests/test_dependencies.py` (new),
+  `tests/test_diagnostics.py`, `tests/test_pdf_collector.py`; the completion's testing guide.
 - **Errors:**
+  - RED as planned: `caixa.requirements` was missing, numpy was not declared, and the doctor
+    had no packages section.
+  - The suite in a fresh container showed 12 Chattr failures that this ticket does not touch.
+    10 fail the same way on the unchanged branch (the attachment pipeline with ExifTool
+    installed, and the web convert tests). `test_serve_command` waits for ever when
+    `PYTHONUNBUFFERED` is not set: `chattr serve` prints its link without flushing, and it
+    passes with the variable set. `test_imessage_attachments` fails only after other tests,
+    and passes on its own.
+  - black 26.10 (newer than the project's) also flags the untouched
+    `tests/test_mail_sent_and_received.py`.
 - **Verify:**
+  - `python -m pytest -q tests/test_dependencies.py tests/test_diagnostics.py tests/test_pdf_collector.py`:
+    37 passed.
+  - Full suite: 1988 passed, 12 failed (the Chattr tests above).
+  - mypy: the 8 errors of the baseline.
+  - black: clean on every changed file.
+  - web: `tsc` clean; vitest 285 passed, the end-to-end tests in Chromium included.
+
+### Review
+
+2026-11-25, in session. Clean. The diff matches the plan's files. `requirements.check` runs
+before `locate` in both `preview` and `run`. The import scan's optional rule ("one guarded
+import per file") fits `ocr.py`, which checks `tools()` before its second import.
 
 ## Notes
 
