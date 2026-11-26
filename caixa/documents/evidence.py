@@ -381,6 +381,25 @@ def provisional_facts(filename: FilenameEvidence, properties: PropertyEvidence) 
     return Facts(date=date.value, title=title, author=author)
 
 
+def lacking(filename: FilenameEvidence, properties: PropertyEvidence) -> list[str]:
+    """Why `provisional_facts` gave nothing: `no_date` (or `dates_disagree`, the filename's dates
+    not agreeing), `no_author`, `no_title`. Empty when it gave facts."""
+    if provisional_facts(filename, properties) is not None:
+        return []
+    found = []
+    if filename.date is None:
+        found.append("dates_disagree" if filename.dates else "no_date")
+    author = filename.author or properties.author
+    if not author:
+        found.append("no_author")
+    title = filename.title
+    if title and author:
+        title = _without_author(title, author)
+    if not title and not (filename.types and TYPE_LABELS.get(filename.types[0])):
+        found.append("no_title")
+    return found
+
+
 __all__ = [
     "FilenameEvidence",
     "FoundDate",
@@ -389,6 +408,7 @@ __all__ = [
     "TYPE_LABELS",
     "TYPE_WORDS",
     "TextDate",
+    "lacking",
     "provisional_facts",
     "read_filename",
     "read_properties",

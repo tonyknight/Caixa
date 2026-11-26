@@ -22,14 +22,17 @@ import concurrent.futures
 import functools
 import hashlib
 import multiprocessing
+import time
+import traceback
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional
 
+from caixa import requirements, session_log
 from caixa.box import Box
 from caixa.collectors import inputs
-from caixa.collectors.base import CollectorInfo, Preview, Progress, RunResult
+from caixa.collectors.base import Cancelled, CollectorInfo, Preview, Progress, RunResult
 from caixa.documents.pdf.inspect import inspect_pdf, text_hash
 from caixa.documents.pdf.process import ocr_and_validate
 
@@ -79,6 +82,7 @@ class Examined:
     text_hash: Optional[str] = None
     #: What OCR did (`caixa.documents.pdf.ocr.OcrOutcome` as plain values), when it was asked to.
     ocr: Optional[dict[str, Any]] = None
+    seconds: float = 0.0  # how long examining it took, OCR and validation included
 
     @property
     def ocr_pages(self) -> int:
@@ -104,7 +108,20 @@ def _empty(page: Any) -> bool:
 
 def examine(path: Path, ocr: Optional[Mapping[str, Any]] = None) -> Examined:
     """Read one file, never writing to it; with `ocr` (`enabled`, `languages`, `workdir`), also
-    OCR the pages that need it into the working folder."""
+    OCR the pages that need it into the working folder. A file that raises anything unexpected
+    is reported as one that could not be examined (its traceback printed), so the others go on."""
+    began = time.monotonic()
+    try:
+        seen = _examine(path, ocr)
+    except Exception as error:  # in a worker: one file's surprise must not end the import
+        traceback.print_exc()
+        seen = Examined(
+            str(path), error=f"it could not be examined ({type(error).__name__}: {error})"
+        )
+    return replace(seen, seconds=round(time.monotonic() - began, 2))
+
+
+def _examine(path: Path, ocr: Optional[Mapping[str, Any]]) -> Examined:
     import pymupdf
 
     pymupdf.TOOLS.mupdf_display_errors(False)  # a damaged file says so in `error`, not on stderr
@@ -183,6 +200,13 @@ def _examine_all(
         return found
 
 
+def _stopped(stage: str, error: Exception, command: str) -> str:
+    return (
+        f"{stage} stopped ({type(error).__name__}: {error}). The documents are filed; "
+        f"caixa documents {command} carries on, and the job's log has the details."
+    )
+
+
 def _plural(count: int, one: str, many: str) -> str:
     return f"{count} {one if count == 1 else many}"
 
@@ -240,6 +264,7 @@ class PdfCollector:
         box: Optional[Box] = None,
         progress: Optional[Callable[[Progress], None]] = None,
     ) -> Preview:
+        requirements.check("read PDFs")
         files = self.locate(source, self._workdir(box, source))
         seen = _examine_all(files, self._workers(box, options), progress or (lambda step: None))
         known: set[str] = set()
@@ -292,6 +317,7 @@ class PdfCollector:
 
         from caixa import settings
 
+        requirements.check("read PDFs")
         workdir = self._workdir(box, source)
         files = self.locate(source, workdir)
         saved = settings.load(box)
@@ -300,33 +326,70 @@ class PdfCollector:
             "languages": str(saved.get("documents.ocr_languages") or "eng"),
             "workdir": str(box.work_dir("documents") / "ocr"),
         }
-        seen = _examine_all(files, self._workers(box, options), progress, ocr)
-        result = import_examined(box, source, seen, progress, FORMAT, workdir)
-        from caixa.documents.enrich import enrich_documents
+        workers = self._workers(box, options)
+        log = session_log.current()
+        log.event(
+            "locate", "found", message=f"{len(files)} PDF files in {source}", files=len(files),
+            workers=workers, ocr=ocr["enabled"], languages=ocr["languages"],
+        )  # fmt: skip
+        with log.stage("examine"):
+            seen = _examine_all(files, workers, progress, ocr)
+        with log.stage("file"):
+            result = import_examined(box, source, seen, progress, FORMAT, workdir)
+        # Every document is filed and committed by now: a later stage that fails costs only
+        # itself (a warning says how to carry on), and the pages are still drawn.
+        try:
+            with log.stage("read"):
+                self._read(box, result, progress)
+        except Cancelled:
+            raise
+        except Exception as error:
+            traceback.print_exc()
+            log.error("read", error)
+            result.warnings.append(_stopped("Reading by a model", error, "enrich"))
+        try:
+            with log.stage("embed"):
+                self._embed(box, result, progress)
+        except Cancelled:
+            raise
+        except Exception as error:
+            traceback.print_exc()
+            log.error("embed", error)
+            result.warnings.append(_stopped("Embedding for search by meaning", error, "embed"))
+        from caixa.documents.pages import draw_documents
 
-        read = enrich_documents(box, progress=progress)  # the documents still waiting
+        progress(Progress("rendering", message="Drawing the document pages"))
+        with log.stage("draw"):
+            result.pages += len(draw_documents(box).written)
+        return result
+
+    @staticmethod
+    def _read(box: Box, result: RunResult, progress: Callable[[Progress], None]) -> None:
+        from caixa.documents import enrich
+
+        read = enrich.enrich_documents(box, progress=progress)  # the documents still waiting
         result.moved += [tuple(pair) for pair in read.get("moved", [])]
         if read.get("reason") and read.get("waiting"):
             result.warnings.append(
                 f"{read['waiting']} documents were not read by a model: {read['message']} "
                 "They can be read later (caixa documents enrich)."
             )
-        from caixa.documents.embeddings import embed_documents, model_name
 
-        if model_name(settings.load(box)):  # search by meaning: the new documents' passages
-            embedded = embed_documents(box, progress=progress)
-            if embedded.get("reason"):
-                result.warnings.append(f"Documents were not embedded: {embedded['message']}")
-            elif embedded.get("failed"):
-                result.warnings.append(
-                    f"{embedded['failed']} documents could not be embedded; "
-                    "caixa documents embed tries again."
-                )
-        from caixa.documents.pages import draw_documents
+    @staticmethod
+    def _embed(box: Box, result: RunResult, progress: Callable[[Progress], None]) -> None:
+        from caixa import settings
+        from caixa.documents import embeddings
 
-        progress(Progress("rendering", message="Drawing the document pages"))
-        result.pages += len(draw_documents(box).written)
-        return result
+        if not embeddings.model_name(settings.load(box)):  # no search by meaning
+            return
+        embedded = embeddings.embed_documents(box, progress=progress)
+        if embedded.get("reason"):
+            result.warnings.append(f"Documents were not embedded: {embedded['message']}")
+        elif embedded.get("failed"):
+            result.warnings.append(
+                f"{embedded['failed']} documents could not be embedded; "
+                "caixa documents embed tries again."
+            )
 
 
 def collectors() -> list[PdfCollector]:

@@ -335,6 +335,7 @@ function RunStep({ collector, jobId, onAgain, onShowJob, onShowPeople }: { colle
             <p>{t('import.report.unresolved', { count: result.unresolved.length })}{' '}
               <button type="button" className={css.link} onClick={onShowPeople}>{t('import.report.name')}</button></p>
           )}
+          {result.session_log && <p>{t('import.report.sessionLog', { path: result.session_log })}</p>}
           {result.warnings.length > 0 && <><h3>{t('import.report.warnings')}</h3><ul>{result.warnings.map(w => <li key={w}>{w}</li>)}</ul></>}
         </>
       ) : job.status === 'failed' ? (

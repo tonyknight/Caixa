@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Optional
 
-from caixa import __version__, serve, settings
+from caixa import __version__, requirements, serve, settings
 from caixa.collectors.inputs import InputError
 from caixa.collectors.options import validate
 from caixa.state import caixa_home
@@ -171,6 +171,7 @@ def report(
                 f"{platform.system()} {platform.release()} ({platform.machine()})",
             ],
         ),
+        ("Python packages", requirements.report()),
         ("Programs", _programs()),
         ("Collectors", _collectors(service)),
         ("Interface", _interface()),

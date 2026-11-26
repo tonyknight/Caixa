@@ -19,11 +19,13 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
-from caixa import __version__, settings
+from caixa import __version__, session_log, settings
 from caixa.box import Box
 from caixa.collectors.base import Progress
 from caixa.documents import records
 from caixa.documents.archive import copy_into
+from caixa.documents.importing import log_examination
+from caixa.session_log import Document
 
 #: The review reasons a successful reprocess takes away.
 CLEARED = ("ocr_failed",)
@@ -63,6 +65,7 @@ def reprocess(
     """Reprocess the documents named, or (`failed_only`) every one OCR could still improve."""
     from caixa.collectors.pdfImport import examine
 
+    log = session_log.current()
     chosen = _candidates(box, item_ids, failed_only)
     saved = settings.load(box)
     language = languages or str(saved.get("documents.ocr_languages") or "eng")
@@ -84,6 +87,13 @@ def reprocess(
         improved = status in ("done", "partial", "not_needed") and not (
             done.get("validation") and not done["validation"]["passed"]
         )
+        doc = Document(number, len(chosen), record.original_filename)
+        log_examination(log, doc, seen)
+        log.event(
+            "reprocess", "reprocess", doc, improved=improved, status=status,
+            error=seen.error or done.get("error"),
+        )  # fmt: skip
+        log.outcome(doc, "improved" if improved else "not improved", key=item_id)
         with box.master() as master:
             if improved:
                 if output is not None:

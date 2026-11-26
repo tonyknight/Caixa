@@ -64,6 +64,7 @@ ALL_METHODS = {
     "documents.ask",
     "documents.reprocess",
     "documents.embed",
+    "documents.log",
     "people.link",
     "people.merge",
     "people.join",

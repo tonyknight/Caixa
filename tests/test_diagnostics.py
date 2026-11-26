@@ -7,6 +7,8 @@ the home folder's name.
 
 from __future__ import annotations
 
+import re
+import sys
 import zipfile
 from pathlib import Path
 
@@ -53,6 +55,26 @@ def test_a_program_that_is_not_installed_says_not_found_and_what_it_is_for(
     text = diagnostics.report(service)
     assert "whisper-cli: not found" in text and "voicemail transcription" in text
     assert "ffmpeg: not found" in text
+
+
+def test_the_report_lists_the_python_packages_with_their_versions(service: Service) -> None:
+    text = diagnostics.report(service)
+    assert "\n== Python packages ==" in "\n" + text
+    for package in ("numpy", "pymupdf", "jinja2"):
+        assert re.search(rf"^{package} \d", text, re.M), package
+    assert "optional" in text and "ocrmypdf" in text
+
+
+def test_a_missing_package_names_the_command_for_this_python(
+    service: Service, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa import requirements
+
+    monkeypatch.setattr(requirements, "_found", lambda module: module != "numpy")
+    text = diagnostics.report(service)
+    home = str(Path.home())
+    command = f"{sys.executable} -m pip install numpy".replace(home, "~")
+    assert f"numpy: missing ({command})" in text
 
 
 def test_an_open_box_is_summarised_without_its_contents(made: Service, tmp_path: Path) -> None:

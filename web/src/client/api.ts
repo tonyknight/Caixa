@@ -146,6 +146,8 @@ export interface ImportResult {
   readonly warnings: readonly string[]
   /** True once this import has been undone. */
   readonly undone?: boolean
+  /** The PDF import's session log, relative to the box: what was decided about each document. */
+  readonly session_log?: string
 }
 
 /** What reading an mbox into the mail index found (the result of a `mail-read` job). */

@@ -458,6 +458,16 @@ describe('step 6: running and the report', () => {
     expect(screen.getByText('One photo was missing')).toBeTruthy()
   })
 
+  it('names the session log that says what was decided about each document', async () => {
+    const view = await wizard()
+    await toPreview(view)
+    click('Import')
+    await view.flush()
+    const where = '.caixa/logs/sessions/2026-11-25 00-20-14 PDF import (job 5).log'
+    await view.emit('job.finished', { ...job({ id: 5, result: { inserted: 7, updated: 0, unchanged: 0, pages: 3, unresolved: [], warnings: [], session_log: where } }), job: 5 })
+    expect(screen.getByText(`What was decided about each document, and why: ${where}`)).toBeTruthy()
+  })
+
   it('can be cancelled while it runs', async () => {
     const view = await wizard()
     await toPreview(view)

@@ -31,7 +31,7 @@ import traceback
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional, Sequence, TypeVar, Union
+from typing import Any, Callable, Mapping, Optional, Sequence, TypeVar, Union
 from urllib.parse import urlparse
 
 from chattr.pages import templates_fingerprint
@@ -39,9 +39,9 @@ from chattr.people import Contacts, mac_contacts_folder
 from chattr.translation import TranslationError, is_local_endpoint
 
 from caixa import owner as owner_file
-from caixa import apple_intelligence, settings, summaries, translation, undo
+from caixa import apple_intelligence, session_log, settings, summaries, translation, undo
 from caixa.box import LAYOUT, Box, BoxError
-from caixa.collectors.base import Collector, PeopleAware, Progress
+from caixa.collectors.base import Cancelled, Collector, PeopleAware, Progress
 from caixa.collectors.inputs import InputError
 from caixa.documents import records as document_records
 from caixa.collectors.messages import alias_kind
@@ -138,7 +138,22 @@ def _readable(folder: Path) -> bool:
     return True
 
 
-class JobCancelled(Exception):
+#: The jobs that write a session log (`caixa.session_log`), by the name each gives its file.
+SESSION_KINDS = {
+    "documents-enrich": "documents enrich",
+    "documents-embed": "documents embed",
+    "documents-reprocess": "documents reprocess",
+}
+
+
+def session_kind(job: Mapping[str, Any]) -> Optional[str]:
+    """The name of a job's session log, or None for a job that keeps none."""
+    if job["kind"] == "import" and job.get("collector") == "pdf":
+        return "PDF import"
+    return SESSION_KINDS.get(job["kind"])
+
+
+class JobCancelled(Cancelled):
     """Raised inside a running import, from its progress callback, when a person cancelled it."""
 
 
@@ -937,10 +952,16 @@ class Service:
             pace(step)
 
         outcome: dict[str, Any]
+        kind = session_kind(job)
         with open(job["log"], "a", encoding="utf-8", buffering=1) as log:
             with contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
                 try:
-                    result = self._execute(box, job, progress)
+                    with (
+                        session_log.opened(box, number, kind) if kind else contextlib.nullcontext()
+                    ) as told:
+                        result = self._execute(box, job, progress)
+                    if isinstance(told, session_log.SessionLog):
+                        result["session_log"] = told.path.relative_to(box.root).as_posix()
                     outcome = {"status": "done", "result": result, "error": None}
                 except JobCancelled:
                     outcome = {"status": "cancelled", "message": "Cancelled.", "error": None}
@@ -1832,6 +1853,35 @@ class Service:
                 embed=embed, model=model,
             )  # fmt: skip
         return {"query": document_search.fts_query(query), "hits": hits}
+
+    @method("documents.log")
+    def documents_log(self, job: Optional[int] = None) -> dict[str, Any]:
+        """A document job's session log (`caixa.session_log`): the latest, or job `job`'s. Its
+        path and its JSON-lines twin's, relative to the box, its job and its text."""
+        box = self._require_box()
+        folder = box.logs_dir / "sessions"
+        found = {}
+        for path in folder.glob("*.log") if folder.is_dir() else []:
+            named = re.search(r"\(job (\d+)\)\.log$", path.name)
+            if named and (job is None or int(named.group(1)) == int(job)):
+                found[(path.name[:19], int(named.group(1)))] = path  # started, then job
+        if not found:
+            raise ServiceError(
+                "not_found",
+                (
+                    f"No session log for job {job}."
+                    if job is not None
+                    else "No session log yet: "
+                    "PDF imports and the documents' enrich, embed and reprocess jobs write one."
+                ),
+            )
+        (_, number), path = max(found.items())
+        return {
+            "path": path.relative_to(box.root).as_posix(),
+            "events_path": path.with_suffix(".jsonl").relative_to(box.root).as_posix(),
+            "job": number,
+            "text": path.read_text(encoding="utf-8", errors="replace"),
+        }
 
     @method("documents.enrich", write=True)
     def documents_enrich(

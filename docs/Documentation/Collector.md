@@ -623,18 +623,55 @@ pages**, those people's pages list the documents with **Open**.
 - whether documents are read by a model (on);
 - whether scans are made searchable (on);
 - Tesseract's languages (`eng`; for example `eng+por`, each installed);
-- the embedding model (empty: search by words only).
+- the embedding model (empty: search by words only);
+- whether session logs keep the model's quotes and replies (off; see below).
 
 `caixa doctor` reports whether OCRmyPDF, Tesseract with its languages, and Ghostscript are found.
 
+**Reading a session log.** Each PDF import, and each `enrich`, `embed` and `reprocess` job, writes a
+session log: what was decided about each document, and why.
+
+- It is `.caixa/logs/sessions/(started) (kind) (job N).log`, for example
+  `2026-11-25 09-54-14 PDF import (job 1).log`. Beside it, a `.jsonl` file holds the same events,
+  one JSON object per line, for tools.
+- The report of the job names it (`Session log: …`), and so does the import page in the browser.
+- `caixa documents log` prints the latest; `--job N` that job's; `--json` the JSON lines.
+- It opens with what decides the outcome: Caixa's version, the Python and packages, Tesseract and
+  its languages, and the settings.
+- Then a line per step, per document: `examine` (the kinds of pages), `ocr`, `validate`, `file`
+  (where it went, and what the file name and properties said), `read` and `propose` (what the
+  model was sent, how long it took, what it proposed), `decide` (moved, or why it waits), `embed`.
+- A file filed in `Unrecognized` says why: `no_date`, `no_author`, `no_title`, or the dates
+  disagree. Most file names give no author, so without a model reading the pages, most documents
+  wait there.
+- It ends with a summary: how many documents ended which way, and why; the time each stage took;
+  every error.
+- A file that cannot be examined is logged, and the import goes on with the others. If reading by
+  a model or embedding stops on an error, the documents stay filed, the import finishes with a
+  note, and `caixa documents enrich` (or `embed`) carries on later.
+
+```text
+09:54:16 examine  [3/18] 2024-06-15 Insurance Renewal - Seguradora Horizonte.pdf · pages: 1 · classes: ocr_layer 1 · needs ocr: 0 · locked: no · seconds: 0.0
+09:54:16 file     [8/18] Document1.pdf → Documents/PDF/Unrecognized/Document1.pdf · filename: none · properties: created 2024-12-01 · why: no_date, no_author, no_title
+
+--- summary: done, after 2.1 s ---
+outcomes: Unrecognized 13 (no_author 12, no_date 9, no_title 4, probable_duplicate 1, locked 1) · filed 2 · unreadable 2 · already in the box 1
+```
+
 **Privacy.**
 
-- No page text, extracted value, question or answer goes into a log; a test checks it.
-- The working copies in `.caixa/work/documents/` are readable by you alone.
+- No page text, summary, passage, question or answer goes into a log; a test checks it.
+- A session log keeps the values Caixa decided on (dates, authors, titles, types) and the names of
+  the facts found, not their values. The model's quotes and its replies (without their summaries)
+  are kept only when Settings, Documents, **Keep the model's quotes and replies in session logs**
+  is on: they are words from your pages.
+- A session log that cannot be written (a full disk) stops; the job goes on, and its job log says
+  why.
+- Session logs and the working copies in `.caixa/work/documents/` are readable by you alone.
 - What a model wrote is always told apart from what you set.
 
 Every command of `caixa documents`: `list`, `show`, `search`, `ask`, `review`, `update`, `tags`,
-`authors`, `enrich`, `embed` and `reprocess`. Each says more with `--help`.
+`authors`, `enrich`, `embed`, `reprocess` and `log`. Each says more with `--help`.
 
 ## When something does not work
 
@@ -1054,6 +1091,7 @@ read by a program as well as a person.
 | `work/imports/` | Zips, unpacked once. |
 | `jobs.sqlite` | The record of imports run from the browser or command line: status, progress, result. |
 | `logs/job-N.log` | What each import printed, and the full error if it failed. |
+| `logs/sessions/` | The documents' session logs: what was decided about each PDF, and why (see *Reading a session log*). |
 | `box.yaml` | The box's name and settings (written as JSON, which is valid YAML). |
 
 **What is safe to delete.** Your original exports are yours to keep or delete; the box does not need them

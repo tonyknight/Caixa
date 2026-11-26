@@ -54,6 +54,11 @@ class Preview:
     warnings: list[str] = field(default_factory=list)
 
 
+class Cancelled(Exception):
+    """A person stopped the task (raised from its progress callback). A stage that carries on
+    past its own errors lets this one through."""
+
+
 @dataclass(frozen=True)
 class Progress:
     stage: str  # a short machine-readable step: "reading", "importing", "rendering", …

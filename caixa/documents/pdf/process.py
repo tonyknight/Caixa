@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import time
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
@@ -42,6 +43,7 @@ def ocr_and_validate(
     """OCR then validate `path` (see the module text). `options`: `enabled`, `languages`,
     `workdir` (the job's OCR folder; failed files go beside it, in `failed/`)."""
     workdir = Path(str(options["workdir"]))
+    began = time.monotonic()
     outcome = ocr_document(
         path,
         workdir / f"{sha256}.pdf",
@@ -49,6 +51,7 @@ def ocr_and_validate(
         str(options.get("languages") or "eng"),
         bool(options.get("enabled", True)),
     )
+    took = round(time.monotonic() - began, 2)
     done: dict[str, Any] = {
         "status": outcome.status,
         "output": None,
@@ -60,11 +63,14 @@ def ocr_and_validate(
         "settings": outcome.settings,
         "error": outcome.error,
         "validation": None,
+        "seconds": took,  # OCR's
     }
     if outcome.output is None:
         return done
+    began = time.monotonic()
     checked = validate(path, outcome.output, outcome.settings.get("pages") or [])
     done["validation"] = checked.report()
+    done["validate_seconds"] = round(time.monotonic() - began, 2)
     if checked.passed:
         done["output"] = str(outcome.output)
         done["sha256"] = _hash(outcome.output)
