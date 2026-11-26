@@ -10,7 +10,7 @@ closed: 2026-11-25
 notes: 'Done: session logs for every document job, documents log command, review fixed'
 parent:
 depends_on:
-- 20261125-01-declare-numpy-and-check-every-import-is-declared
+- 20261125-04-declare-numpy-and-check-every-import-is-declared
 - 20261125-03-one-document-s-error-no-longer-ends-an-import
 subtasks:
 - id: T01

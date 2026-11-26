@@ -1,4 +1,4 @@
-"""Every package Caixa imports is declared (ticket 20261125-01).
+"""Every package Caixa imports is declared (ticket 20261125-04).
 
 numpy was imported by validation, embeddings, search and Ask but declared nowhere, so a fresh
 install could not import a scanned PDF. This test reads every import in `caixa/`, including those

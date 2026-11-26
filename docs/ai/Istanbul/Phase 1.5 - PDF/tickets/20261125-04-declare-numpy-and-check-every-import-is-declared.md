@@ -1,11 +1,11 @@
 ---
-id: 20261125-01-declare-numpy-and-check-every-import-is-declared
+id: 20261125-04-declare-numpy-and-check-every-import-is-declared
 title: Declare numpy, and check every import is declared
 type: bug
 priority: high
 status: done
 created: 2026-11-25
-updated: 2026-11-25
+updated: 2026-11-26
 closed: 2026-11-25
 notes: numpy and jinja2 declared; imports checked; doctor and the import check packages
 parent:
@@ -154,3 +154,6 @@ Append-only running log. Each entry dated.
   on the plan.
 - 2026-11-25: Approved by the maintainer. The job log showed the second failure was a model's
   answer, not numpy (`20261125-03`); the diagnosis above is corrected.
+
+### 2026-11-26
+Renumbered from 20261125-01 when merged into 2026-Istanbul/Phase1.5-PDF, which already had a 20261125-01 (the PDF collector hot fix). Its earlier commits still say 20261125-01.

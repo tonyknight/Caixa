@@ -11,7 +11,7 @@ notes: 'Done: wrong-shaped answers are retried; one document''s or stage''s erro
   no longer ends an import'
 parent:
 depends_on:
-- 20261125-01-declare-numpy-and-check-every-import-is-declared
+- 20261125-04-declare-numpy-and-check-every-import-is-declared
 subtasks:
 - id: T01
   title: An answer of the wrong shape is a problem, not a crash
@@ -169,7 +169,7 @@ Current task: T01
     the error's type and message; the session log (`20261125-02`) records it per document.
 - **Verify:**
   - `python -m pytest -q tests/test_documents_enrich.py tests/test_pdf_collector.py`: 54 passed.
-  - Full suite: 2001 passed, 10 failed (the Chattr tests recorded in `20261125-01`, unchanged).
+  - Full suite: 2001 passed, 10 failed (the Chattr tests recorded in `20261125-04`, unchanged).
   - mypy: the 8 errors of the baseline. black: clean on every changed file.
   - web: `tsc` clean; vitest 285 passed.
 

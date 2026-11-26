@@ -278,7 +278,7 @@ def test_reset_takes_the_documents_and_keeps_what_the_owner_added(family: Path, 
     assert mine.is_file() and "Documents/PDF/my own note.txt" in result.left
 
 
-# --- Packages checked first (20261125-01) --------------------------------------------------------
+# --- Packages checked first (20261125-04) --------------------------------------------------------
 
 
 @pytest.mark.parametrize("step", ["preview", "run"])
