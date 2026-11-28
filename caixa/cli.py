@@ -175,15 +175,16 @@ def build_parser() -> argparse.ArgumentParser:
     _box_argument(again)
     ready = document_commands.add_parser(
         "prepare",
-        help="read a folder of PDFs with both models, beside the box, and compare where they file",
+        help="a dry run of the PDF import, for both models: writes (date) PDF Import Preview.json "
+        "at the box's root, and imports nothing",
     )
     ready.add_argument("folder", help="a folder of PDFs (the folders inside it are searched too)")
-    ready.add_argument("--out", required=True, help="where Apple Intelligence's copies go")
     ready.add_argument(
         "--organized",
         action="store_true",
-        help="trust names such as (YYYY-MM-DD) Subject (Author) [Tag].pdf: only a wrong date is "
-        "replaced, and their authors and tags are learned into the box",
+        help="as the import's organized option: names such as (YYYY-MM-DD) Subject (Author) "
+        "[Tag].pdf are kept, only a wrong date is replaced, and their authors and tags are "
+        "learned into the box",
     )
     _box_argument(ready)
     told = document_commands.add_parser(
@@ -823,15 +824,14 @@ def _cmd_documents(args: argparse.Namespace) -> int:
     if args.action == "prepare":
         from caixa.documents.prepare import prepare
 
-        prepare(
-            Path(args.folder),
-            Path(args.out),
-            Path(args.box) if args.box else None,
-            organized=args.organized,
-        )
-        report = Path(args.out) / "report.txt"
-        if report.is_file():
-            print(report.read_text(encoding="utf-8"), end="")
+        where = args.box or os.environ.get(ENVIRONMENT)
+        if not where:
+            raise ServiceError(
+                "invalid_params", "prepare needs the box (--box): its preview is written there."
+            )
+        dry = prepare(Path(args.folder), Path(where), organized=args.organized)
+        print(dry.text, end="")
+        print(f"\nPreview: {dry.path}")
         return 0
     if args.action == "update":
         service = _open(args)

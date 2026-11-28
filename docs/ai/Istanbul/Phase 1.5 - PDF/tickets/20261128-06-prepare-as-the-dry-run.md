@@ -1,13 +1,13 @@
 ---
 id: 20261128-06-prepare-as-the-dry-run
-title: "Prepare as the dry run"
+title: Prepare as the dry run
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-28
 updated: 2026-11-28
 closed:
-notes: ""
+notes: ''
 parent:
 depends_on:
 - 20261128-02-reading-order-and-one-unreadable-text-rule
@@ -15,32 +15,103 @@ depends_on:
 - 20261128-04-author-knowledge-in-the-import
 - 20261128-05-organized-names-in-the-import
 subtasks: []
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
-What is this ticket and why does it exist?
+The last part of folding `prepare` into the import (D31): `caixa documents prepare` becomes the
+import's dry run. It runs the import's own steps for both models, copies nothing, and writes
+`(YYYY-MM-DD) PDF Import Preview.json` at the box's root, with both trees and the report.
 
 ## Acceptance criteria
 
-- [ ] Concrete, checkable condition
-- [ ] Another concrete condition
+- [ ] `prepare <folder> --box <box> [--organized]` copies nothing; `--out` is gone and `--box` is
+      required.
+- [ ] It uses the import's own steps (preprocessing, instructions, schema, quote checks, second
+      look, author knowledge, organized names, filing rules) for Apple Intelligence and the
+      endpoint in Settings. A model that cannot run is "not run". `prepare`'s own question and
+      rules are removed.
+- [ ] It writes `(YYYY-MM-DD) PDF Import Preview.json` at the box's root, replacing that day's. It
+      holds the two trees (`apple`, `local`), each file as `{from, name, why}`, and a `report`:
+      the trees compared, the times, each file's preprocessing, the organized names, and what
+      was learned. The command prints the readable report.
+- [ ] It writes nothing else into the box but the author-knowledge file with `--organized`; the
+      sources are unchanged; nothing it made is left behind; the preview holds no page text.
+- [ ] A file already in the box shows where it is, "already in the box".
 
 ## Context
 
-Links to relevant code, prior tickets, decisions in the project's
-Requirements file, or anything else a model working on this would need
-to know.
+Requirements: D31 (*`prepare` is the import's dry run*), D28 and D30 (amended); Tasks Breakdown
+31.
 
 ## Subtasks
 
-Detailed checklist. Major subtasks should also appear in the frontmatter
-`subtasks` field so they show up in `Status.md`.
-
 ## Implementation plan
 
-Status: draft
-Current task:
+Status: in-progress
+Current task: T02
+
+**Design** (`caixa/documents/prepare.py`, rewritten):
+
+- **One code path: the import itself.** For each model, `prepare` makes a throwaway box in a
+  temporary folder, outside the real box, and seeds it from the real box:
+  - a copy of its master database, taken with SQLite's backup, so a running Caixa is not
+    disturbed;
+  - its settings, with the run's model, and embedding left off;
+  - its `author-knowledge.json`.
+
+  Then it runs the PDF collector's own `run` on the folder (with `organized` when asked) inside a
+  session log, and reads where each file went. The throwaway box is deleted in all cases. So the
+  dry run is the import, rule for rule, and a file the box already has comes out "already in the
+  box", at its place.
+- **The models:** `models_for(box)` gives `apple`, the summaries' Apple Intelligence when it is
+  available, and `local`, the endpoint and model in Settings when local. Either can be "not run".
+  Tests pass `models={label: settings or None}`.
+- **What each file says**, read from the throwaway box after the run:
+  - its place, and `from` (its path relative to the folder);
+  - `why`: the review's reasons in words, or "already in the box";
+  - with `--organized`, `name`: `kept`, `date replaced` (with `from_date`, `to_date`), `no author`,
+    `waiting` or `not organized`;
+  - its preprocessing: the pages read by OCR (stored `ocr`), a cover sheet left out for the model
+    (`enrich.is_cover`), and the look that found a fact (the session log's `propose` events).
+- **The preview:** `(YYYY-MM-DD) PDF Import Preview.json` at the box's root:
+  `{"apple": tree | null, "local": tree | null, "report": {…}}`. A tree nests folders as objects,
+  down to each file's record. The report holds the run states and times, the same / different /
+  filed-by-one comparison with each file's record, the organized counts, and what was learned.
+  `report_text` gives the readable report, which the command prints.
+- **The whitelist:** with `--organized`, the names' authors and tags are learned into the real
+  box's `author-knowledge.json`, as before.
+- **Removed:** `--out`, the two copied trees, `report.txt` and `report.jsonl`, and `prepare`'s own
+  `INSTRUCTION`, `read_document`, `_decide`, filing and second look. Their tests are replaced by
+  tests of the dry run; the import's own tests cover those rules.
+
+### T01: The dry run, through the import
+
+- `caixa/documents/prepare.py`, `tests/test_documents_prepare.py` (rewritten).
+- Tests:
+  - the sources and the box are unchanged but for the preview, and the throwaway boxes are gone;
+  - two stand-in models that disagree give two places, and agreeing ones the same;
+  - a model that cannot run is "not run", with a null tree;
+  - a file already in the box is "already in the box", at its place;
+  - each organized fixture is where its known answer says, in both trees;
+  - a scanned page is reported as read by OCR, a cover sheet as left out, and an author found on
+    the second look as such.
+- Verify: `python -m pytest -q tests/test_documents_prepare.py`
+- [x] done
+
+### T02: The preview file, the report, the command and the documentation
+
+- `caixa/documents/prepare.py`, `caixa/cli.py`, `tests/test_documents_prepare.py`,
+  `docs/Documentation/Collector.md`.
+- Tests:
+  - the preview's name, place, shape and report;
+  - a second run that day replaces it;
+  - no page text in it;
+  - `--organized` learns into the real box, and without it the knowledge is unchanged;
+  - the command takes `--box` (required), no `--out`, and prints the report.
+- Verify: `python -m pytest -q tests/test_documents_prepare.py tests/test_author_knowledge.py && python -m mypy --python-version 3.12 caixa`
+- [ ] done
 
 ## Completion report
 
