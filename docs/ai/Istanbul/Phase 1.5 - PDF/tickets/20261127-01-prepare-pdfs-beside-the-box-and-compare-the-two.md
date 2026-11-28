@@ -22,7 +22,7 @@ subtasks:
   status: done
 - id: T02
   title: Preprocessing, once for both models
-  status: todo
+  status: done
 - id: T03
   title: Both models, the same instructions, archival filing
   status: todo
@@ -30,7 +30,7 @@ subtasks:
   title: The diff report
   status: todo
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -135,7 +135,7 @@ this command.
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 ### T01: The command and the two output folders
 
@@ -162,7 +162,7 @@ Current task: T02
     cut.
 - **GREEN:** one preprocessed document, reused for both models.
 - **Verify:** `python -m pytest -q tests/test_documents_prepare.py tests/test_pdf_inspect.py`
-- [ ] done
+- [x] done
 
 ### T03: Both models, the same instructions, archival filing
 
