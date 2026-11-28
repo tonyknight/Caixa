@@ -477,3 +477,77 @@ def test_the_command_reads_named_documents(
     service.close()
     assert cli.main(["documents", "enrich", item, "--box", str(tmp_path / "Box")]) == 0
     assert "1 read" in capsys.readouterr().out
+
+
+# --- What the model reads and is told (20261128-03, D31) ------------------------------------------
+
+
+def test_a_cover_sheet_is_left_out_of_what_is_sent() -> None:
+    pages = [(1, "FAX COVER SHEET"), (2, "Valley Water invoice"), (3, "Details"), (4, "Total 9")]
+    document = DocumentInput("fax.pdf", {}, pages, 4, [])
+    assert enrich.pages_sent(document) == [2, 3, 4]
+    sent = enrich.prepare(document, 12_000)
+    assert "FAX COVER" not in sent and "--- Page 2 ---" in sent
+    assert "cover sheet (page 1) left out" in sent
+
+
+def test_a_one_page_document_is_sent_whole() -> None:
+    document = DocumentInput("short.pdf", {}, [(1, "Receipt")], 1, [])
+    assert enrich.pages_sent(document) == [1]  # a one-page document has no cover sheet
+
+
+def test_the_bottom_of_a_long_last_page_is_kept() -> None:
+    last = "filler words " * 900 + "Issued by Valley Water, 12 March 2024"
+    pages = [(1, "Letterhead " * 600), (2, last)]
+    sent = enrich.prepare(DocumentInput("long.pdf", {}, pages, 2, []), 6_000)
+    assert len(sent) <= 6_000
+    assert sent.startswith("File name") and "Letterhead" in sent
+    assert "Issued by Valley Water, 12 March 2024" in sent
+
+
+def test_the_instruction_names_software() -> None:
+    assert "Brite:Bill" in enrich.INSTRUCTION and "program" in enrich.INSTRUCTION
+
+
+@pytest.mark.parametrize(
+    ("name", "program"),
+    [("Brite:Bill", True), ("brite bill", True), ("Microsoft Word", True), ("Pro API", True),
+     ("Microsoft", False), ("Canon", False), ("Valley Water", False), ("HP Inc.", False)],
+)  # fmt: skip
+def test_is_program_matches_whole_names(name: str, program: bool) -> None:
+    from caixa.documents.evidence import is_program
+
+    assert is_program(name) is program
+
+
+def test_a_program_author_in_the_properties_is_filtered() -> None:
+    from caixa.documents.evidence import read_properties
+
+    assert read_properties({"author": "Brite:Bill"}).author is None
+
+
+def _answering_author(server: StubServer, pdf_family: PdfFamily, author: str) -> None:
+    model = DocumentModel(pdf_family)
+
+    def respond(request: dict[str, Any]) -> dict[str, Any]:
+        reply = model.respond(request)
+        content = json.loads(reply["choices"][0]["message"]["content"])
+        if "type" in content and "author" in content:  # the classification, not a type's fields
+            content["author"] = {"name": author, "evidence": None, "page": None}
+        return {"choices": [{"message": {"content": json.dumps(content)}}]}
+
+    server.respond = respond
+
+
+def test_a_program_named_by_the_model_is_dropped(server: StubServer, pdf_family: PdfFamily) -> None:
+    _answering_author(server, pdf_family, "Brite:Bill")
+    client, info = enrich.provider(_values(server))
+    found = enrich.classify(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    assert found.ok and found.answer["author"] is None
+
+
+def test_a_company_that_makes_software_is_kept(server: StubServer, pdf_family: PdfFamily) -> None:
+    _answering_author(server, pdf_family, "Microsoft")
+    client, info = enrich.provider(_values(server))
+    found = enrich.classify(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    assert found.answer["author"]["name"] == "Microsoft"

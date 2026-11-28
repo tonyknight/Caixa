@@ -146,8 +146,9 @@ class Run:
 
 
 def _software(name: str) -> bool:
-    plain = " ".join(re.sub(r"[^a-z0-9]+", " ", name.lower()).split())
-    return plain in {"brite", "brite bill", "pro api", "pro document"} or plain.startswith("brite ")
+    from caixa.documents.evidence import is_program
+
+    return is_program(name)  # one list of program names, the import's
 
 
 def _facts(answer: object) -> tuple[Facts, Optional[str]]:

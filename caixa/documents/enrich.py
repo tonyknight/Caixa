@@ -49,7 +49,7 @@ from caixa.documents.tags import normalize_tags, starter_tags
 from caixa.naming import NamingDate, NamingError
 from caixa.session_log import Document, Quote, Reply
 
-PROMPT_VERSION = "1"
+PROMPT_VERSION = "2"  # 2: the sender named on the page, never a program (D31)
 SCHEMA_VERSION = "1"
 BUDGET = summaries.BUDGET
 APPLE_BUDGET = summaries.APPLE_BUDGET
@@ -131,7 +131,9 @@ INSTRUCTION = (
     "what the document, its file name and its properties say: do not guess, add or advise. "
     "The file name is evidence too: keep what it says unless the pages contradict it, and list "
     'each contradiction in filename_conflicts (such as "year", "type" or "author"). '
-    "The author is who issued, sent or wrote the document, not who it is about or addressed to. "
+    "The author is who issued, sent or wrote the document, not who it is about or addressed to: "
+    "who the page names as the sender. Never give the program that made the PDF, such as "
+    "Brite:Bill, as the author. "
     "The date is the one that names the document: the end of a statement's period, the day a "
     "bill, invoice or receipt was issued, the day a cheque was written, the tax year of a tax "
     "document (year only), the start of an insurance's cover, the day an agreement was signed, "
@@ -241,10 +243,42 @@ def _said_by_properties(stated: evidence.PropertyEvidence) -> str:
     return "; ".join(parts) or "none worth reading"
 
 
+#: A first page saying so, or with fewer letters than `COVER_LETTERS`, is a cover sheet (D31).
+_COVER = re.compile(r"fax cover|cover sheet|transmission report|scan cover", re.IGNORECASE)
+COVER_LETTERS = 40
+#: The end of the last page kept whole when it is cut to its share of the budget.
+TAIL = 600
+
+
+def is_cover(text: str) -> bool:
+    """Whether a document's first page is a cover sheet in front of it: a fax, transmission or
+    scan cover, or a page with almost no words."""
+    letters = sum(character.isalpha() for character in text or "")
+    return bool(_COVER.search(text or "")) or letters < COVER_LETTERS
+
+
+def _cover(document: DocumentInput) -> bool:
+    texts = dict(document.pages)
+    return document.page_count > 1 and len(texts) > 1 and is_cover(texts.get(1, ""))
+
+
 def pages_sent(document: DocumentInput) -> list[int]:
-    """The pages whose text the model is given: the first two and the last."""
+    """The pages whose text the model is given: the first two real pages and the last. A cover
+    sheet is left out for the model only (it stays in the archive and in search)."""
     count = document.page_count
-    return sorted({n for n, _ in document.pages if n <= 2 or n == count})
+    first = 2 if _cover(document) else 1
+    return sorted({n for n, _ in document.pages if first <= n <= first + 1 or n == count})
+
+
+def _fit(text: str, share: int, keep_end: bool) -> str:
+    """A page cut to its share: its start, and for the last page its end kept whole too."""
+    if len(text) <= share:
+        return text
+    if not keep_end:
+        return text[:share]
+    end = min(TAIL, share)
+    start = max(0, share - end - 3)
+    return (text[:start] + " … " if start else "") + text[-end:]
 
 
 def prepare(document: DocumentInput, budget: int) -> str:
@@ -255,7 +289,13 @@ def prepare(document: DocumentInput, budget: int) -> str:
     known = [a for a in sorted(set(document.authors)) if a.strip() and evidence._find(text, a)]
     count = document.page_count
     numbers = pages_sent(document)
+    cover = _cover(document)
     shown = "all of them" if len(numbers) == count else "the first two and the last are given"
+    if cover:
+        rest = (
+            "all the others" if len(numbers) == count - 1 else "the first two after it and the last"
+        )
+        shown = f"a cover sheet (page 1) left out; {rest} are given"
     head = [
         f"File name: {document.filename}",
         f"What the file name says: {_said_by_name(named)}",
@@ -277,7 +317,7 @@ def prepare(document: DocumentInput, budget: int) -> str:
     for number in numbers:
         page = " ".join((texts.get(number) or "").split(" "))
         page = page.strip()
-        body.append(f"{labels[number]}\n{page[:share]}")
+        body.append(f"{labels[number]}\n{_fit(page, share, number == numbers[-1])}")
     return (header + "\n".join(body))[:budget]
 
 
@@ -391,6 +431,8 @@ def _checked(answer: dict[str, Any], pages: Mapping[int, str]) -> dict[str, Any]
     """The answer with each quote verified against its page, and the date's precision as its
     value shows it."""
     author = answer.get("author")
+    if isinstance(author, dict) and evidence.is_program(str(author.get("name") or "")):
+        answer["author"] = author = None  # the program that made the PDF, not its sender
     if isinstance(author, dict):
         author["verified"], author["page"] = verify_quote(
             author.get("evidence"), author.get("page"), pages

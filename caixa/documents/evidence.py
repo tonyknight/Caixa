@@ -75,6 +75,29 @@ _PROGRAMS = re.compile(
     r"excel|libreoffice|openoffice|quartz|ghostscript|pdf|office|writer|printer|distiller)\b",
     re.IGNORECASE,
 )
+#: Whole names of the programs that make PDFs (D31). A PDF's Author property, or a model's answer,
+#: that is one of these names the program, not the sender. Whole names only: a company such as
+#: "Microsoft" or "Canon" may send a bill.
+PROGRAM_NAMES = frozenset({
+    "brite", "brite bill", "pro api", "pro document", "adobe acrobat", "acrobat distiller",
+    "adobe acrobat distiller", "adobe pdf library", "adobe indesign", "microsoft word",
+    "microsoft excel", "microsoft powerpoint", "microsoft print to pdf", "microsoft reporting services",
+    "libreoffice", "openoffice", "openoffice org", "ghostscript", "gpl ghostscript",
+    "quartz pdfcontext", "mac os x quartz pdfcontext", "scansnap", "scansnap manager",
+    "epson scan", "canon scan", "pdf printer", "pdfcreator", "wkhtmltopdf", "itext", "pdfsharp",
+    "reportlab", "crystal reports", "skia pdf", "chromium", "google docs",
+})  # fmt: skip
+_VERSION = re.compile(r"^v?\d[\d.]*$")
+
+
+def is_program(name: Optional[str]) -> bool:
+    """Whether `name` is, as a whole, the name of a program that makes PDFs (see
+    `PROGRAM_NAMES`); a version number after it does not count."""
+    words = re.sub(r"[^a-z0-9]+", " ", _plain(name or "")).split()
+    words = [word for word in words if not _VERSION.match(word)]
+    return bool(words) and " ".join(words) in PROGRAM_NAMES
+
+
 _FILE_NAME = re.compile(
     r"\.(?:docx?|xlsx?|pptx?|pdf|txt|odt|rtf|pages|jpe?g|png|tiff?|html?)$", re.I
 )
@@ -282,7 +305,7 @@ def _title(value: str) -> Optional[str]:
 
 def _author(value: str) -> Optional[str]:
     text = value.strip()
-    if not text or _plain(text) in _NOISE_AUTHORS or _PROGRAMS.search(text):
+    if not text or _plain(text) in _NOISE_AUTHORS or _PROGRAMS.search(text) or is_program(text):
         return None
     return text
 
