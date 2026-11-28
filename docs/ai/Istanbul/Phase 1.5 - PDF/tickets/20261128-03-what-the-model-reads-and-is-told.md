@@ -3,16 +3,16 @@ id: 20261128-03-what-the-model-reads-and-is-told
 title: What the model reads and is told
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-28
 updated: 2026-11-28
-closed:
-notes: ''
+closed: 2026-11-28
+notes: Cover sheets, top and bottom, software names, the second look
 parent:
 depends_on:
 - 20261128-02-reading-order-and-one-unreadable-text-rule
 subtasks: []
-plan_status: in-progress
+plan_status: done
 current_task: T02
 ---
 ## Description
@@ -22,15 +22,15 @@ it is told, and a second look when the author or the date is missing.
 
 ## Acceptance criteria
 
-- [ ] A cover sheet is skipped for the model only: it reads the first two real pages and the
+- [x] A cover sheet is skipped for the model only: it reads the first two real pages and the
       last. The cover stays in the archive and in search.
-- [ ] The top of the first page and the bottom of the last are never cut to fit the budget.
-- [ ] The instruction says the author is who the page names as the sender, never a software
+- [x] The top of the first page and the bottom of the last are never cut to fit the budget.
+- [x] The instruction says the author is who the page names as the sender, never a software
       name such as `Brite:Bill`. A program name is filtered from the model's answer.
-- [ ] When the answer has no author or no naming date, the model is asked once more with the
+- [x] When the answer has no author or no naming date, the model is asked once more with the
       bottom of the last page, with the same schema and quote check. What is still missing goes
       to `Unrecognized/`.
-- [ ] The session log says which look found each fact.
+- [x] The session log says which look found each fact.
 
 ## Context
 
@@ -40,7 +40,7 @@ Requirements: D31 (*What the model reads and is told*); Tasks Breakdown 28.
 
 ## Implementation plan
 
-Status: in-progress
+Status: done
 Current task: T02
 
 **Design** (`caixa/documents/enrich.py`, `caixa/documents/evidence.py`):
@@ -97,14 +97,54 @@ Current task: T02
   - the session log names the looks;
   - an import with the stand-in model reads as before.
 - Verify: `python -m pytest -q tests/test_documents_enrich.py tests/test_session_log_reading.py tests/test_documents_reconcile.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
 - **Outcome:**
-- **Files:**
+  - **Cover sheets:** `enrich.is_cover` (a fax, transmission or scan cover, or a first page with
+    fewer than 40 letters, in a document of two pages or more) leaves page 1 out of what the
+    model reads. It reads the first two real pages and the last, and the header says the cover
+    was left out. The cover stays in the archive and in search, and quotes are checked against
+    every page.
+  - **Top and bottom:** a long last page keeps its last 600 characters whole; the first page
+    keeps its start, as before.
+  - **Software names:** the instruction names the sender on the page, never a program such as
+    `Brite:Bill` (prompt version 2). `evidence.PROGRAM_NAMES` and `is_program` (whole names, a
+    version number aside) filter the PDF's properties and the model's author. "Microsoft",
+    "Canon" or "HP Inc." are kept. `prepare` uses the same list.
+  - **Second look:** `enrich.read` asks once more with the end of the last page when the answer
+    has no author or no date, with the same instruction, schema and quote checks. It fills only
+    what is missing. What is still missing leaves the document in `Unrecognized/`.
+  - **Session log:** every attempt carries its `look`, and the proposal gains `author_look` and
+    `date_look`.
+- **Files:** `caixa/documents/enrich.py` (`is_cover`, `_fit`, `_header`, `second_prompt`, `read`,
+  `Classified.looks`), `caixa/documents/evidence.py` (`PROGRAM_NAMES`, `is_program`),
+  `caixa/documents/prepare.py`, `tests/test_documents_enrich.py`.
 - **Errors:**
+  - Changed from the agreed design: the program list holds whole names. Today's property filter
+    matches single words ("Microsoft", "Canon", "HP"); applied to the model's answers, that would
+    drop real senders. The property filter keeps its word test as well.
+  - A patch script stopped on an anchor its own first step had changed; nothing was written, and
+    it was rerun.
 - **Verify:**
+  - `python -m pytest -q` (with `PYTHONUNBUFFERED=1`): 2,173 passed.
+  - mypy: the 8 baseline errors.
+
+## Review
+
+### 2026-11-28: 6fdb6ec..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** a real first page with fewer than 40 letters (a one-line covering note) is treated as
+  a cover for the model. It is still searched and quotes are still checked against it; the
+  threshold is one to tune.
+- **Minor:** `caixa benchmark`'s documents task still calls `classify`, not `read`, so it measures
+  the first look alone.
+- **Spec:** D31's *What the model reads and is told* met; every acceptance criterion met.
+- **TDD:** RED (no cover handling, no `is_program`, no `read`) before each GREEN.
+- **Commits:** `20261128-03 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
