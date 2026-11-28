@@ -3,10 +3,10 @@ id: 20261127-02-author-knowledge-in-the-box
 title: Author knowledge in the box
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-27
 updated: 2026-11-27
-closed:
+closed: 2026-11-27
 notes: Agreed 2026-11-27. Corrections teach the next prepare run, in .caixa/author-knowledge.json.
 parent:
 depends_on:
@@ -69,18 +69,18 @@ database of authors and aliases stays as it is; this file is what a run outside 
 
 ## Acceptance criteria
 
-- [ ] Correcting a document's author from a name that is not the box's owner to another name adds
+- [x] Correcting a document's author from a name that is not the box's owner to another name adds
       the new name to `accepted`, the old name to `rejected` when it is not already accepted, and
       an `instead` that names the document's kind.
-- [ ] Renaming an author, or merging one into another, records an `instead` with no kind, and the
+- [x] Renaming an author, or merging one into another, records an `instead` with no kind, and the
       kept name as accepted. The old name is not rejected when it is the box's owner.
-- [ ] The box's owner is never written to `rejected`, including when a bill of theirs is corrected
+- [x] The box's owner is never written to `rejected`, including when a bill of theirs is corrected
       to the company that sent it.
-- [ ] The file is `.caixa/author-knowledge.json`, mode `0600`, and a test finds no page text in it.
-- [ ] `prepare`, given that box, does not file a rejected name. It files under the `instead` author
+- [x] The file is `.caixa/author-knowledge.json`, mode `0600`, and a test finds no page text in it.
+- [x] `prepare`, given that box, does not file a rejected name. It files under the `instead` author
       when one matches. The instruction shown to both models names the accepted authors and the
       rejected names.
-- [ ] A box with no such file prepares as it does today.
+- [x] A box with no such file prepares as it does today.
 
 ## Context
 
@@ -98,9 +98,9 @@ database of authors and aliases stays as it is; this file is what a run outside 
 
 ## Subtasks
 
-- [ ] T01 The author-knowledge file
-- [ ] T02 Corrections, renames and merges write it
-- [ ] T03 Prepare reads it
+- [x] T01 The author-knowledge file
+- [x] T02 Corrections, renames and merges write it
+- [x] T03 Prepare reads it
 
 ## Implementation plan
 
@@ -142,10 +142,30 @@ Current task:
 - [x] done
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** Corrections, renames, and merges write `.caixa/author-knowledge.json`.
+  `caixa documents prepare --box` reads it: both models are told the accepted authors and
+  the rejected names, an `instead` for that kind supplies the author, and a rejected name
+  with no lesson stays in `Unrecognized`. The owner's name is never rejected. A lesson for
+  one kind wins over a lesson for every kind.
+- **Files:** `caixa/documents/author_knowledge.py`; `caixa/documents/corrections.py`;
+  `caixa/documents/authors.py`; `caixa/documents/prepare.py`; `tests/test_author_knowledge.py`;
+  `tests/test_documents_prepare.py`.
+- **Errors:** A rejected first answer is treated as a missing author, so the second look still
+  runs and can supply a different name. The project pytest command deadlocked once on
+  `test_the_real_command_serves_a_page_and_stops_on_control_c` (the child's stdout is
+  block-buffered). The same command with `PYTHONUNBUFFERED=1` finished.
+- **Verify:** `tests/test_documents_prepare.py` and `tests/test_author_knowledge.py`: 21 passed.
+  With corrections: 35 passed. Project suite, unbuffered: 2078 passed, 7 failed (the known
+  Chattr web-convert failures), 1 deselected. black only the known
+  `tests/test_mail_sent_and_received.py`. mypy the 8 known errors, none in these modules.
+  Web `tsc` clean; vitest 249 passed, 37 skipped (Playwright is not installed here).
+
+## Review
+
+2026-11-27, on `b2786f3..15aea07`. No Critical or Important findings. The file matches D29:
+accepted, rejected, and instead; the owner is never rejected; a one-document correction keeps
+its kind; a rename or merge does not. `prepare` reads the file and does not write the box.
+One minor, recorded under Errors: a rejected author still gets the second look.
 
 ## Notes
 
@@ -158,3 +178,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-28
 T02: correcting, renaming, and merging an author now writes .caixa/author-knowledge.json after the database change.
+
+### 2026-11-27
+T03 done. prepare reads the file. A lesson for one kind wins over a lesson for every kind. Ticket done.
