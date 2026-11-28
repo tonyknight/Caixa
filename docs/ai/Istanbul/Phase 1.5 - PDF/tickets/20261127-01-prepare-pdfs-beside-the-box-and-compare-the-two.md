@@ -93,22 +93,22 @@ this command.
 
 ## Acceptance criteria
 
-- [ ] `caixa documents prepare` on a folder of PDFs leaves every source byte unchanged and
+- [x] `caixa documents prepare` on a folder of PDFs leaves every source byte unchanged and
       creates no `.caixa` directory. `--box` is read and not written.
-- [ ] Apple Intelligence's copies are `<path>/Documents/PDF/`. The local model's copies are
+- [x] Apple Intelligence's copies are `<path>/Documents/PDF/`. The local model's copies are
       `<path> local/Documents/PDF/`. A file with no author, title or date is in
       `Unrecognized/` under its own name.
-- [ ] A bill whose PDF Author is a program name is not filed under that name. The author is
+- [x] A bill whose PDF Author is a program name is not filed under that name. The author is
       the one the page names.
-- [ ] A page whose text is drawn bottom-first still presents its letterhead before its
+- [x] A page whose text is drawn bottom-first still presents its letterhead before its
       closing to both models.
-- [ ] A text layer that is not words is read by OCR, and that is named on the file's record.
-- [ ] A cover sheet is skipped. The next page is treated as the first.
-- [ ] When author or date is still missing, the other marked region is tried, and the record
+- [x] A text layer that is not words is read by OCR, and that is named on the file's record.
+- [x] A cover sheet is skipped. The next page is treated as the first.
+- [x] When author or date is still missing, the other marked region is tried, and the record
       says which look found the fact.
-- [ ] Two stand-in models that disagree produce two trees, and the report gives both paths.
+- [x] Two stand-in models that disagree produce two trees, and the report gives both paths.
       Two that agree produce one path in the diff. The report contains no page text.
-- [ ] With Apple Intelligence unavailable the report says Apple did not run, and the local
+- [x] With Apple Intelligence unavailable the report says Apple did not run, and the local
       model still files its tree.
 
 ## Context
@@ -232,3 +232,6 @@ The second run now uses the endpoint and model named in Settings (gemma, for thi
 
 ### 2026-11-28
 The second run sends the API key already saved for that endpoint's host, the same key summaries use. It is not written into the report.
+
+### 2026-11-28
+Acceptance criteria ticked: each is covered by a passing test in tests/test_documents_prepare.py (22 passed with test_author_knowledge.py, 2026-11-28).

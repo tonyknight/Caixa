@@ -11,7 +11,7 @@ together.
 - [Timeline](#timeline)
 - [Phase 1: Collectors](#phase-1-collectors-2026-11-01-to-2026-11-19)
 - [Phase 1.5: Mail without the noise](#phase-15-mail-without-the-noise-2026-11-19-to-2026-11-24)
-- [Phase 1.5 - PDF: Documents](#phase-15---pdf-documents-2026-11-24)
+- [Phase 1.5 - PDF: Documents](#phase-15---pdf-documents-2026-11-24-to-2026-11-28)
 - [Issues we ran into, and what they taught us](#issues-we-ran-into-and-what-they-taught-us)
 - [Where things stand](#where-things-stand)
 - [Backlog](#backlog)
@@ -87,6 +87,8 @@ sources (mail, PDFs, photos, home videos, Obsidian vaults), **Stage 2** the pers
 | 2026-11-23 | Deleted people's mail, the calendar at the top, merging anywhere, an attachment race, the work bar, and the redraw made fast and batched. |
 | 2026-11-24 | Phase 1.5 complete: 46 tickets, **release 0.5.1** merged to `working` and `main`. Next: PDF support. |
 | 2026-11-24 | Phase 1.5 - PDF planned and built: 23 tickets on `2026-Istanbul/Phase1.5-PDF`, tested on synthetic PDFs; waiting for the maintainer's Mac. |
+| 2026-11-25 | First real PDF imports on the Mac (about 150 PDFs): four hot fixes, among them the missing PDF card, numpy, errors that no longer end an import, and the session log. |
+| 2026-11-27 | `caixa documents prepare` to compare Apple Intelligence with a local model on real PDFs (Gemma so far), and author knowledge learned from corrections. |
 
 ---
 
@@ -229,7 +231,7 @@ took (`-10`), and the Workers setting is visible in Settings.
 
 ---
 
-## Phase 1.5 - PDF: Documents (2026-11-24)
+## Phase 1.5 - PDF: Documents (2026-11-24 to 2026-11-28)
 
 Project files: [`docs/ai/Istanbul/Phase 1.5 - PDF/`](docs/ai/Istanbul/Phase%201.5%20-%20PDF/),
 with its completion report and testing guide.
@@ -277,6 +279,43 @@ transactions) went to the backlog.
 - **People:** authors and people named are linked in `item_people`, and documents are listed on
   person pages through a second generic Chattr slot.
 
+### Hot fixes after the first real imports (2026-11-25)
+
+The maintainer's first import on the Mac, about 150 PDFs, found what the synthetic family had not:
+
+- **`20261125-01` No PDF card in the wizard.** Collectors are found through entry points that pip
+  records at install time, and an install from before the branch had none for `pdf`. Caixa's own
+  collectors now load whatever the install recorded, and `caixa doctor` says when to install
+  again.
+- **`20261125-04` numpy.** The import stopped at once: numpy was used but never declared, and the
+  container had it from other packages. It is now declared, a test fails on any import that is
+  not, and the doctor and the import itself check the packages first. (This ticket was first
+  numbered `-01` as well; two sessions had picked the same number.)
+- **`20261125-03` One error, one document.** An hour in, a model answered an author's evidence with
+  a list, and that one answer ended the job before embedding and drawing. Wrong shapes are now
+  retried and reviewed. An unexpected error now stays with its document, or with its stage, which
+  becomes a warning while the pages are still drawn.
+- **`20261125-02` The session log.** More than 70% of documents ended in Unrecognized, and nothing
+  said why. Every document job now writes an owner-only log in `.caixa/logs/sessions/`, with a
+  `.jsonl` twin: what each stage decided about each document and why, then counts, reasons and
+  times. `caixa documents log` shows it.
+
+### Comparing the models (2026-11-27 and 28)
+
+- **`20261127-01` `caixa documents prepare`.** On a real sample, a PDF's Author property was often
+  the program that wrote it (`Brite:Bill`). Reading the page in order and taking the issuer from
+  it filed 142 of 201. `prepare <folder> --out <path> --box <box>` does this beside the box,
+  writing nothing to it.
+  - Preprocessing runs once: reading order, OCR for a text layer that is not words, cover sheets
+    skipped.
+  - Apple Intelligence and the local model get the same pages and the same instructions.
+  - Each model files into its own tree, and a report diffs the two.
+- **`20261127-02` Author knowledge.** Gemma was careful: it named the real senders and left
+  unreadable scans alone. Apple Intelligence filed almost everything, often under the customer or
+  an invented name, and was not meaningfully faster. So corrections, renames and merges now write
+  `.caixa/author-knowledge.json` (accepted authors, rejected names, and "use this instead"
+  lessons), and `prepare` tells both models what it holds. The box's owner is never rejected.
+
 ### Decisions (recorded in the Requirements)
 
 - Folders are year and author; category and type are views.
@@ -288,6 +327,9 @@ transactions) went to the backlog.
 - Author pages are named after the author alone.
 - Names are cut after 110 characters.
 - OCR is in English by default.
+- D26 amended (2026-11-25): the session log may hold extracted values, review reasons and timings;
+  evidence quotes and raw replies are opt-in; page text, passages and summaries never.
+- D28 (2026-11-27): `prepare` beside the box. D29 (2026-11-27): author knowledge.
 
 ## Issues we ran into, and what they taught us
 
@@ -301,6 +343,14 @@ transactions) went to the backlog.
 | A natural question found nothing | Full text asks for every word, including "how" and "was" | Questions match any of their content words. |
 | A search could hang for two minutes on a stalled model | The embedding call's timeout was meant for batches | Searches wait 10 seconds, then search by words alone. |
 | The docs promised owner-only working copies that did not exist | A requirement with no test | Built, with a test; a privacy test also proves no page text reaches a log. |
+| No PDF card in the wizard on the Mac | Entry points are recorded at install time, and the install predated `pdf` | Caixa's own collectors always load; the doctor says to install again. |
+| `No module named 'numpy'` on the Mac | numpy used but never declared; the container had it from elsewhere | Declared; a test checks every import; packages checked before an import starts. |
+| A real import died an hour in, leaving most documents in Unrecognized | A list where text was expected, and one document's error ended the whole job | Shapes checked; an error stays with its document or stage. |
+| 70% of real PDFs in Unrecognized, with no way to see why | Decisions were visible only in the database | The session log. |
+| Bills filed under `Brite:Bill` | The PDF's Author property names the program that wrote it | `prepare` takes the author from the page. |
+| `prepare` asked Apple Intelligence twice | Automatic chooses Apple for reading | The second run uses the endpoint in Settings. |
+| Two sessions gave two tickets the same number | Both picked the next free id on their own copy | One was renumbered (`20261125-04`). |
+| The test suite could hang | `chattr serve` prints its link without flushing, and a test reads it from a pipe | Run with `PYTHONUNBUFFERED=1`; the fix is in the backlog. |
 
 
 
@@ -341,6 +391,12 @@ transactions) went to the backlog.
   `git config user.name` before the first commit: the authorship rule depends on it.
 - **Browser-only behaviour needs a browser.** Safari's drag-and-drop could not be tested here
   (Chromium only); the maintainer's testing on Safari was the check.
+- **Install the way the user does.** The development container hid two install bugs: numpy came
+  with other packages, and a fresh `pip install -e` recorded the new entry points. Test the
+  install script in a fresh environment, and run it again after every pull.
+- **Make decisions visible before tuning them.** The session log turned "most documents are in
+  Unrecognized" into reasons that could be counted, and `prepare` turned a hunch about the models
+  into a diff.
 
 ---
 
@@ -348,14 +404,16 @@ transactions) went to the backlog.
 
 - **Version** 0.5.1 (Phase 1.5's release, tagged `v0.5.1`; Phase 1 was 0.5.0); Chattr 2.0.0.
   Phase 1.5 - PDF is built on its branch and not yet released.
-- **Tests**: 1,991 Caixa and 916 Chattr Python tests; 285 tests of the window (unit and end-to-end
-  against the real `caixa serve` in Chromium).
+- **Tests**: 2,086 Python tests, Caixa's and Chattr's, all passing (run with
+  `PYTHONUNBUFFERED=1`); 286 tests of the window (unit and end-to-end against the real
+  `caixa serve` in Chromium).
 - **Tried on real data by the maintainer**: iMessage, Messenger, Google Voice, iPhone voicemail, Mac
   Contacts, a local translation endpoint, Apple Intelligence, and now mail: real mboxes of growing
-  size, in a box of 48,000 pages.
+  size, in a box of 48,000 pages. PDF documents: real imports of about 150 PDFs, and `prepare`
+  comparing Apple Intelligence with Gemma.
 - **Not yet tried on real data**: WhatsApp, Instagram, a vCard file, the faster-whisper backend,
-  Windows, the Chattr mirror workflow, and every part of PDF documents (real PDFs, Apple
-  Intelligence reading them, Homebrew's OCRmyPDF, Safari's overlay).
+  Windows, the Chattr mirror workflow, and parts of PDF documents (Safari's overlay, search by
+  meaning, Ask, documents on person pages, with real data).
 
 ## Backlog
 
@@ -363,7 +421,11 @@ Items to plan into future projects. Each names where it came from.
 
 ### Next projects (Stage 1.5 and beyond)
 
-- **PDF support**: built in Phase 1.5 - PDF; release after the maintainer's trial on the Mac.
+- **PDF support**: built in Phase 1.5 - PDF, with hot fixes from the first real imports; release
+  once the maintainer's trial on the Mac is done.
+- **The bake-off** between Apple Intelligence and the local models, scored from `prepare`'s
+  reports and the session log's `.jsonl`, which first needs each document's item id (Phase 1.5 -
+  PDF, `20261125-02`). Then: vision, and a memory of past layouts, for `prepare`.
 - Financial transactions from statements and bills, cheques linked to bills (the PDF draft's phase
   7); other document formats, each with its own collector (Phase 1.5 - PDF).
 - Photos and home videos as their own domain; Obsidian vaults (Stage 1.5).
@@ -383,7 +445,10 @@ Items to plan into future projects. Each names where it came from.
   - whether Ghostscript is needed;
   - documents for box people who have no messages, and so no person page (with the person page
     redesign);
-  - search across mail and messages, using the same `chunks` table (Stage 2).
+  - search across mail and messages, using the same `chunks` table (Stage 2);
+  - `chattr serve` should flush the link it prints, so its test needs no `PYTHONUNBUFFERED`;
+  - the Chattr test fix on `claude/nifty-hawking-u8grqz` (HOME isolated for the `missing` and
+    `rebuild` tests), not merged yet.
 
 - **Names from the To line**: mail the owner sent to someone who never wrote back is filed under
   their address, though the To line names them (Phase 1.5, `20261123-05`).
@@ -419,6 +484,7 @@ Items to plan into future projects. Each names where it came from.
 
 ## Next
 
-**Try Phase 1.5 - PDF on the Mac**, following the testing guide in its completion report, then
-hot fixes and the release. After that, the next Stage 1.5 project: a briefing, then the
+**Finish trying Phase 1.5 - PDF on the Mac**, following the testing guide in its completion report;
+run `tools/install.sh` again after every pull. Then the bake-off, any further hot fixes, the merge
+into `working`, and the release. After that, the next Stage 1.5 project: a briefing, then the
 architecture conversation and Requirements, as for every project.
