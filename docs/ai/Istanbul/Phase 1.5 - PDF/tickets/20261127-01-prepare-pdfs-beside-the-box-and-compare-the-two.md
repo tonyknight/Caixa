@@ -25,12 +25,12 @@ subtasks:
   status: done
 - id: T03
   title: Both models, the same instructions, archival filing
-  status: todo
+  status: done
 - id: T04
   title: The diff report
   status: todo
 plan_status: in-progress
-current_task: T03
+current_task: T04
 ---
 ## Description
 
@@ -135,7 +135,7 @@ this command.
 ## Implementation plan
 
 Status: in-progress
-Current task: T03
+Current task: T04
 
 ### T01: The command and the two output folders
 
@@ -176,7 +176,7 @@ Current task: T03
 - **GREEN:** both calls, then `place` for each answer. The second look uses the other marked
   region before giving up, and the record names which look succeeded.
 - **Verify:** `python -m pytest -q tests/test_documents_prepare.py`
-- [ ] done
+- [x] done
 
 ### T04: The diff report
 
