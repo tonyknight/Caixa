@@ -13,8 +13,8 @@ depends_on:
 - 20261127-01-prepare-pdfs-beside-the-box-and-compare-the-two
 - 20261127-02-author-knowledge-in-the-box
 subtasks: []
-plan_status: approved
-current_task: T01
+plan_status: in-progress
+current_task: T02
 ---
 ## Description
 
@@ -53,8 +53,8 @@ Requirements: D30 *Organized file names*, D28 *Prepare, beside the box* (amended
 
 ## Implementation plan
 
-Status: approved
-Current task: T01
+Status: in-progress
+Current task: T02
 
 **Design:**
 
@@ -111,7 +111,7 @@ Current task: T01
   - `on_page` at each precision, including dates written in Portuguese and as `03/2024`;
   - `compatible`.
 - Verify: `python -m pytest -q tests/test_organized_names.py`
-- [ ] done
+- [x] done
 
 ### T02: Prepare --organized: the date decision, filing and the report
 
