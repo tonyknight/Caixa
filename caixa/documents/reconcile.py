@@ -62,6 +62,8 @@ class Decision:
     conflicts: set[int] = field(default_factory=set)
     explained: list[tuple[str, str]] = field(default_factory=list)  # (filename date, its kind)
     trail: list[str] = field(default_factory=list)  # what each rule found, for the session log
+    #: An organized document's file name (D30, D31): the owner's, with only what may change.
+    organized: Optional[str] = None
 
 
 def _one(
@@ -137,6 +139,119 @@ def _lesson(
     return apply(knowledge, said, kind)
 
 
+def _decide_organized(
+    fields: Sequence[Mapping[str, Any]],
+    pages: Mapping[int, str],
+    known_authors: Mapping[str, str],
+    knowledge: Optional[Any],
+    value: str,
+) -> Decision:
+    """An organized document (D30, D31): the owner's name is the truth. The model adds the type
+    and the category; the date is replaced only when impossible, or when the model's verified
+    date is not compatible with it and the name's date is nowhere on the page; a name with no
+    author takes the model's verified author for its folder. The owner's corrections rewrite
+    that part of the name, in their pattern."""
+    from caixa.documents.organized import compatible, compose, on_page, read_organized, with_date
+
+    name = read_organized(value)
+    decision = Decision()
+    trail = decision.trail
+    reasons: list[str] = []
+    if name is None:  # (cannot be: it was read at import)
+        decision.reasons = ["no_title"]
+        return decision
+    trail.append(f"organized: the owner's name {value}")
+    texts = [pages[number] for number in sorted(pages)]
+    text = "\n".join(texts)
+    for fact in ("type", "category"):
+        chosen = _one(fields, fact, "user_verified") or _one(fields, fact, "ai_inference")
+        if chosen is not None:
+            setattr(decision, fact, str(chosen["value"]))
+            decision.applied.add(int(chosen["id"]))
+    owner_title = _one(fields, "title", "user_verified")
+    decision.title = str(owner_title["value"]) if owner_title is not None else name.subject
+    owner_author = _one(fields, "author", "user_verified")
+    model_author = _one(fields, "author", "ai_inference")
+    if owner_author is not None:
+        decision.author = str(owner_author["value"])
+        decision.applied.add(int(owner_author["id"]))
+        trail.append(f"author: the owner's {decision.author}")
+    elif name.author:
+        decision.author = name.author
+        trail.append(f"author: the name's {name.author}")
+    elif model_author is not None:
+        taught = _lesson(knowledge, model_author, decision.type)
+        if taught is None:
+            reasons.append("rejected_author")
+            trail.append(f"author: the model's {model_author['value']} is a rejected name")
+        else:
+            canonical = _known(taught, known_authors)
+            lesson = normalize_author(taught) != normalize_author(str(model_author["value"]))
+            verified = (
+                lesson or canonical is not None or bool(model_author.get("verified"))
+                or _find(text, taught) is not None
+            )  # fmt: skip
+            if verified:
+                decision.author = canonical or taught
+                decision.applied.add(int(model_author["id"]))
+                trail.append(f"author: none in the name; the model's {decision.author}, verified")
+            else:
+                reasons.append("no_author")
+                trail.append(f"author: none in the name; the model's {taught} is not verified")
+    else:
+        reasons.append("no_author")
+        trail.append("author: none in the name, and none from the model")
+    owner_date = _one(fields, "date", "user_verified")
+    model_date = _one(fields, "date", "ai_inference")
+    page_date: Optional[str] = None
+    if model_date is not None and model_date.get("verified"):
+        try:
+            NamingDate.parse(str(model_date["value"]))
+            page_date = str(model_date["value"])
+        except NamingError:
+            page_date = None
+    date: Optional[str] = name.date
+    if owner_date is not None:
+        date = str(owner_date["value"])
+        decision.applied.add(int(owner_date["id"]))
+        trail.append(f"date: the owner's {date}")
+    elif name.impossible:
+        if page_date:
+            date = page_date
+            trail.append(f"date: the name's {name.date} cannot be; the page's {page_date}")
+        else:
+            date = None
+            reasons.append("no_date")
+            trail.append(f"date: the name's {name.date} cannot be, and the page gives none")
+    elif page_date and not compatible(page_date, name.date) and not on_page(name.date, texts):
+        date = page_date
+        trail.append(f"date: the page says {page_date}, and not the name's {name.date}")
+    else:
+        trail.append(f"date: the name's {name.date}")
+    if date == page_date and model_date is not None and owner_date is None:
+        decision.applied.add(int(model_date["id"]))
+        kind = _one(fields, "date_kind", "ai_inference")
+        decision.date_kind = str(kind["value"]) if kind is not None else None
+    elif owner_date is None:
+        decision.date_kind = "filename"
+    decision.date = date
+    if date:
+        decision.precision = NamingDate.parse(date).precision
+    rewrite = owner_title is not None or owner_author is not None
+    if date and rewrite:
+        named_author = decision.author if (name.author or owner_author is not None) else None
+        decision.organized = compose(name, date, str(decision.title), named_author)
+    elif date and date != name.date:
+        decision.organized = with_date(value, date)
+    else:
+        decision.organized = value
+    if decision.organized != value:
+        trail.append(f"name: {decision.organized}")
+    decision.reasons = reasons
+    decision.confident = not reasons
+    return decision
+
+
 def decide(
     fields: Sequence[Mapping[str, Any]],
     pages: Mapping[int, str],
@@ -149,6 +264,9 @@ def decide(
     `known_authors` maps every author's normalized name and alias to its name. `knowledge` (the
     box's author knowledge, D29) puts the model's author through the owner's lessons: an
     `instead` replaces it, a rejected name leaves none (D31)."""
+    named = _one(fields, "organized", "original_filename")
+    if named is not None:
+        return _decide_organized(fields, pages, known_authors, knowledge, str(named["value"]))
     decision = Decision()
     reasons: list[str] = []
     if not ai_ok:
@@ -387,7 +505,7 @@ def apply_decision(
         relative = place(
             box, record.original_filename, record.source_sha256,
             Facts(date=decision.date, title=decision.title, author=decision.author),
-            record.format, current=record.file_path,
+            record.format, current=record.file_path, filename=decision.organized,
         )  # fmt: skip
         if relative != record.file_path:
             _move(box, record.file_path, relative)

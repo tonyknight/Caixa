@@ -96,6 +96,18 @@ def with_date(filename: str, date: str) -> str:
     return _DATE.sub(f"({date})", filename, count=1)
 
 
+def compose(name: OrganizedName, date: str, subject: str, author: Optional[str]) -> str:
+    """The owner's name written again in their own pattern, with this date, subject and author
+    (no author: no brackets), and its tags and copy number as they were."""
+    parts = [f"({date}) {' '.join(subject.split())}"]
+    if author:
+        parts.append(f"({' '.join(author.split())})")
+    parts += [f"[{tag}]" for tag in name.tags]
+    if name.copy:
+        parts.append(name.copy)
+    return " ".join(parts) + PurePath(name.name).suffix
+
+
 def compatible(one: str, other: str) -> bool:
     """Whether two dates can name the same day: equal, or one a coarser form of the other."""
     return one == other or one.startswith(other + "-") or other.startswith(one + "-")
@@ -128,4 +140,4 @@ def on_page(date: str, pages: Iterable[str]) -> bool:
     return False
 
 
-__all__ = ["OrganizedName", "compatible", "on_page", "read_organized", "with_date"]
+__all__ = ["OrganizedName", "compatible", "compose", "on_page", "read_organized", "with_date"]

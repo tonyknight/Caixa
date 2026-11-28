@@ -14,7 +14,7 @@ depends_on:
 - 20261128-01-organized-file-names
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -48,7 +48,7 @@ Requirements: D31 (*Organized names in the import*), D30; Tasks Breakdown 30.
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:**
 
@@ -110,7 +110,7 @@ Current task: T02
   - a correction of the subject, the author or the date rewrites that part of the name;
   - `compose`.
 - Verify: `python -m pytest -q tests/test_organized_import.py tests/test_organized_names.py tests/test_documents_reconcile.py tests/test_documents_corrections.py`
-- [ ] done
+- [x] done
 
 ### T03: The wizard and the documentation
 

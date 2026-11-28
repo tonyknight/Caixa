@@ -141,3 +141,21 @@ def test_a_month_or_year_written_alone_is_on_the_page(date: str, text: str) -> N
 )
 def test_compatible(one: str, other: str, same: bool) -> None:
     assert compatible(one, other) is same and compatible(other, one) is same
+
+
+def test_compose_writes_the_owners_pattern() -> None:
+    from caixa.documents.organized import compose
+
+    name = read_organized("(2024-03-12) Water bill (Águas do Vale) [Utilities] [Home] (2).pdf")
+    assert name is not None
+    assert compose(name, "2024-03-13", "Water invoice", "AdV") == (
+        "(2024-03-13) Water invoice (AdV) [Utilities] [Home] (2).pdf"
+    )
+    plain = read_organized("(2023-11-05) Letter from João [Family].PDF")
+    assert plain is not None
+    assert compose(plain, "2023-11-05", "Letter from João", None) == (
+        "(2023-11-05) Letter from João [Family].PDF"
+    )
+    assert compose(plain, "2023-11-05", "Letter", "João Costa") == (
+        "(2023-11-05) Letter (João Costa) [Family].PDF"
+    )

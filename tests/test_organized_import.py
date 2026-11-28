@@ -108,3 +108,81 @@ def test_without_the_option_organized_names_are_not_trusted(
     assert not _organized_field(water)
     assert not water["file_path"].startswith(f"{PDF}/2024/Águas do Vale/(2024-03-12) Water bill (")
     assert author_knowledge.load(box).tags == []
+
+
+# --- Reading keeps the name (T02) -----------------------------------------------------------------
+
+from organized_family import FIXTURES, respond  # noqa: E402
+from stub_server import StubServer  # noqa: E402
+
+
+@pytest.fixture
+def read_box(organized: OrganizedFamily, tmp_path: Path):
+    server = StubServer()
+    server.respond = respond
+    box = _import(organized, tmp_path, **{
+        "documents.enrich": True, "summaries.provider": "endpoint",
+        "summaries.endpoint": server.endpoint, "summaries.model": "stand-in",
+    })  # fmt: skip
+    yield box
+    server.close()
+
+
+@pytest.mark.parametrize("fixture", FIXTURES, ids=[f.name for f in FIXTURES])
+def test_each_name_ends_where_its_known_answer_says(read_box: Box, fixture: Any) -> None:
+    document = _documents(read_box)[fixture.name]
+    assert document["file_path"] == f"{PDF}/{fixture.filed}", document["review"]
+
+
+def test_the_model_adds_its_facts_beside_the_owners(read_box: Box) -> None:
+    water = _documents(read_box)["(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf"]
+    assert (water["type"], water["category"]) == ("bill", "financial")
+    assert water["title"] == "Water bill" and water["author"] == "Águas do Vale"
+    assert water["summary"]
+    with read_box.master() as master:
+        tags = dict(master.connection.execute(
+            "SELECT tag, source FROM document_tags WHERE item_id = ?", (water["item_id"],)
+        ).fetchall())  # fmt: skip
+    assert tags == {"utilities": "user_verified", "model tag": "ai_inference"}
+
+
+def test_reading_again_keeps_every_name(read_box: Box) -> None:
+    from caixa.documents.enrich import enrich_documents
+
+    before = {name: d["file_path"] for name, d in _documents(read_box).items()}
+    enrich_documents(read_box, every=True)
+    assert {name: d["file_path"] for name, d in _documents(read_box).items()} == before
+
+
+@pytest.mark.parametrize(
+    ("change", "filed"),
+    [
+        ({"title": "Water invoice"},
+         "2024/Águas do Vale/(2024-03-12) Water invoice (Águas do Vale) [Utilities].pdf"),
+        ({"author": "AdV"}, "2024/AdV/(2024-03-12) Water bill (AdV) [Utilities].pdf"),
+        ({"date": "2024-03-13"},
+         "2024/Águas do Vale/(2024-03-13) Water bill (Águas do Vale) [Utilities].pdf"),
+    ],
+)  # fmt: skip
+def test_a_correction_rewrites_that_part_of_the_name(
+    read_box: Box, change: dict[str, str], filed: str
+) -> None:
+    from caixa.documents.corrections import correct
+
+    water = _documents(read_box)["(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf"]
+    with read_box.master() as master:
+        correct(read_box, master, water["item_id"], **change)
+    assert _documents(read_box)[water["original_filename"]]["file_path"] == f"{PDF}/{filed}"
+
+
+def test_a_name_with_no_author_takes_the_models_and_a_correction_names_it(read_box: Box) -> None:
+    from caixa.documents.corrections import correct
+
+    letter = _documents(read_box)["(2023-11-05) Letter from João [Family].pdf"]
+    assert (
+        letter["file_path"] == f"{PDF}/2023/João Costa/(2023-11-05) Letter from João [Family].pdf"
+    )
+    with read_box.master() as master:
+        correct(read_box, master, letter["item_id"], author="João Costa")
+    moved = _documents(read_box)[letter["original_filename"]]["file_path"]
+    assert moved == f"{PDF}/2023/João Costa/(2023-11-05) Letter from João (João Costa) [Family].pdf"
