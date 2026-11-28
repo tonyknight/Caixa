@@ -151,7 +151,7 @@ def _decide_organized(
     date is not compatible with it and the name's date is nowhere on the page; a name with no
     author takes the model's verified author for its folder. The owner's corrections rewrite
     that part of the name, in their pattern."""
-    from caixa.documents.organized import compatible, compose, on_page, read_organized, with_date
+    from caixa.documents.organized import compatible, on_page, read_organized, rewrite, with_date
 
     name = read_organized(value)
     decision = Decision()
@@ -237,10 +237,14 @@ def _decide_organized(
     decision.date = date
     if date:
         decision.precision = NamingDate.parse(date).precision
-    rewrite = owner_title is not None or owner_author is not None
-    if date and rewrite:
-        named_author = decision.author if (name.author or owner_author is not None) else None
-        decision.organized = compose(name, date, str(decision.title), named_author)
+    corrected = owner_title is not None or owner_author is not None
+    if date and corrected:  # the owner's own words, put where the name has them
+        decision.organized = rewrite(
+            name,
+            date=date,
+            subject=str(owner_title["value"]) if owner_title is not None else None,
+            author=str(owner_author["value"]) if owner_author is not None else None,
+        )
     elif date and date != name.date:
         decision.organized = with_date(value, date)
     else:

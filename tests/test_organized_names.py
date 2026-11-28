@@ -159,3 +159,107 @@ def test_compose_writes_the_owners_pattern() -> None:
     assert compose(plain, "2023-11-05", "Letter", "João Costa") == (
         "(2023-11-05) Letter (João Costa) [Family].PDF"
     )
+
+
+# --- The author and tags wherever the name holds them (20261128-07, D30 amended) ------------------
+
+
+@pytest.mark.parametrize(
+    ("filename", "subject", "author", "tags"),
+    [
+        ("(1985-06-01) Training Certificate - (Escola Naval) - [Navy].pdf",
+         "Training Certificate", "Escola Naval", ["Navy"]),
+        ("(1989-11-18) (Proteção Civil) Payout.pdf", "Payout", "Proteção Civil", []),
+        ("(1981-01-01) Costa Cheques (Banco Atlântico)  - [Cheques].pdf",
+         "Costa Cheques", "Banco Atlântico", ["Cheques"]),
+        ("(1988-06-01) Class of 1988 Programme - (Escola Secundária) - 2.pdf",
+         "Class of 1988 Programme", "Escola Secundária", []),
+        ("(1990-06-01) Photos from the camp - (Maria Costa) [Escola Naval] - [Navy].pdf",
+         "Photos from the camp", "Maria Costa", ["Escola Naval", "Navy"]),
+        ("(1995-08-09) [Quartz] 2.1 Notes  - (Café Central) - [Quartz].pdf",
+         "[Quartz] 2.1 Notes", "Café Central", ["Quartz"]),
+        ("(2007-06-01) (Ana Costa)'s garden plan - [Ana Costa].pdf",
+         "Ana Costa's garden plan", "Ana Costa", ["Ana Costa"]),
+        ("(2010-06-01) August (Energia do Norte) Bill.pdf",
+         "August Energia do Norte Bill", "Energia do Norte", []),
+        ("(2013-08-13) (Clínica Santa Luzia) Bill - I(Clínica Santa Luzia)].pdf",
+         "Bill", "Clínica Santa Luzia", []),
+        ("(2016-07-07) (Rua Nova) Appraisal - [(Rua Nova)].pdf", "Appraisal", "Rua Nova", ["Rua Nova"]),
+        ("(2000-06-01) Statements - (Banco Atlântico) - [Banking] - [Home].pdf",
+         "Statements", "Banco Atlântico", ["Banking", "Home"]),
+        ("(1987-12-31) Costa Cheques [1987].pdf", "Costa Cheques", None, ["1987"]),
+        ("(1985-12-31) Costa Cheques [1985-1986] 2.pdf", "Costa Cheques", None, ["1985-1986"]),
+    ],
+)  # fmt: skip
+def test_the_author_and_tags_wherever_they_are(
+    filename: str, subject: str, author: str | None, tags: list[str]
+) -> None:
+    name = read_organized(filename)
+    assert name is not None
+    assert (name.subject, name.author, name.tags) == (subject, author, tags)
+
+
+def test_a_copy_number_without_brackets() -> None:
+    name = read_organized("(1993-06-01) Postcard - (Ana Costa) 2.pdf")
+    assert name is not None and (name.author, name.copy) == ("Ana Costa", "2")
+    dashed = read_organized("(1988-06-01) Programme - (Escola Secundária) - 2.pdf")
+    assert dashed is not None and dashed.copy == "2"
+    year = read_organized("(2015-06-01) (Livraria Estrela) - 1679.pdf")
+    assert year is not None and year.copy is None and year.subject == "1679"
+
+
+def test_of_two_different_authors_the_last() -> None:
+    name = read_organized("(2022-06-01) Lease (signed copy) (Rui Pereira) [Housing].pdf")
+    assert name is not None
+    assert (name.subject, name.author, name.authors) == (
+        "Lease (signed copy)", "Rui Pereira", ["signed copy", "Rui Pereira"],
+    )  # fmt: skip
+
+
+def test_the_same_tag_once_and_the_same_author_once() -> None:
+    name = read_organized(
+        "(2013-09-18) (Clínica Santa Luzia) Bill - [Ana] - [ana] - (Clínica Santa Luzia).pdf"
+    )
+    assert name is not None and name.authors == ["Clínica Santa Luzia"] and name.tags == ["Ana"]
+
+
+def test_rewrite_in_place() -> None:
+    from caixa.documents.organized import rewrite
+
+    old = "(1985-06-01) Training Certificate - (Escola Naval) - [Navy].pdf"
+    name = read_organized(old)
+    assert name is not None
+    assert (
+        rewrite(name, author="Marinha")
+        == "(1985-06-01) Training Certificate - (Marinha) - [Navy].pdf"
+    )
+    assert rewrite(name, subject="Training Diploma") == (
+        "(1985-06-01) Training Diploma - (Escola Naval) - [Navy].pdf"
+    )
+    assert (
+        rewrite(name, date="1985-07-01")
+        == "(1985-07-01) Training Certificate - (Escola Naval) - [Navy].pdf"
+    )
+    first = read_organized("(1989-11-18) (Proteção Civil) Payout.pdf")
+    assert first is not None
+    assert rewrite(first, author="Protecção Civil") == "(1989-11-18) (Protecção Civil) Payout.pdf"
+    none = read_organized("(1987-12-31) Costa Cheques [1987].pdf")
+    assert none is not None
+    assert (
+        rewrite(none, author="Banco Atlântico")
+        == "(1987-12-31) Costa Cheques (Banco Atlântico) [1987].pdf"
+    )
+
+
+@pytest.mark.parametrize(
+    ("filename", "subject"),
+    [
+        ("(2013-09-18) Ana (Clínica Santa Luzia) Bill - [Ana Costa] - I(Clínica Santa Luzia)].pdf",
+         "Ana Clínica Santa Luzia Bill"),
+        ("(2001-06-01) Title Report - (Notário Silva)a.pdf", "Title Report"),
+        ("(2001-06-01) Title Report - (Notário Silva)b.pdf", "Title Report"),
+    ],
+)  # fmt: skip
+def test_untidy_endings_leave_a_clean_subject(filename: str, subject: str) -> None:
+    name = read_organized(filename)
+    assert name is not None and name.subject == subject

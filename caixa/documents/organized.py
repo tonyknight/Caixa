@@ -1,23 +1,27 @@
-"""Organized file names (D30): `(YYYY-MM-DD) Subject (Author) [Tag] [Tag].pdf`, read with no model.
+"""Organized file names (D30, as amended): `(YYYY-MM-DD) Subject (Author) [Tag].pdf` and the
+forms like it, read with no model.
 
-Some owners have named their PDFs well already. `read_organized` reads such a name:
+Some owners have named their PDFs well already, each in their own way. `read_organized` reads
+such a name, wherever its parts are:
 
 - the date in brackets at the start, as `YYYY`, `YYYY-MM` or `YYYY-MM-DD`; a date that cannot be
   (`2024-02-30`, month `13`) is kept as written and marked `impossible`, never trimmed;
-- the subject that follows;
-- the author: the **last** `( … )` before the tags, so `Lease (signed copy) (Rui Pereira)` is the
-  subject `Lease (signed copy)` by `Rui Pereira`. A month name or a number in those brackets is
-  part of the subject, not an author;
-- the tags: every `[ … ]` at the end;
-- a copy number such as ` (2)` (as `free_path` adds to a second file of the same name), kept
-  apart.
+- the author: every `( … )` after the date names it, except a month name, a number or a copy
+  number. The same name twice is one author; of two different names the last is the author, so
+  `Lease (signed copy) (Rui Pereira)` is a lease by Rui Pereira. `(Author) Subject`,
+  `Subject - (Author) - [Tag]` and `Subject (Author) [Tag]` all name theirs;
+- the tags: every `[ … ]` (one in brackets of its own, `[(Name)]`, is `Name`), each once;
+- a copy number: a trailing ` (2)`, ` 2` or ` - 2`, kept apart;
+- the subject: what is left, ` - ` being a separator. An author at its start or end is taken
+  out, and one inside it kept as its words (`August (Energia do Norte) Bill`).
 
 The author and the tags are optional; a date and a subject are not. A name that does not fit
-gives `None`, and is prepared as any other PDF.
+gives `None`, and is imported as any other PDF. `rewrite` changes one part of a name where it is
+written, for the owner's corrections.
 
 `on_page` says whether a date is written on the pages at its own precision, and `compatible`
 whether two dates can be the same day (one is the other, or a coarser form of it); together they
-decide whether the page contradicts a name's date (see `prepare`).
+decide whether the page contradicts a name's date (see `reconcile`).
 """
 
 from __future__ import annotations
@@ -33,9 +37,11 @@ _NAME = re.compile(
     r"^\((?P<year>\d{4})(?:-(?P<month>\d{2})(?:-(?P<day>\d{2}))?)?\)\s+(?P<rest>.+)$"
 )
 _DATE = re.compile(r"^\(\d{4}(?:-\d{2}){0,2}\)")
-_COPY = re.compile(r"\s*\((\d{1,3})\)$")
-_TAG = re.compile(r"\s*\[([^\[\]]+)\]$")
-_LAST = re.compile(r"\s*\(([^()]+)\)$")
+_COPY = re.compile(r"\s*\((\d{1,3})\)$|(?:\s+-)?\s+(\d{1,2})$")
+_TAGS = re.compile(r"\[([^\[\]]+)\]")
+_GROUP = re.compile(r"\(([^()]+)\)")
+_SEPARATORS = re.compile(r"\s+-\s+(?:-\s+)*")
+_EDGES = " -_[]()"
 
 
 @dataclass
@@ -47,14 +53,52 @@ class OrganizedName:
     precision: str  # year | month | day
     impossible: bool  # a month or a day that cannot be
     subject: str
-    author: Optional[str] = None
+    author: Optional[str] = None  # the last of `authors`
     tags: list[str] = field(default_factory=list)
-    copy: Optional[str] = None  # "(2)"
+    copy: Optional[str] = None  # "(2)", or "2" for a bare copy number
+    authors: list[str] = field(default_factory=list)  # every name in ( … ), each once
 
 
 def _not_an_author(text: str) -> bool:
     plain = _plain(text).strip(" .")
     return plain in MONTHS or not any(character.isalpha() for character in plain)
+
+
+def _key(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _without(rest: str, author: str) -> str:
+    """The subject's text with the author's brackets taken off: at its start or its end (a stray
+    letter or bracket glued to it included), and kept as its words inside it."""
+    pattern = r"\(\s*" + r"\s+".join(map(re.escape, author.split())) + r"\s*\)"
+    rest = re.sub(r"^\s*" + pattern + r"(?=[\s-]|$)", " ", rest)  # at its start
+    rest = re.sub(r"[\s-]*[A-Za-z]?" + pattern + r"[A-Za-z]?[\])]*\s*$", " ", rest)  # at its end
+    return re.sub(pattern, author, rest)  # inside it
+
+
+def _tidy(text: str) -> str:
+    text = _SEPARATORS.sub(" - ", f" {text} ")
+    text = " ".join(text.split())
+    while text and (text[0] in _EDGES or text[-1] in _EDGES):
+        before = text
+        text = text.strip(" -_")
+        if text.endswith(("]", ")")) and text.count(text[-1]) > text.count("[("[text[-1] == ")"]):
+            text = text[:-1]
+        if text.startswith(("[", "(")) and text.count(text[0]) > text.count("])"[text[0] == "("]):
+            text = text[1:]
+        if text == before:
+            break
+    return text
+
+
+def _trailing_tags(rest: str) -> str:
+    """`rest` without the tags and separators at its end."""
+    while True:
+        trimmed = re.sub(r"[\s-]*\[[^\[\]]*\][\s-]*$", "", rest)
+        if trimmed == rest:
+            return rest
+        rest = trimmed
 
 
 def read_organized(filename: str) -> Optional[OrganizedName]:
@@ -75,20 +119,29 @@ def read_organized(filename: str) -> Optional[OrganizedName]:
     rest = found.group("rest").strip()
     copy = None
     numbered = _COPY.search(rest)
-    if numbered:
-        copy, rest = f"({numbered.group(1)})", rest[: numbered.start()].rstrip()
+    if numbered and rest[: numbered.start()].strip():
+        copy = f"({numbered.group(1)})" if numbered.group(1) else numbered.group(2)
+        rest = rest[: numbered.start()].rstrip()
     tags: list[str] = []
-    while (tag := _TAG.search(rest)) is not None:
-        tags.insert(0, " ".join(tag.group(1).split()))
-        rest = rest[: tag.start()].rstrip()
-    author = None
-    last = _LAST.search(rest)
-    if last and rest[: last.start()].strip() and not _not_an_author(last.group(1)):
-        author, rest = " ".join(last.group(1).split()), rest[: last.start()].rstrip()
-    subject = " ".join(rest.split())
+    for tag in _TAGS.findall(rest):
+        text = " ".join(tag.strip().strip("()").split())
+        if text and _key(text) not in {_key(t) for t in tags}:
+            tags.append(text)
+    outside = _TAGS.sub(" ", rest)
+    authors: list[str] = []
+    for group in _GROUP.findall(outside):
+        text = " ".join(group.split())
+        if not _not_an_author(text) and _key(text) not in {_key(a) for a in authors}:
+            authors.append(text)
+    author = authors[-1] if authors else None
+    rest = _trailing_tags(rest)
+    subject = _trailing_tags(_without(rest, author)) if author else rest
+    subject = _tidy(subject)
     if not subject:
         return None
-    return OrganizedName(filename, date, precision, impossible, subject, author, tags, copy)
+    return OrganizedName(
+        filename, date, precision, impossible, subject, author, tags, copy, authors
+    )
 
 
 def with_date(filename: str, date: str) -> str:
@@ -106,6 +159,34 @@ def compose(name: OrganizedName, date: str, subject: str, author: Optional[str])
     if name.copy:
         parts.append(name.copy)
     return " ".join(parts) + PurePath(name.name).suffix
+
+
+def rewrite(
+    name: OrganizedName,
+    date: Optional[str] = None,
+    subject: Optional[str] = None,
+    author: Optional[str] = None,
+) -> str:
+    """The owner's name with only these parts changed, where they are written: the date; the
+    author's brackets (or, when the name had none, the author put after the subject); the
+    subject's words. When a part cannot be found as written, the name is written again with
+    `compose`."""
+    text = name.name
+    if author and author != name.author:
+        if name.author:
+            pattern = r"\(\s*" + r"\s+".join(map(re.escape, name.author.split())) + r"\s*\)"
+            text = re.sub(pattern, f"({author})", text)
+        elif name.subject in text:
+            text = text.replace(name.subject, f"{name.subject} ({author})", 1)
+        else:
+            return compose(name, date or name.date, subject or name.subject, author)
+    if subject and subject != name.subject:
+        if name.subject not in text:
+            return compose(name, date or name.date, subject, author or name.author)
+        text = text.replace(name.subject, subject, 1)
+    if date and date != name.date:
+        text = with_date(text, date)
+    return text
 
 
 def compatible(one: str, other: str) -> bool:
@@ -140,4 +221,6 @@ def on_page(date: str, pages: Iterable[str]) -> bool:
     return False
 
 
-__all__ = ["OrganizedName", "compatible", "compose", "on_page", "read_organized", "with_date"]
+__all__ = [
+    "OrganizedName", "compatible", "compose", "on_page", "read_organized", "rewrite", "with_date",
+]  # fmt: skip
