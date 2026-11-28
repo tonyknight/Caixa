@@ -19,7 +19,6 @@ Named for its format: the documents domain (`caixa.documents`) is shared, and ea
 from __future__ import annotations
 
 import concurrent.futures
-import functools
 import hashlib
 import multiprocessing
 import time
@@ -182,6 +181,37 @@ def _examine(path: Path, ocr: Optional[Mapping[str, Any]]) -> Examined:
     return replace(seen, text_hash=text_hash(texts))
 
 
+def _examine_one(item: tuple[Path, Optional[Mapping[str, Any]]]) -> Examined:
+    return examine(item[0], ocr=item[1])
+
+
+def _second_copies(files: list[Path]) -> set[Path]:
+    """The files whose bytes an earlier file in the list has: they are filed as a second source of
+    the first, so they are not OCR'd again. Only files of the same size are hashed."""
+    from collections import defaultdict
+
+    by_size: dict[int, list[Path]] = defaultdict(list)
+    for file in files:
+        try:
+            by_size[file.stat().st_size].append(file)
+        except OSError:
+            continue
+    again: set[Path] = set()
+    for same in by_size.values():
+        if len(same) < 2:
+            continue
+        seen: set[str] = set()
+        for file in same:
+            try:
+                digest = _hash(file)
+            except OSError:
+                continue
+            if digest in seen:
+                again.add(file)
+            seen.add(digest)
+    return again
+
+
 def _examine_all(
     files: list[Path],
     workers: int,
@@ -192,18 +222,20 @@ def _examine_all(
     to `workers` processes."""
     total = len(files)
     progress(Progress("reading", 0, total, f"Reading {total} PDFs"))
-    work = functools.partial(examine, ocr=dict(ocr) if ocr is not None else None)
+    again = _second_copies(files) if ocr is not None else set()
+    asked = dict(ocr) if ocr is not None else None
+    work = [(file, None if file in again else asked) for file in files]
     if workers <= 1 or total <= 1:
         found = []
-        for number, file in enumerate(files, start=1):
-            found.append(work(file))
-            progress(Progress("reading", number, total, file.name))
+        for number, item in enumerate(work, start=1):
+            found.append(_examine_one(item))
+            progress(Progress("reading", number, total, item[0].name))
         return found
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=min(workers, total), mp_context=multiprocessing.get_context("spawn")
     ) as pool:
         found = []
-        for number, seen in enumerate(pool.map(work, files, chunksize=2), start=1):
+        for number, seen in enumerate(pool.map(_examine_one, work, chunksize=2), start=1):
             found.append(seen)
             progress(Progress("reading", number, total, seen.name))
         return found

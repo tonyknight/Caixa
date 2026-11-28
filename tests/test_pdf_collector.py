@@ -354,3 +354,89 @@ def test_a_later_stage_that_fails_leaves_a_warning_and_the_pages_drawn(
     warning = next(w for w in result.warnings if w.startswith(named))
     assert "RuntimeError" in warning and f"caixa documents {stage}" in warning
     assert result.pages > 0 and (box.root / "Documents" / "PDF" / "PDF.html").is_file()
+
+
+# --- Identical files, and one filing error (20261128-08) ------------------------------------------
+
+
+def _ocr_box(tmp_path: Path) -> Box:
+    from caixa import settings
+
+    made = Box.create(tmp_path / "OcrBox", name="Our box")
+    settings.save(made, {"documents.enrich": False})
+    return made
+
+
+def test_two_copies_of_one_scan_import_as_one_document(
+    pdf_family: PdfFamily, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.documents.pdf import ocr, process
+
+    if not ocr.tools().ready:
+        pytest.skip("OCR tools missing here")
+    source = tmp_path / "twice"
+    source.mkdir()
+    shutil.copyfile(pdf_family.root / "scan_00482.pdf", source / "scan_00482.pdf")
+    shutil.copyfile(pdf_family.root / "scan_00482.pdf", source / "scan again.pdf")
+    ocrd: list[str] = []
+    real = process.ocr_and_validate
+
+    def counting(path: Path, *args: Any, **kwargs: Any) -> Any:
+        ocrd.append(Path(path).name)
+        return real(path, *args, **kwargs)
+
+    monkeypatch.setattr("caixa.collectors.pdfImport.ocr_and_validate", counting)
+    box = _ocr_box(tmp_path)
+    result = PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
+    assert result.inserted == 1 and result.unchanged == 1
+    assert len(ocrd) == 1  # the second copy is not OCR'd again
+    with box.master() as master:
+        (document,) = records.list_documents(master)
+        sources = master.connection.execute(
+            "SELECT COUNT(*) FROM document_sources WHERE item_id = ?", (document["item_id"],)
+        ).fetchone()[0]
+    assert sources == 2 and document["ocr_status"] == "done"
+
+
+def test_each_file_has_its_own_working_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.documents.pdf import process
+
+    outputs: list[Path] = []
+
+    def remember(source: Path, output: Path, *args: Any) -> Any:
+        outputs.append(output)
+        from caixa.documents.pdf.ocr import OcrOutcome
+
+        return OcrOutcome("not_needed")
+
+    monkeypatch.setattr(process, "ocr_document", remember)
+    for name in ("a.pdf", "b.pdf"):
+        process.ocr_and_validate(tmp_path / name, "f" * 64, [], {"workdir": str(tmp_path)})
+    assert len(set(outputs)) == 2 and all(o.name.startswith("f" * 64 + "-") for o in outputs)
+
+
+def test_one_file_that_cannot_be_filed_does_not_stop_the_import(
+    family: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from caixa.documents import importing
+
+    real = importing.copy_into
+
+    def failing(box: Box, source: Path, relative: str, sha256: str) -> None:
+        real(box, source, relative, sha256)
+        if "scan_00482" in relative:
+            raise OSError("The copy of scan_00482.pdf does not match it; nothing was filed.")
+
+    monkeypatch.setattr(importing, "copy_into", failing)
+    box = Box.create(tmp_path / "Box2", name="Our box")
+    from caixa import settings
+
+    settings.save(box, {"documents.ocr": False, "documents.enrich": False})
+    result = PdfCollector().run(box, family, {"workers": 1}, lambda step: None)
+    assert any("scan_00482.pdf: could not be filed (OSError" in w for w in result.warnings)
+    with box.master() as master:
+        names = {d["original_filename"] for d in records.list_documents(master)}
+    assert "scan_00482.pdf" not in names and len(names) >= 10
+    assert not list((box.root / "Documents").rglob("scan_00482*"))

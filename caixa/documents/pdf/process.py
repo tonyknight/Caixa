@@ -34,6 +34,12 @@ def _hash(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _path_key(path: Path) -> str:
+    import hashlib
+
+    return hashlib.sha1(str(path).encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
+
+
 def ocr_and_validate(
     path: Path,
     sha256: str,
@@ -46,7 +52,7 @@ def ocr_and_validate(
     began = time.monotonic()
     outcome = ocr_document(
         path,
-        workdir / f"{sha256}.pdf",
+        workdir / f"{sha256}-{_path_key(path)}.pdf",  # its own: identical files never share one
         [dict(page) for page in inspection],
         str(options.get("languages") or "eng"),
         bool(options.get("enabled", True)),
