@@ -169,3 +169,49 @@ def test_the_preview_counts_pages_that_may_need_ocr(pdf_family: PdfFamily, tmp_p
     preview = PdfCollector().preview(pdf_family.root, {}, None)
     # scan, cheque, the mixed file's receipt, the broken statement, the poor contract's two pages
     assert any(w.startswith("6 pages may need OCR") for w in preview.warnings), preview.warnings
+
+
+# --- Reading order and one unreadable-text rule (20261128-02, D31) --------------------------------
+
+
+def _one_page(*lines: tuple[float, str], render_mode: int = 0) -> Any:
+    doc = pymupdf.open()
+    page = doc.new_page()
+    for y, text in lines:
+        page.insert_text((72, y), text, fontsize=11, render_mode=render_mode)
+    return doc
+
+
+def test_a_page_drawn_bottom_first_is_stored_top_first() -> None:
+    doc = _one_page((760, "Yours sincerely, the closing"), (72, "Valley Water, the letterhead"))
+    (inspected,) = inspect_pdf(doc)
+    assert inspected.text.index("letterhead") < inspected.text.index("closing")
+
+
+def test_a_layer_of_digits_and_punctuation_is_broken_text() -> None:
+    doc = _one_page((72, ".... 12345 .... 99999 ...."), (90, "## 0042 // 7731 ::"))
+    (inspected,) = inspect_pdf(doc)
+    assert inspected.page_class == "broken_text"
+    assert inspected.measures.letter_share < 0.25
+
+
+def test_a_short_page_of_words_is_text() -> None:
+    doc = _one_page((72, "Receipt"), (90, "Thank you"))
+    (inspected,) = inspect_pdf(doc)
+    assert inspected.page_class == "text" and not inspected.needs_ocr
+
+
+def test_a_short_page_of_words_and_numbers_is_text() -> None:
+    doc = _one_page((72, "Total 23,40 EUR"), (90, "Paid 12/03/2024"))
+    (inspected,) = inspect_pdf(doc)
+    assert inspected.page_class == "text"
+
+
+def test_an_ocr_layer_of_digits_stays_an_ocr_layer() -> None:
+    doc = _one_page((72, "0042 7731 99999 12345 0000"), render_mode=3)
+    page = doc[0]
+    page.insert_image(
+        page.rect, pixmap=pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 40, 40), 0)
+    )
+    (inspected,) = inspect_pdf(doc)
+    assert inspected.page_class == "ocr_layer"

@@ -7,8 +7,12 @@ Each page is measured (`measure`), then given one class (`classify`):
 - `ocr_layer`: a picture with invisible text over it, as OCR software leaves it; *poor* when that
   text is mostly not words, so OCR should be done again;
 - `broken_text`: visible text whose extraction is garbage (a font with no map to Unicode): the page
-  looks right and searches find nothing;
+  looks right and searches find nothing. Also a text layer of mostly digits and punctuation (fonts
+  that map their letters to nothing), which says nothing a person reads; a short page of real
+  words is not broken;
 - `blank`: nothing on it.
+
+Page text is taken in reading order (top to bottom), the order a person reads it.
 
 The measures are plain numbers kept with the page (`quality`), so a later look at a real PDF can
 say why a page was judged as it was. The thresholds were set on the synthetic PDF family and are
@@ -34,6 +38,10 @@ COVERED = 0.6
 FEW = 40
 #: Below this many letters, the share of word-like tokens says nothing.
 MEASURABLE = 20
+#: A text layer of at least this many visible characters, under this share of them letters (and
+#: too few letters to measure), is digits and punctuation: broken.
+NOT_WORDS_MIN = 15
+LETTER_SHARE = 0.25
 
 _VOWELS = set("aeiouyáàâãäéèêëíìîïóòôõöúùûüAEIOUYÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜ")
 _TOKEN = re.compile(r"\S+")
@@ -64,6 +72,11 @@ class Measures:
     invisible_share: float
     image_cover: float  # 0..1 of the page
     drawings: int
+
+    @property
+    def letter_share(self) -> float:
+        """Letters among the visible characters (1.0 when there are none)."""
+        return self.letters / self.characters if self.characters else 1.0
 
 
 @dataclass(frozen=True)
@@ -149,6 +162,12 @@ def classify(measures: Measures) -> tuple[str, bool]:
         return "ocr_layer", measurable and measures.word_share < WORDS_POOR
     if measurable and measures.word_share < WORDS_BROKEN:
         return "broken_text", False
+    if (
+        not measurable
+        and measures.characters >= NOT_WORDS_MIN
+        and measures.letter_share < LETTER_SHARE
+    ):
+        return "broken_text", False  # digits and punctuation: a layer that says nothing
     if measures.image_cover > COVERED and measures.characters < FEW:
         return "needs_ocr", False
     return "text", False
@@ -160,7 +179,7 @@ def inspect_pdf(doc: Any) -> list[PageInspection]:
     for index, page in enumerate(doc):
         measures = measure(page)
         page_class, poor = classify(measures)
-        text = page.get_text()
+        text = page.get_text(sort=True)  # reading order
         found.append(
             PageInspection(
                 number=index + 1,
