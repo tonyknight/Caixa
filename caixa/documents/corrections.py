@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from caixa.box import Box
-from caixa.documents import records
+from caixa.documents import author_knowledge, records
 from caixa.documents.reconcile import apply_decision, decide, known_authors
 from caixa.naming import NamingDate, NamingError, clean
 
@@ -89,6 +89,15 @@ def correct(
     when there is no such document, `CorrectionError` for a value that cannot be used."""
     values = _checked(author, date, title, type)
     document = records.get_document(master, item_id)
+    said = next(
+        (
+            str(field["value"])
+            for field in reversed(document["fields"])
+            if field["field"] == "author" and field["source"] != "user_verified" and field["value"]
+        ),
+        str(document.get("author") or ""),
+    )
+    kind = values.get("type") or str(document.get("type") or "") or None
     for name, value in values.items():
         master.connection.execute(
             "DELETE FROM document_fields WHERE item_id = ? AND field = ? AND source = 'user_verified'",
@@ -103,7 +112,13 @@ def correct(
         ai_ok=document["ai_status"] == "completed",
         fallback_title=Path(str(document["original_filename"])).stem,
     )
-    return apply_decision(box, master, item_id, decision)
+    moves = apply_decision(box, master, item_id, decision)
+    if "author" in values:
+        owner = next((person.name for person in master.people() if person.is_owner), None)
+        known = author_knowledge.load(box)
+        author_knowledge.learn_correction(known, said, values["author"], kind, owner)
+        author_knowledge.save(box, known)
+    return moves
 
 
 def candidates(master: Any, item_id: str) -> dict[str, list[dict[str, Any]]]:

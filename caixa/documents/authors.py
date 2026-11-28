@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
-from caixa.documents import records
+from caixa.documents import author_knowledge, records
 from caixa.documents.archive import Facts, place
 from caixa.documents.reconcile import _move
 
@@ -80,10 +80,16 @@ def rename(box: Any, master: Any, author_id: int, name: str) -> list[tuple[str, 
     row = db.execute("SELECT name FROM authors WHERE id = ?", (author_id,)).fetchone()
     if row is None:
         raise KeyError(author_id)
-    records.add_author_alias(master, author_id, str(row[0]))
+    old = str(row[0])
+    records.add_author_alias(master, author_id, old)
     db.execute("UPDATE authors SET name = ? WHERE id = ?", (name, author_id))
     records.add_author_alias(master, author_id, name)
-    return _refile(box, master, author_id)
+    moves = _refile(box, master, author_id)
+    owner = next((person.name for person in master.people() if person.is_owner), None)
+    known = author_knowledge.load(box)
+    author_knowledge.learn_rename(known, old, name, owner)
+    author_knowledge.save(box, known)
+    return moves
 
 
 def merge(box: Any, master: Any, source_id: int, target_id: int) -> list[tuple[str, str]]:
@@ -92,6 +98,12 @@ def merge(box: Any, master: Any, source_id: int, target_id: int) -> list[tuple[s
     if source_id == target_id:
         raise ValueError("An author cannot be merged with itself.")
     db = master.connection
+    names = {
+        int(row[0]): str(row[1])
+        for row in db.execute(
+            "SELECT id, name FROM authors WHERE id IN (?, ?)", (source_id, target_id)
+        )
+    }
     for author in (source_id, target_id):
         if db.execute("SELECT 1 FROM authors WHERE id = ?", (author,)).fetchone() is None:
             raise KeyError(author)
@@ -100,7 +112,12 @@ def merge(box: Any, master: Any, source_id: int, target_id: int) -> list[tuple[s
     )
     db.execute("UPDATE documents SET author_id = ? WHERE author_id = ?", (target_id, source_id))
     db.execute("DELETE FROM authors WHERE id = ?", (source_id,))
-    return _refile(box, master, target_id)
+    moves = _refile(box, master, target_id)
+    owner = next((person.name for person in master.people() if person.is_owner), None)
+    known = author_knowledge.load(box)
+    author_knowledge.learn_rename(known, names[source_id], names[target_id], owner)
+    author_knowledge.save(box, known)
+    return moves
 
 
 __all__ = ["list_authors", "merge", "rename"]

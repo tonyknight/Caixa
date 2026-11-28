@@ -18,12 +18,12 @@ subtasks:
   status: done
 - id: T02
   title: Corrections, renames and merges write it
-  status: todo
+  status: done
 - id: T03
   title: Prepare reads it
   status: todo
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -106,7 +106,7 @@ database of authors and aliases stays as it is; this file is what a run outside 
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 ### T01: The author-knowledge file
 
@@ -128,7 +128,7 @@ Current task: T02
   Merging writes an `instead` from the name that went away to the name that stayed.
 - **GREEN:** each of those three actions updates the file after the database change succeeds.
 - **Verify:** `python -m pytest -q tests/test_author_knowledge.py tests/test_documents_corrections.py tests/test_documents_authors.py`
-
+- [x] done
 ### T03: Prepare reads it
 
 - **Files:** `caixa/documents/prepare.py`; `tests/test_documents_prepare.py`.
@@ -156,3 +156,6 @@ Append-only running log. Each entry dated.
   corrects authors the way they correct people. The lessons live in
   `.caixa/author-knowledge.json` and are shown to the next prepare run. The owner's own name is
   never rejected.
+
+### 2026-11-28
+T02: correcting, renaming, and merging an author now writes .caixa/author-knowledge.json after the database change.
