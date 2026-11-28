@@ -103,7 +103,7 @@ def _read_broken(source: Path, numbers: Sequence[int], languages: str) -> dict[i
         for number in numbers:
             page = doc[number - 1]
             textpage = page.get_textpage_ocr(language=languages, dpi=BROKEN_DPI, full=True)
-            texts[number] = str(page.get_text(textpage=textpage))
+            texts[number] = str(page.get_text(textpage=textpage, sort=True))
     return texts
 
 
@@ -170,7 +170,7 @@ def ocr_document(
         import pymupdf
 
         with pymupdf.open(output) as doc:
-            outcome.texts = {n: str(doc[n - 1].get_text()) for n in layered}
+            outcome.texts = {n: str(doc[n - 1].get_text(sort=True)) for n in layered}
         outcome.output = output
     try:
         outcome.texts.update(_read_broken(source, broken, languages))

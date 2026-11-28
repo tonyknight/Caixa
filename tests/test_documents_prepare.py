@@ -542,3 +542,9 @@ def test_a_replaced_date_is_told_even_when_the_file_waits(tmp_path: Path) -> Non
     assert (tmp_path / "prepared/Documents/PDF" / waiting).is_file()
     report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
     assert "2024-02-30 → 2024-02-28" in report and "waits in Unrecognized" in report
+
+
+def test_prepare_uses_the_imports_rule_for_unreadable_text(tmp_path: Path) -> None:
+    short = tmp_path / "Receipt.pdf"
+    _pdf(short, "Receipt", "Thank you")
+    assert prepare.read_document(short).ocr_pages == []  # a short page of words is not OCR'd

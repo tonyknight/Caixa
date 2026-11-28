@@ -228,3 +228,65 @@ def test_the_doctor_names_the_ocr_programs() -> None:
     lines = "\n".join(diagnostics._programs())
     for name in ("ocrmypdf", "tesseract", "gs"):
         assert f"{name}:" in lines
+
+
+# --- Reading order and the one rule, through an import (20261128-02, D31) -------------------------
+
+
+def _words_picture(tmp_path: Path, words: str) -> Path:
+    picture = tmp_path / "words.png"
+    drawn = pymupdf.open()
+    drawn.new_page().insert_text((72, 72), words, fontsize=14)
+    drawn[0].get_pixmap(dpi=150).save(picture)
+    drawn.close()
+    return picture
+
+
+def _mixed_family(tmp_path: Path) -> Path:
+    """Three one-page PDFs: drawn bottom-first, a digits layer over a picture of words, and a short
+    page of real words."""
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 760), "Yours sincerely, the closing")
+    page.insert_text((72, 72), "Valley Water, the letterhead")
+    doc.save(folder / "Letter.pdf")
+    doc.close()
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_image(page.rect, filename=str(_words_picture(tmp_path, "Pacific Gas Electric")))
+    page.insert_text((72, 400), ".... 12345 .... 99999 ....")
+    doc.save(folder / "Bill.pdf")
+    doc.close()
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), "Receipt")
+    page.insert_text((72, 90), "Thank you")
+    doc.save(folder / "Receipt.pdf")
+    doc.close()
+    return folder
+
+
+def test_an_import_stores_reading_order_and_reads_a_digits_layer(tmp_path: Path) -> None:
+    if not ocr.tools().ready:
+        pytest.skip("OCR tools missing here")
+    from caixa import settings
+    from caixa.box import Box
+    from caixa.collectors.pdfImport import PdfCollector
+
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {"documents.enrich": False})
+    PdfCollector().run(box, _mixed_family(tmp_path), {"workers": 1}, lambda step: None)
+    with box.master() as master:
+        rows = master.connection.execute(
+            "SELECT d.original_filename, p.text, p.source, p.class FROM document_pages p "
+            "JOIN documents d ON d.item_id = p.item_id"
+        ).fetchall()
+    pages = {str(name): (str(text), str(source), str(kind)) for name, text, source, kind in rows}
+    letter = pages["Letter.pdf"][0]
+    assert letter.index("letterhead") < letter.index("closing")
+    text, source, kind = pages["Bill.pdf"]
+    assert kind == "broken_text" and source == "ocr"
+    assert "Pacific" in text or "Electric" in text
+    assert pages["Receipt.pdf"][1:] == ("pdf", "text")

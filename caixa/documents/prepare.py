@@ -55,11 +55,12 @@ class Read:
     cover: bool = False
 
 
-def _not_words(text: str) -> bool:
-    """A text layer of punctuation and digits: it looks like text and says nothing."""
-    visible = [character for character in text if not character.isspace()]
-    letters = sum(character.isalpha() for character in visible)
-    return len(visible) >= 15 and letters < 20
+def _not_words(page: object) -> bool:
+    """A text layer that says nothing a person reads, by the import's own rule (inspection's
+    `broken_text`): a short page of real words is not one."""
+    from caixa.documents.pdf.inspect import classify, measure
+
+    return classify(measure(page))[0] == "broken_text"
 
 
 def _ordered(page: object) -> str:
@@ -86,7 +87,7 @@ def read_document(path: Path) -> Read:
     with pymupdf.open(path) as doc:
         for number, page in enumerate(doc, start=1):
             text = _ordered(page)
-            if _not_words(text):
+            if _not_words(page):
                 try:
                     text = _ocr(page) or text
                 except Exception:
