@@ -90,6 +90,7 @@ sources (mail, PDFs, photos, home videos, Obsidian vaults), **Stage 2** the pers
 | 2026-11-25 | First real PDF imports on the Mac (about 150 PDFs): four hot fixes, among them the missing PDF card, numpy, errors that no longer end an import, and the session log. |
 | 2026-11-27 | `caixa documents prepare` to compare Apple Intelligence with a local model on real PDFs (Gemma so far), and author knowledge learned from corrections. |
 | 2026-11-28 | `prepare --organized`: owners' well-named PDFs keep their names, only a wrong date is replaced, and their authors and tags become the first whitelist. |
+| 2026-11-28 | `prepare` folded into the import (D31, five tickets); `prepare` becomes its dry run, writing a preview at the box's root. |
 
 ---
 
@@ -325,6 +326,20 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
   in the names become the first whitelist in `.caixa/author-knowledge.json`. `prepare` was made a
   separate command to try PDFs without importing them; its logic is to be folded into the import.
 
+### `prepare` folded into the import (2026-11-28)
+
+`prepare` had been made separate only to try PDFs without importing them. Its logic now lives in
+the import, in five tickets (`20261128-02` to `-06`):
+
+- page text in reading order, and one rule for unreadable text;
+- cover sheets left out for the model, and the bottom of the last page kept;
+- no software names as authors, and a second look when the author or date is missing;
+- author knowledge applied at filing and in reconciliation;
+- organized names as an import option.
+
+`prepare` itself became the import's dry run. It runs the real import in throwaway boxes, one per
+model, and writes `(YYYY-MM-DD) PDF Import Preview.json` at the box's root.
+
 ### Decisions (recorded in the Requirements)
 
 - Folders are year and author; category and type are views.
@@ -339,7 +354,8 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
 - D26 amended (2026-11-25): the session log may hold extracted values, review reasons and timings;
   evidence quotes and raw replies are opt-in; page text, passages and summaries never.
 - D28 (2026-11-27): `prepare` beside the box. D29 (2026-11-27): author knowledge. D30
-  (2026-11-28): organized file names, the date the only part ever replaced.
+  (2026-11-28): organized file names, the date the only part ever replaced. D31 (2026-11-28):
+  `prepare` folded into the import, and made its dry run.
 
 ## Issues we ran into, and what they taught us
 
@@ -415,7 +431,8 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
 
 - **Version** 0.5.1 (Phase 1.5's release, tagged `v0.5.1`; Phase 1 was 0.5.0); Chattr 2.0.0.
   Phase 1.5 - PDF is built on its branch and not yet released.
-- **Tests**: 2,147 Python tests, Caixa's and Chattr's, all passing (run with
+- **Tests**: 2,208 Python tests at the last full run (before the dry run's ticket; the full suite
+  is run at the end, when the maintainer asks), Caixa's and Chattr's, all passing (run with
   `PYTHONUNBUFFERED=1`); 286 tests of the window (unit and end-to-end against the real
   `caixa serve` in Chromium).
 - **Tried on real data by the maintainer**: iMessage, Messenger, Google Voice, iPhone voicemail, Mac
@@ -437,9 +454,9 @@ Items to plan into future projects. Each names where it came from.
 - **The bake-off** between Apple Intelligence and the local models, scored from `prepare`'s
   reports and the session log's `.jsonl`, which first needs each document's item id (Phase 1.5 -
   PDF, `20261125-02`). Then: vision, and a memory of past layouts, for `prepare`.
-- **Fold `prepare` into the PDF import** (Phase 1.5 - PDF, D28 and D30): its preprocessing, its
-  instructions, author knowledge, and `--organized` as an import option. Tune the preprocessing
-  thresholds first; the "not words" test sends any page under 20 letters to OCR.
+- **Tune the preprocessing on real PDFs** (Phase 1.5 - PDF, D31): the unreadable-text rule, the
+  cover-sheet rule (a first page under 40 letters counts as a cover for the model), and the
+  instructions, using the dry run's preview to compare.
 - Financial transactions from statements and bills, cheques linked to bills (the PDF draft's phase
   7); other document formats, each with its own collector (Phase 1.5 - PDF).
 - Photos and home videos as their own domain; Obsidian vaults (Stage 1.5).
