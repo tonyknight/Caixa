@@ -3,6 +3,12 @@
 One run preprocesses every PDF once, asks Apple Intelligence and the local model the same
 question, and files each answer under the output path (Apple) and `<output> local` (the local
 model). Nothing is written into a box, and the originals are only read. See D28.
+
+With `organized` (`--organized`, D30), a file named `(YYYY-MM-DD) Subject (Author) [Tag].pdf`
+(`caixa.documents.organized`) keeps the owner's name: only a date that cannot be, or that the
+page clearly contradicts, is replaced, and the author both models agree on chooses the folder of a
+name that has none. The decision is shared by both trees. Every file's record in the report says
+which pages were read by OCR, whether a cover sheet was skipped, and which look found a fact.
 """
 
 from __future__ import annotations
@@ -19,8 +25,9 @@ from typing import Any, Optional
 from chattr.translation import OpenAICompatibleTranslator, is_local_endpoint
 
 from caixa.documents import author_knowledge
-from caixa.documents.archive import DOCUMENTS, FORMAT_FOLDERS, Facts, _target
-from caixa.naming import free_path
+from caixa.documents.archive import DOCUMENTS, FORMAT_FOLDERS, UNRECOGNIZED, Facts, _target
+from caixa.documents.organized import OrganizedName, compatible, on_page, read_organized, with_date
+from caixa.naming import NamingDate, NamingError, folder_name, free_path
 
 _MISSING = object()
 INSTRUCTION = (
@@ -126,6 +133,9 @@ class Filed:
     look: str  # "answer" when the first reply was enough, "bottom" when the second look was
     apple_path: str = ""
     local_path: str = ""
+    ocr_pages: list[int] = field(default_factory=list)
+    cover: bool = False
+    organized: Optional[dict[str, Any]] = None  # with --organized, what became of the name
 
 
 @dataclass
@@ -240,6 +250,84 @@ def _place(root: Path, source: Path, facts: Facts) -> str:
     return target.relative_to(root).as_posix()
 
 
+def _place_as(root: Path, source: Path, folder: Path, filename: str) -> str:
+    """Copy `source` as `filename` into `folder` (relative to the PDF folder)."""
+    digest = hashlib.sha256(source.read_bytes()).hexdigest()
+    target = free_path(root / DOCUMENTS / FORMAT_FOLDERS["pdf"] / folder, filename, digest)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.exists():
+        shutil.copyfile(source, target)
+    return target.relative_to(root).as_posix()
+
+
+def _fold(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _agreed_date(ran: list[Facts], pages: list[str]) -> Optional[str]:
+    """The naming date every model that ran gives, when it is a date and the page states it."""
+    dates = [facts.date for facts in ran]
+    if not dates or any(not date for date in dates) or len(set(dates)) != 1:
+        return None
+    date = str(dates[0])
+    try:
+        NamingDate.parse(date)
+    except NamingError:
+        return None
+    return date if on_page(date, pages) else None
+
+
+def _agreed_author(ran: list[Facts]) -> Optional[str]:
+    authors = [facts.author for facts in ran]
+    if not authors or any(not author for author in authors):
+        return None
+    if len({_fold(str(author)) for author in authors}) != 1:
+        return None
+    return " ".join(str(authors[0]).split())
+
+
+def _organized(name: OrganizedName, document: Read, ran: list[Facts]) -> dict[str, Any]:
+    """What becomes of an organized name (D30): kept, its date replaced, or waiting. Only the date
+    is ever replaced; the owner's author is never put through author knowledge."""
+    record: dict[str, Any] = {"organized": "kept", "tags": list(name.tags)}
+    date = name.date
+    page_date = _agreed_date(ran, document.pages)
+    waiting = None
+    if name.impossible:
+        if page_date:
+            date, why = page_date, "impossible date; the page gives another"
+        else:
+            waiting = "impossible date, no page date to replace it"
+    elif (
+        page_date
+        and not compatible(page_date, name.date)
+        and not on_page(name.date, document.pages)
+    ):
+        date, why = page_date, "the page says another date, and not the name's"
+    if date != name.date:
+        record.update({"organized": "date replaced", "from": name.date, "to": date, "why": why})
+    author = name.author
+    if author:
+        record["author_from"] = "name"
+    else:
+        author = _agreed_author(ran)
+        if author:
+            record["author_from"] = "models"
+    filename = with_date(name.name, date) if date != name.date else name.name
+    if waiting:
+        record.update({"organized": "waiting", "from": name.date, "why": waiting})
+        return {**record, "folder": Path(UNRECOGNIZED), "filename": filename}
+    if not author:
+        record.update(
+            {
+                "organized": "no author",
+                "why": "no author in the name, and the models do not agree on one",
+            }
+        )
+        return {**record, "folder": Path(UNRECOGNIZED), "filename": filename}
+    return {**record, "folder": Path(date[:4]) / folder_name(author), "filename": filename}
+
+
 def _endpoint_client(values: object) -> tuple[object, str]:
     """The endpoint and model named in Settings, even when Apple Intelligence is the one chosen
     for ordinary reading. A service on the internet is refused."""
@@ -288,9 +376,11 @@ def prepare(
     apple: object = _MISSING,
     local: object = _MISSING,
     apple_available: Optional[bool] = None,
+    organized: bool = False,
 ) -> Run:
     """File every PDF for both models. Pass `apple` and `local` (callables or chat clients) in
-    tests; otherwise they are taken from `box`, which is not written."""
+    tests; otherwise they are taken from `box`, which is not written. With `organized`, organized
+    file names are trusted (see the module text)."""
     close_apple = False
     local_name = ""
     if apple is _MISSING and local is _MISSING:
@@ -316,8 +406,10 @@ def prepare(
     try:
         for source in _pdfs(folder):
             document = read_document(source)
+            name = read_organized(source.name) if organized else None
             look = "answer"
             paths: dict[str, str] = {}
+            ran: list[Facts] = []
             for label, model, root in (
                 ("apple", apple, out),
                 ("local", local, local_root(out)),
@@ -327,6 +419,7 @@ def prepare(
                     facts, which = Facts(), "answer"
                 else:
                     facts, which = _decide(model, document, known, instruction)
+                    ran.append(facts)
                 spent = time.monotonic() - began
                 if label == "apple":
                     apple_seconds += spent
@@ -334,9 +427,20 @@ def prepare(
                     local_seconds += spent
                 if model is not None and which == "bottom":
                     look = "bottom"
-                paths[label] = _place(root, source, facts)
-            files.append(Filed(source.name, look, paths["apple"], paths["local"]))
-        _report(out, files, state, local is not None, local_name, apple_seconds, local_seconds)
+                if name is None:
+                    paths[label] = _place(root, source, facts)
+            record: Optional[dict[str, Any]] = None
+            if name is not None:
+                decided = _organized(name, document, ran)
+                for label, root in (("apple", out), ("local", local_root(out))):
+                    paths[label] = _place_as(root, source, decided["folder"], decided["filename"])
+                record = {k: v for k, v in decided.items() if k not in ("folder", "filename")}
+            elif organized:
+                record = {"organized": "not organized"}
+            files.append(Filed(source.name, look, paths["apple"], paths["local"],
+                               list(document.ocr_pages), document.cover, record))  # fmt: skip
+        _report(out, files, state, local is not None, local_name, apple_seconds, local_seconds,
+                organized)  # fmt: skip
         return Run(files, state)
     finally:
         if close_apple:
@@ -355,6 +459,26 @@ def _outcome(one: Filed) -> str:
     return "different"
 
 
+#: What can become of an organized name, in the order the report counts them.
+OUTCOMES = ("kept", "date replaced", "no author", "waiting", "not organized")
+
+
+def _organized_lines(files: list[Filed]) -> list[str]:
+    """The report's *organized names* section: counts, then each name that was changed or waits."""
+    told = [one for one in files if one.organized]
+    counts = {outcome: 0 for outcome in OUTCOMES}
+    for one in told:
+        counts[str(one.organized["organized"])] += 1  # type: ignore[index]
+    lines = ["organized names", "  " + ", ".join(f"{k}: {v}" for k, v in counts.items())]
+    for one in told:
+        record = one.organized or {}
+        if record["organized"] == "date replaced":
+            lines.append(f"  {one.name}: {record['from']} → {record['to']} ({record['why']})")
+        elif record["organized"] in ("waiting", "no author"):
+            lines.append(f"  {one.name}: waits in Unrecognized ({record['why']})")
+    return lines
+
+
 def _report(
     out: Path,
     files: list[Filed],
@@ -363,6 +487,7 @@ def _report(
     local_name: str,
     apple_seconds: float,
     local_seconds: float,
+    organized: bool = False,
 ) -> None:
     groups: dict[str, list[Filed]] = {"same": [], "different": [], "one": []}
     for one in files:
@@ -392,6 +517,22 @@ def _report(
             lines.append(f"  {which} only: {path}")
     else:
         lines.append("  none")
+    lines += ["", "preprocessing"]
+    told = [
+        f"  {one.name}: "
+        + "; ".join(
+            filter(None, [
+                f"OCR on page {', '.join(map(str, one.ocr_pages))}" if one.ocr_pages else "",
+                "cover sheet skipped" if one.cover else "",
+                "found on the second look" if one.look == "bottom" else "",
+            ])
+        )
+        for one in files
+        if one.ocr_pages or one.cover or one.look == "bottom"
+    ]  # fmt: skip
+    lines += told or ["  nothing beyond reading order"]
+    if organized:
+        lines += ["", *_organized_lines(files)]
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     records: list[dict[str, Any]] = [
@@ -401,6 +542,10 @@ def _report(
             "outcome": _outcome(one),
             "apple": one.apple_path,
             "local": one.local_path,
+            "ocr_pages": list(one.ocr_pages),
+            "cover": one.cover,
+            "look": one.look,
+            **(one.organized or {}),
         }
         for one in files
     ]

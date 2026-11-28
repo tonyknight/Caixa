@@ -179,6 +179,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ready.add_argument("folder", help="a folder of PDFs (the folders inside it are searched too)")
     ready.add_argument("--out", required=True, help="where Apple Intelligence's copies go")
+    ready.add_argument(
+        "--organized",
+        action="store_true",
+        help="trust names such as (YYYY-MM-DD) Subject (Author) [Tag].pdf: only a wrong date is "
+        "replaced, and their authors and tags are learned into the box",
+    )
     _box_argument(ready)
     told = document_commands.add_parser(
         "log", help="a document job's session log: what was decided about each document, and why"
@@ -817,7 +823,12 @@ def _cmd_documents(args: argparse.Namespace) -> int:
     if args.action == "prepare":
         from caixa.documents.prepare import prepare
 
-        prepare(Path(args.folder), Path(args.out), Path(args.box) if args.box else None)
+        prepare(
+            Path(args.folder),
+            Path(args.out),
+            Path(args.box) if args.box else None,
+            organized=args.organized,
+        )
         report = Path(args.out) / "report.txt"
         if report.is_file():
             print(report.read_text(encoding="utf-8"), end="")

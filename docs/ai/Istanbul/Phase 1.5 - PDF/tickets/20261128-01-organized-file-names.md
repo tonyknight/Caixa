@@ -14,7 +14,7 @@ depends_on:
 - 20261127-02-author-knowledge-in-the-box
 subtasks: []
 plan_status: in-progress
-current_task: T02
+current_task: T03
 ---
 ## Description
 
@@ -54,7 +54,7 @@ Requirements: D30 *Organized file names*, D28 *Prepare, beside the box* (amended
 ## Implementation plan
 
 Status: in-progress
-Current task: T02
+Current task: T03
 
 **Design:**
 
@@ -130,7 +130,7 @@ Current task: T02
   - the report's per-file records (name, OCR, cover, look), with no page text;
   - the CLI flag.
 - Verify: `python -m pytest -q tests/test_documents_prepare.py tests/test_organized_names.py`
-- [ ] done
+- [x] done
 
 ### T03: The whitelist and the documentation
 

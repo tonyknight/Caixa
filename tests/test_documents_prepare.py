@@ -349,3 +349,120 @@ def test_a_box_without_the_file_prepares_as_before(tmp_path: Path) -> None:
     assert (
         tmp_path / "prepared/Documents/PDF/2024/Energy Office/(2024-03-12) Bill - Energy Office.pdf"
     ).is_file()
+
+
+# --- Organized file names (20261128-01, D30) ------------------------------------------------------
+
+import json  # noqa: E402
+
+from organized_family import FIXTURES, OrganizedFamily, build_organized  # noqa: E402
+
+
+@pytest.fixture
+def organized(tmp_path: Path) -> OrganizedFamily:
+    return build_organized(tmp_path / "organized")
+
+
+def _organized_run(family: OrganizedFamily, tmp_path: Path, box: Path | None = None) -> None:
+    prepare.prepare(family.root, tmp_path / "prepared", box, apple=family.model("apple"),
+                    local=family.model("local"), organized=True)  # fmt: skip
+
+
+def _records(out: Path) -> dict[str, dict]:
+    lines = (out / "report.jsonl").read_text(encoding="utf-8").splitlines()
+    return {r["name"]: r for r in map(json.loads, lines) if r["event"] == "diff"}
+
+
+@pytest.mark.parametrize("fixture", FIXTURES, ids=[f.name for f in FIXTURES])
+def test_each_organized_name_is_filed_as_its_known_answer(
+    organized: OrganizedFamily, tmp_path: Path, fixture: object
+) -> None:
+    _organized_run(organized, tmp_path)
+    for root in (tmp_path / "prepared", tmp_path / "prepared local"):
+        assert (root / "Documents/PDF" / fixture.filed).is_file(), root  # type: ignore[attr-defined]
+    record = _records(tmp_path / "prepared")[fixture.name]  # type: ignore[attr-defined]
+    assert record["organized"] == fixture.outcome  # type: ignore[attr-defined]
+    assert record.get("tags", []) == list(fixture.tags)  # type: ignore[attr-defined]
+
+
+def test_a_replaced_date_says_from_to_and_why(organized: OrganizedFamily, tmp_path: Path) -> None:
+    _organized_run(organized, tmp_path)
+    records = _records(tmp_path / "prepared")
+    impossible = records["(2024-02-30) Electricity bill (Energia do Norte) [Utilities].pdf"]
+    assert (impossible["from"], impossible["to"]) == ("2024-02-30", "2024-02-28")
+    assert "impossible" in impossible["why"]
+    contradicted = records["(2021-05-10) Insurance renewal (Seguradora Horizonte) [Insurance].pdf"]
+    assert (contradicted["from"], contradicted["to"]) == ("2021-05-10", "2022-05-10")
+    assert "page" in contradicted["why"]
+    waiting = records["(2023-02-30) Gas bill (Energia do Norte).pdf"]
+    assert "impossible" in waiting["why"] and "to" not in waiting
+
+
+def test_without_the_flag_organized_names_are_prepared_as_before(
+    organized: OrganizedFamily, tmp_path: Path
+) -> None:
+    prepare.prepare(organized.root, tmp_path / "prepared", apple=organized.model("apple"),
+                    local=organized.model("local"))  # fmt: skip
+    pdf = tmp_path / "prepared/Documents/PDF"
+    assert (pdf / "2024/Águas do Vale/(2024-03-12) Document - Águas do Vale.pdf").is_file()
+    assert "organized" not in _records(tmp_path / "prepared")[FIXTURES[0].name]
+
+
+def test_the_owners_author_is_kept_even_when_rejected(
+    organized: OrganizedFamily, tmp_path: Path
+) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    author_knowledge.save(box, author_knowledge.Knowledge(
+        rejected=["Energia do Norte"],
+        instead=[{"said": "Energia do Norte", "use": "Someone Else"}],
+    ))  # fmt: skip
+    _organized_run(organized, tmp_path, box.root)
+    filed = tmp_path / "prepared/Documents/PDF/2024/Energia do Norte"
+    assert (filed / "(2024-02-28) Electricity bill (Energia do Norte) [Utilities].pdf").is_file()
+
+
+def test_the_report_tells_each_name_and_holds_no_page_text(
+    organized: OrganizedFamily, tmp_path: Path
+) -> None:
+    _organized_run(organized, tmp_path)
+    report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
+    assert "organized names" in report
+    assert "kept: 4" in report and "date replaced: 2" in report
+    assert "no author: 1" in report and "waiting: 1" in report and "not organized: 1" in report
+    assert "2024-02-30 → 2024-02-28" in report and "2021-05-10 → 2022-05-10" in report
+    everything = report + (tmp_path / "prepared/report.jsonl").read_text(encoding="utf-8")
+    for words in ("Thank you for your custom", "Policy renewed", "Querida Maria", "23,40"):
+        assert words not in everything
+
+
+def test_every_record_tells_its_preprocessing(tmp_path: Path) -> None:
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "FAX COVER")
+    doc.new_page().insert_text((72, 72), "The letter itself starts here")
+    doc.save(folder / "Fax.pdf")
+    doc.close()
+    _bill(folder / "Bill.pdf")
+
+    def model(text: str) -> dict[str, str]:
+        if "second look" in text:
+            return {"author": "Valley Water", "title": "Bill", "date": "2024-03-12"}
+        return {"author": "", "title": "Bill", "date": "2024-03-12"}
+
+    prepare.prepare(folder, tmp_path / "prepared", apple=model, local=None)
+    records = _records(tmp_path / "prepared")
+    assert records["Fax.pdf"]["cover"] is True and records["Fax.pdf"]["ocr_pages"] == []
+    assert records["Bill.pdf"]["look"] == "bottom" and records["Bill.pdf"]["cover"] is False
+
+
+def test_the_command_takes_the_flag(organized: OrganizedFamily, tmp_path: Path, capsys) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    out = tmp_path / "prepared"
+    argv = ["documents", "prepare", str(organized.root), "--out", str(out), "--box",
+            str(box.root), "--organized"]  # fmt: skip
+    assert cli.main(argv) == 0  # no model here: the owner's names alone
+    assert "organized names" in capsys.readouterr().out
+    water = "2024/Águas do Vale/(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf"
+    assert (out / "Documents/PDF" / water).is_file()
+    assert (out / "Documents/PDF/Unrecognized/(2023-11-05) Letter from João [Family].pdf").is_file()
