@@ -1,13 +1,14 @@
 ---
 id: 20261127-01-prepare-pdfs-beside-the-box-and-compare-the-two
-title: "Prepare PDFs beside the box and compare the two models"
+title: Prepare PDFs beside the box and compare the two models
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-27
-updated: 2026-11-27
+updated: 2026-11-28
 closed:
-notes: "Agreed 2026-11-27. One command: preprocess once, both models, two trees, a diff."
+notes: 'Agreed 2026-11-27. One command: preprocess once, both models, two trees, a
+  diff.'
 parent:
 depends_on:
 - 20261124-02-the-archival-naming-convention
@@ -18,7 +19,7 @@ depends_on:
 subtasks:
 - id: T01
   title: The command and the two output folders
-  status: todo
+  status: done
 - id: T02
   title: Preprocessing, once for both models
   status: todo
@@ -28,10 +29,9 @@ subtasks:
 - id: T04
   title: The diff report
   status: todo
-plan_status: draft
-current_task:
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
 The first real import filed most documents in `Unrecognized`, and the ones it did file
@@ -134,8 +134,8 @@ this command.
 
 ## Implementation plan
 
-Status: draft
-Current task:
+Status: in-progress
+Current task: T02
 
 ### T01: The command and the two output folders
 
@@ -146,7 +146,7 @@ Current task:
   does not change the source. `--box` is not written.
 - **GREEN:** the command and the two folders, with no model yet (both trees unrecognized).
 - **Verify:** `python -m pytest -q tests/test_documents_prepare.py`
-- [ ] done
+- [x] done
 
 ### T02: Preprocessing, once for both models
 
@@ -205,3 +205,6 @@ Append-only running log. Each entry dated.
 - 2026-11-27: Agreed after the sample. One command, not a rules ticket and a model ticket.
   Apple's tree is the output path. The local tree is `<path> local`. The local model is the
   one Settings already names. The report diffs the trees and holds no page text.
+
+### 2026-11-28
+Started. Work stays on 2026-Istanbul/Phase1.5-PDF (no separate worktree).

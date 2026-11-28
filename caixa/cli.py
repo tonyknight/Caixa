@@ -173,6 +173,13 @@ def build_parser() -> argparse.ArgumentParser:
     again.add_argument("--failed", action="store_true", help="every document OCR could improve")
     again.add_argument("--languages", help="Tesseract languages for this run, such as eng+por")
     _box_argument(again)
+    ready = document_commands.add_parser(
+        "prepare",
+        help="read a folder of PDFs with both models, beside the box, and compare where they file",
+    )
+    ready.add_argument("folder", help="a folder of PDFs (the folders inside it are searched too)")
+    ready.add_argument("--out", required=True, help="where Apple Intelligence's copies go")
+    _box_argument(ready)
     told = document_commands.add_parser(
         "log", help="a document job's session log: what was decided about each document, and why"
     )
@@ -807,6 +814,11 @@ def _cmd_people(args: argparse.Namespace) -> int:
 
 
 def _cmd_documents(args: argparse.Namespace) -> int:
+    if args.action == "prepare":
+        from caixa.documents.prepare import prepare
+
+        prepare(Path(args.folder), Path(args.out), Path(args.box) if args.box else None)
+        return 0
     if args.action == "update":
         service = _open(args)
         changed = service.documents_update(
