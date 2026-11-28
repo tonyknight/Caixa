@@ -281,12 +281,46 @@ def _fit(text: str, share: int, keep_end: bool) -> str:
     return (text[:start] + " … " if start else "") + text[-end:]
 
 
-def prepare(document: DocumentInput, budget: int) -> str:
-    """What the model is sent about one document, within `budget` characters."""
+def _header(document: DocumentInput, shown: str) -> str:
+    """What the model is told about a document before its pages: its name, what the name and the
+    properties say, how many pages and which are given, the box's authors and tags."""
     named = evidence.read_filename(document.filename, document.authors)
     stated = evidence.read_properties(document.properties)
     text = "\n".join(t for _, t in document.pages)
     known = [a for a in sorted(set(document.authors)) if a.strip() and evidence._find(text, a)]
+    head = [
+        f"File name: {document.filename}",
+        f"What the file name says: {_said_by_name(named)}",
+        f"PDF properties: {_said_by_properties(stated)}",
+        f"Pages: {document.page_count} pages ({shown})",
+    ]
+    if known:
+        head.append(f"Authors already in the box named in the text: {', '.join(known)}")
+    if document.tags:
+        head.append(f"Tags to use when they fit: {', '.join(document.tags)}")
+    return "\n".join(head) + "\n"
+
+
+#: The end of the last page given on the second look.
+SECOND_LOOK = 1500
+
+
+def second_prompt(document: DocumentInput, budget: int) -> str:
+    """What the model is sent on the second look: the header and the end of the last page."""
+    header = _header(document, "second look: only the end of the last page is given")
+    count = document.page_count
+    last = " ".join((dict(document.pages).get(count) or "").split(" ")).strip()
+    label = f"--- Page {count} (last), its end ---"
+    note = (
+        "Second look: only the bottom of the last page is given. Answer from it, and write null "
+        "for what it does not say.\n"
+    )
+    room = max(0, min(SECOND_LOOK, budget - len(header) - len(note) - len(label) - 1))
+    return (header + note + f"{label}\n{last[-room:] if room else ''}")[:budget]
+
+
+def prepare(document: DocumentInput, budget: int) -> str:
+    """What the model is sent about one document, within `budget` characters."""
     count = document.page_count
     numbers = pages_sent(document)
     cover = _cover(document)
@@ -296,17 +330,7 @@ def prepare(document: DocumentInput, budget: int) -> str:
             "all the others" if len(numbers) == count - 1 else "the first two after it and the last"
         )
         shown = f"a cover sheet (page 1) left out; {rest} are given"
-    head = [
-        f"File name: {document.filename}",
-        f"What the file name says: {_said_by_name(named)}",
-        f"PDF properties: {_said_by_properties(stated)}",
-        f"Pages: {count} pages ({shown})",
-    ]
-    if known:
-        head.append(f"Authors already in the box named in the text: {', '.join(known)}")
-    if document.tags:
-        head.append(f"Tags to use when they fit: {', '.join(document.tags)}")
-    header = "\n".join(head) + "\n"
+    header = _header(document, shown)
     texts = dict(document.pages)
     labels = {
         n: f"--- Page {n}{' (last)' if n == count and count > 1 else ''} ---" for n in numbers
@@ -425,6 +449,8 @@ class Classified:
     tries: list[dict[str, Any]] = field(default_factory=list)
     sent: int = 0  # characters sent about the document
     pages: list[int] = field(default_factory=list)  # the pages whose text was sent
+    #: Which look found the author and the date: "first", or "bottom" for the second look (D31).
+    looks: dict[str, str] = field(default_factory=dict)
 
 
 def _checked(answer: dict[str, Any], pages: Mapping[int, str]) -> dict[str, Any]:
@@ -516,6 +542,39 @@ def classify(client: Any, document: DocumentInput, budget: int) -> Classified:
     found.sent, found.pages = len(prompt), pages_sent(document)
     if found.ok:
         found.answer = _checked(found.answer, dict(document.pages))
+    return found
+
+
+def _absent(answer: Mapping[str, Any], fact: str) -> bool:
+    value = answer.get(fact)
+    key = "name" if fact == "author" else "value"
+    return not isinstance(value, dict) or not value.get(key)
+
+
+def read(client: Any, document: DocumentInput, budget: int) -> Classified:
+    """`classify`, and a second look at the bottom of the last page when the answer has no author
+    or no date (D31). The second look fills only what is missing, its quotes checked as the
+    first's; `looks` says which look found each fact."""
+    found = classify(client, document, budget)
+    for one in found.tries:
+        one["look"] = "first"
+    if not found.ok:
+        return found
+    missing = [fact for fact in ("author", "date") if _absent(found.answer, fact)]
+    found.looks = {fact: "first" for fact in ("author", "date") if fact not in missing}
+    if not missing:
+        return found
+    again = ask(client, INSTRUCTION, second_prompt(document, budget), SCHEMA, problems)
+    for one in again.tries:
+        one["look"] = "bottom"
+    found.tries += again.tries
+    found.attempts += again.attempts
+    if again.ok:
+        seen = _checked(again.answer, dict(document.pages))
+        for fact in missing:
+            if not _absent(seen, fact):
+                found.answer[fact] = seen[fact]
+                found.looks[fact] = "bottom"
     return found
 
 
@@ -779,7 +838,7 @@ def _read_one(
     problem: Optional[str] = None
     type_problem: Optional[str] = None
     try:
-        found = classify(client, document, int(info["budget"]))
+        found = read(client, document, int(info["budget"]))
     except TranslationError as failure:
         problem = str(failure)
     kind = str(found.answer.get("type")) if found is not None and found.ok else ""
@@ -864,6 +923,8 @@ def _log_reading(
             for other in answer.get("other_dates") or []
         ],
         "tags": answer.get("tags") or [],
+        "author_look": found.looks.get("author"),
+        "date_look": found.looks.get("date"),
         "filename_conflicts": [
             conflict if str(conflict).lower() in NAMED_CONFLICTS else Quote(str(conflict))
             for conflict in answer.get("filename_conflicts") or []

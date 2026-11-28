@@ -551,3 +551,91 @@ def test_a_company_that_makes_software_is_kept(server: StubServer, pdf_family: P
     client, info = enrich.provider(_values(server))
     found = enrich.classify(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
     assert found.answer["author"]["name"] == "Microsoft"
+
+
+# --- The second look (20261128-03 T02) ------------------------------------------------------------
+
+
+def _looking(
+    server: StubServer, pdf_family: PdfFamily, second: dict[str, Any] | None, **first: Any
+) -> list[str]:
+    """The stand-in model, with its classification's author (and anything in `first`) taken away on
+    the first look, and `second` given on the second. Returns each prompt it was sent."""
+    model = DocumentModel(pdf_family)
+    prompts: list[str] = []
+
+    def respond(request: dict[str, Any]) -> dict[str, Any]:
+        reply = model.respond(request)
+        content = json.loads(reply["choices"][0]["message"]["content"])
+        asked = next(m["content"] for m in request["messages"] if m["role"] == "user")
+        if "type" in content and "author" in content:
+            prompts.append(asked)
+            if "Second look" in asked:
+                content.update(second or {"author": None})
+            else:
+                content["author"] = None
+                content.update(first)
+        return {"choices": [{"message": {"content": json.dumps(content)}}]}
+
+    server.respond = respond
+    return prompts
+
+
+SENDER = {"author": {"name": "Energia do Norte", "evidence": "Energia do Norte", "page": 1}}
+
+
+def test_an_author_missing_at_first_is_found_on_the_second_look(
+    server: StubServer, pdf_family: PdfFamily
+) -> None:
+    prompts = _looking(server, pdf_family, SENDER)
+    client, info = enrich.provider(_values(server))
+    found = enrich.read(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    assert found.answer["author"]["name"] == "Energia do Norte"
+    assert found.answer["author"]["verified"] is True
+    assert found.looks == {"author": "bottom", "date": "first"}
+    assert len(prompts) == 2 and "Second look" in prompts[1]
+    assert "--- Page 1 (last), its end ---" in prompts[1]
+    assert [t["look"] for t in found.tries] == ["first", "bottom"]
+
+
+def test_a_complete_answer_asks_no_second_time(server: StubServer, pdf_family: PdfFamily) -> None:
+    client, info = enrich.provider(_values(server))
+    found = enrich.read(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    classifications = [r for r in server.requests if "Second look" in json.dumps(r["json"])]
+    assert classifications == [] and found.looks == {"author": "first", "date": "first"}
+
+
+def test_the_second_look_fills_only_what_is_missing(
+    server: StubServer, pdf_family: PdfFamily
+) -> None:
+    other = {"value": "2019-01-01", "kind": "issue", "evidence": None, "page": None}
+    _looking(server, pdf_family, {**SENDER, "date": other})
+    client, info = enrich.provider(_values(server))
+    found = enrich.read(client, _input(pdf_family, "2022 Car Insurance.pdf"), info["budget"])
+    assert found.answer["date"]["value"] == "2024-01-10"  # the first look's, kept
+    assert found.answer["author"]["name"] == "Energia do Norte"
+
+
+def test_what_is_still_missing_waits_in_unrecognized_and_the_log_says_so(
+    server: StubServer, pdf_family: PdfFamily, tmp_path: Path
+) -> None:
+    from caixa import session_log
+    from caixa.collectors.pdfImport import PdfCollector
+    from caixa.documents import records
+
+    _looking(server, pdf_family, None)  # no author on either look
+    source = tmp_path / "pdfs"
+    source.mkdir()
+    shutil.copyfile(pdf_family.root / "2022 Car Insurance.pdf", source / "2022 Car Insurance.pdf")
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {**_values(server), "documents.ocr": False})
+    with session_log.opened(box, 1, "PDF import") as log:
+        PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
+    with box.master() as master:
+        (document,) = records.list_documents(master)
+    assert document["file_path"].startswith("Documents/PDF/Unrecognized/")
+    events = [json.loads(line) for line in log.events_path.read_text().splitlines()]
+    proposed = next(e for e in events if e["event"] == "propose")
+    assert proposed["author_look"] is None and proposed["date_look"] == "first"
+    read = next(e for e in events if e["event"] == "read" and e.get("attempts"))
+    assert [a["look"] for a in read["attempts"]] == ["first", "bottom"]
