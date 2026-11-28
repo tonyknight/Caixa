@@ -639,3 +639,75 @@ def test_what_is_still_missing_waits_in_unrecognized_and_the_log_says_so(
     assert proposed["author_look"] is None and proposed["date_look"] == "first"
     read = next(e for e in events if e["event"] == "read" and e.get("attempts"))
     assert [a["look"] for a in read["attempts"]] == ["first", "bottom"]
+
+
+# --- Author knowledge, told and applied (20261128-04) ---------------------------------------------
+
+
+def test_the_header_names_the_accepted_authors_in_the_text_and_the_rejected() -> None:
+    document = DocumentInput(
+        "bill.pdf", {}, [(1, "Valley Water\nInvoice")], 1, [],
+        accepted=["Valley Water", "PG&E"], rejected=["City of Springfield", "null"],
+    )  # fmt: skip
+    sent = enrich.prepare(document, 12_000)
+    assert "Accepted authors named in the text: Valley Water" in sent and "PG&E" not in sent
+    assert "Never give these as the author: City of Springfield, null" in sent
+
+
+def test_without_knowledge_neither_line_is_sent() -> None:
+    sent = enrich.prepare(DocumentInput("bill.pdf", {}, [(1, "Valley Water")], 1, []), 12_000)
+    assert "Accepted authors" not in sent and "Never give" not in sent
+
+
+STATEMENT = "2024-11 Banco Atlântico Checking Statement.pdf"
+
+
+def _bill_box(server: StubServer, pdf_family: PdfFamily, tmp_path: Path, known: Any) -> Box:
+    from caixa.collectors.pdfImport import PdfCollector
+    from caixa.documents import author_knowledge
+
+    source = tmp_path / "pdfs"
+    source.mkdir()
+    shutil.copyfile(pdf_family.root / STATEMENT, source / STATEMENT)  # files with confidence
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {**_values(server), "documents.ocr": False})
+    author_knowledge.save(box, known)
+    PdfCollector().run(box, source, {"workers": 1}, lambda step: None)
+    return box
+
+
+def _the_one(box: Box) -> dict[str, Any]:
+    from caixa.documents import records
+
+    with box.master() as master:
+        (document,) = records.list_documents(master)
+        return records.get_document(master, document["item_id"])
+
+
+def test_an_import_does_not_file_a_rejected_author(
+    server: StubServer, pdf_family: PdfFamily, tmp_path: Path
+) -> None:
+    from caixa.documents.author_knowledge import Knowledge
+
+    box = _bill_box(server, pdf_family, tmp_path, Knowledge(rejected=["Banco Atlântico"]))
+    document = _the_one(box)
+    assert document["file_path"].startswith("Documents/PDF/Unrecognized/")
+    assert "rejected_author" in document["review"]
+    sent = json.dumps(server.requests[0]["json"], ensure_ascii=False)
+    assert "Never give these as the author: Banco Atlântico" in sent
+
+
+def test_an_import_files_under_the_lessons_author_and_a_correction_keeps_it(
+    server: StubServer, pdf_family: PdfFamily, tmp_path: Path
+) -> None:
+    from caixa.documents.author_knowledge import Knowledge
+    from caixa.documents.corrections import correct
+
+    lesson = Knowledge(instead=[{"said": "Banco Atlântico", "use": "Atlantic Bank"}])
+    box = _bill_box(server, pdf_family, tmp_path, lesson)
+    document = _the_one(box)
+    assert document["file_path"].startswith("Documents/PDF/2024/Atlantic Bank/")
+    with box.master() as master:
+        correct(box, master, document["item_id"], date="2024-11-29")
+    filed = _the_one(box)["file_path"]
+    assert filed.startswith("Documents/PDF/2024/Atlantic Bank/(2024-11-29) "), filed

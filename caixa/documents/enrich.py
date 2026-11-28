@@ -210,6 +210,9 @@ class DocumentInput:
     page_count: int
     authors: list[str] = field(default_factory=list)  # the box's authors and their aliases
     tags: list[str] = field(default_factory=list)  # the starter tags, to use when they fit
+    #: The owner's author knowledge (D29, D31): authors confirmed, and names that are not authors.
+    accepted: list[str] = field(default_factory=list)
+    rejected: list[str] = field(default_factory=list)
 
 
 def _said_by_name(named: evidence.FilenameEvidence) -> str:
@@ -298,9 +301,17 @@ def _header(document: DocumentInput, shown: str) -> str:
         head.append(f"Authors already in the box named in the text: {', '.join(known)}")
     if document.tags:
         head.append(f"Tags to use when they fit: {', '.join(document.tags)}")
+    accepted = [a for a in document.accepted if a.strip() and evidence._find(text, a)]
+    if accepted:
+        head.append(f"Accepted authors named in the text: {', '.join(accepted)}")
+    if document.rejected:
+        rejected = document.rejected[-MOST_REJECTED:]
+        head.append(f"Never give these as the author: {', '.join(rejected)}")
     return "\n".join(head) + "\n"
 
 
+#: The rejected names the model is told at most (the latest).
+MOST_REJECTED = 30
 #: The end of the last page given on the second look.
 SECOND_LOOK = 1500
 
@@ -643,7 +654,7 @@ def _properties(fields: Sequence[Mapping[str, Any]]) -> dict[str, str]:
     return found
 
 
-def _input(master: Any, item_id: str) -> DocumentInput:
+def _input(master: Any, item_id: str, knowledge: Optional[Any] = None) -> DocumentInput:
     found = records.get_document(master, item_id)
     pages = [
         (int(r["page"]), str(r["text"] or ""))
@@ -658,6 +669,8 @@ def _input(master: Any, item_id: str) -> DocumentInput:
         page_count=int(found["pages"] or len(pages)),
         authors=records.author_names(master),
         tags=starter_tags(master),
+        accepted=list(knowledge.accepted) if knowledge else [],
+        rejected=list(knowledge.rejected) if knowledge else [],
     )
 
 
@@ -772,6 +785,9 @@ def enrich_documents(
         budget=info["budget"], why=_why(values, info), waiting=len(chosen),
     )  # fmt: skip
     result.update(model=info["model"], provider=info["provider"])
+    from caixa.documents import author_knowledge
+
+    known = author_knowledge.load(box)  # the owner's lessons, told to the model (D31)
     in_a_row = 0
     errors: list[str] = []  # of the failures in a row
     try:
@@ -789,7 +805,7 @@ def enrich_documents(
             doc = Document(number, len(chosen), item_id)
             try:
                 with box.master() as master:
-                    document = _input(master, item_id)
+                    document = _input(master, item_id, known)
                     _set_status(master, item_id, "processing")
                 doc = Document(number, len(chosen), document.filename)
                 progress(Progress("enriching", number, len(chosen), document.filename))

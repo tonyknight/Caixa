@@ -52,6 +52,19 @@ def origin(path: Path, source: Path, workdir: Optional[Path]) -> str:
     return str(path)
 
 
+def _taught(known: Any, filed: Optional[Facts]) -> Optional[Facts]:
+    """Provisional facts with the author the owner's lessons give: an `instead` replaces it, and a
+    rejected name is not used, so the document waits in Unrecognized (D31)."""
+    if filed is None or not filed.author:
+        return filed
+    from dataclasses import replace
+
+    from caixa.documents.author_knowledge import apply
+
+    author = apply(known, filed.author)
+    return filed if author == filed.author else replace(filed, author=author)
+
+
 def import_examined(
     box: Box,
     source: Path,
@@ -62,7 +75,11 @@ def import_examined(
     facts: Optional[Callable[["Examined"], Optional[Facts]]] = None,
 ) -> RunResult:
     """Record every examined file (see the module text). A new file is filed by what its filename
-    and properties say (`caixa.documents.evidence.provisional_facts`), or by `facts` when given."""
+    and properties say (`caixa.documents.evidence.provisional_facts`), or by `facts` when given,
+    its author put through the owner's lessons (D31)."""
+    from caixa.documents import author_knowledge
+
+    lessons = author_knowledge.load(box)
     result = RunResult()
     total = len(seen)
     log = session_log.current()
@@ -95,6 +112,7 @@ def import_examined(
                 named = evidence.read_filename(one.name, records.author_names(master))
                 stated = evidence.read_properties(one.properties)
                 filed = facts(one) if facts else evidence.provisional_facts(named, stated)
+                filed = _taught(lessons, filed)
                 relative = place(box, one.name, one.sha256, filed, format)
                 copy_into(box, output or Path(one.path), relative, archived)
                 review = ["locked"] if one.locked else []
