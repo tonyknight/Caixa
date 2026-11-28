@@ -120,3 +120,33 @@ def test_a_lesson_for_one_kind_wins_over_a_lesson_for_every_kind() -> None:
     )
     assert author_knowledge.apply(known, "Maria Costa", "bill") == "PG&E"
     assert author_knowledge.apply(known, "Maria Costa", "letter") == "Maria Costa"
+
+
+# --- What organized file names teach (20261128-01, D30) ------------------------------------------
+
+
+def test_organized_names_teach_accepted_authors_and_tags(tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    known = author_knowledge.Knowledge(accepted=["PG&E"])
+    new_authors, new_tags = author_knowledge.learn_organized(
+        known, ["PG&E", "Águas do Vale", "águas do  vale"], ["Utilities", "utilities", "Banking"]
+    )
+    assert known.accepted == ["PG&E", "Águas do Vale"] and new_authors == ["Águas do Vale"]
+    assert known.tags == ["Utilities", "Banking"] and new_tags == ["Utilities", "Banking"]
+    author_knowledge.save(box, known)
+    again = author_knowledge.load(box)
+    assert again.tags == ["Utilities", "Banking"]
+    assert stat.S_IMODE((box.caixa_dir / "author-knowledge.json").stat().st_mode) == 0o600
+
+
+def test_the_owners_word_moves_a_rejected_name_to_accepted() -> None:
+    known = author_knowledge.Knowledge(rejected=["Energia do Norte", "null"])
+    author_knowledge.learn_organized(known, ["energia do norte"], [])
+    assert known.rejected == ["null"] and known.accepted == ["energia do norte"]
+
+
+def test_a_file_without_tags_keeps_its_form(tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    author_knowledge.save(box, author_knowledge.Knowledge(accepted=["PG&E"]))
+    saved = json.loads((box.caixa_dir / "author-knowledge.json").read_text())
+    assert saved == {"accepted": ["PG&E"], "rejected": [], "instead": []}

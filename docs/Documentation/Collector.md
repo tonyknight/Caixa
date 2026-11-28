@@ -682,6 +682,39 @@ caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box
 Apple's copies are `~/PDF-prepare/Documents/PDF/`. The local model's are `~/PDF-prepare local/`.
 `~/PDF-prepare/report.txt` says where the two trees agree, where they name a document differently,
 and where only one of them could file it.
+Its *preprocessing* section names each file read by OCR, each cover sheet skipped, and each fact
+found only on the second look.
+
+**PDFs you have already named well.** If your files are named like
+`(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf`, add `--organized`:
+
+```bash
+caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box --organized
+```
+
+- **The pattern:** `(date) Subject (Author) [Tag] [Tag].pdf`.
+  - The date may be a day, a month (`2024-03`) or a year (`2024`).
+  - The author and the tags may be left out, and there may be several tags.
+  - The author is the **last** brackets before the tags: `Lease (signed copy) (Rui Pereira)` is a
+    lease by Rui Pereira. A month name or a number there is not an author.
+- **Your name is kept:** the copy keeps your file name and goes under its year and author. Your
+  subject, author and tags are never changed.
+- **Only the date can change**, in two cases:
+  - it cannot be, such as `2024-02-30`;
+  - the page clearly contradicts it: both models give the same date, the page states it, and your
+    date appears nowhere on the page.
+
+  A date the page shows among its other dates, or a month where the page gives a day, stands.
+  Only the date part of the name changes.
+- **A name without an author** goes in the folder of the author both models agree on, still under
+  your name; otherwise it waits in `Unrecognized/`.
+- **Names that don't fit the pattern** are prepared as any other PDF.
+- **What Caixa learns:** the authors and tags in your names are added to the box's
+  `.caixa/author-knowledge.json`, as accepted authors (a name you had rejected becomes accepted)
+  and a list of tags. That file is the only thing `--organized` writes into the box; without
+  `--organized`, the box is only read.
+- **The report** has an *organized names* section: how many names were kept, had their date
+  replaced (from, to and why), or wait, and the authors and tags learned.
 
 Every command of `caixa documents`: `list`, `show`, `search`, `ask`, `review`, `update`, `tags`,
 `authors`, `enrich`, `embed`, `reprocess`, `log` and `prepare`. Each says more with `--help`.

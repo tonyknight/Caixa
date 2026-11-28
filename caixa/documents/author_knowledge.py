@@ -7,6 +7,10 @@
   year). The box's owner is never rejected;
 - **instead:** a name a model said, the author to use, and the document's kind when the lesson
   came from correcting one document. A rename or a merge has no kind.
+
+The owner's organized file names (D30, `prepare --organized`) add to it: their authors to
+`accepted` (taking a name out of `rejected`: the owner's word wins), and their tags to a fourth
+list, **tags**, written only once it holds something.
 """
 
 from __future__ import annotations
@@ -33,6 +37,7 @@ class Knowledge:
     accepted: list[str] = field(default_factory=list)
     rejected: list[str] = field(default_factory=list)
     instead: list[dict[str, str]] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
 
     def _has(self, names: list[str], name: str) -> bool:
         return any(_same(kept, name) for kept in names)
@@ -63,7 +68,7 @@ def load(box: object) -> Knowledge:
             if item.get("kind"):
                 lesson["kind"] = str(item["kind"])
             lessons.append(lesson)
-    return Knowledge(strings("accepted"), strings("rejected"), lessons)
+    return Knowledge(strings("accepted"), strings("rejected"), lessons, strings("tags"))
 
 
 def save(box: object, known: Knowledge) -> None:
@@ -75,6 +80,8 @@ def save(box: object, known: Knowledge) -> None:
         "rejected": list(known.rejected),
         "instead": list(known.instead),
     }
+    if known.tags:
+        body["tags"] = list(known.tags)
     part = file.with_name(file.name + ".part")
     handle = os.open(part, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(handle, "w", encoding="utf-8") as out:
@@ -130,6 +137,27 @@ def learn_rename(known: Knowledge, said: str, use: str, owner: Optional[str]) ->
     """A rename or a merge: `said` means `use` on every document. The owner is never rejected."""
     _accept(known, use)
     _remember(known, said, use, None)
+
+
+def learn_organized(
+    known: Knowledge, authors: list[str], tags: list[str]
+) -> tuple[list[str], list[str]]:
+    """What the owner's organized names say: each author is accepted (and no longer rejected),
+    each tag kept. Returns the authors and the tags that were new."""
+    new_authors: list[str] = []
+    for author in map(_clean, authors):
+        if not author:
+            continue
+        known.rejected = [name for name in known.rejected if not _same(name, author)]
+        if not known._has(known.accepted, author):
+            known.accepted.append(author)
+            new_authors.append(author)
+    new_tags: list[str] = []
+    for tag in map(_clean, tags):
+        if tag and not known._has(known.tags, tag):
+            known.tags.append(tag)
+            new_tags.append(tag)
+    return new_authors, new_tags
 
 
 def apply(known: Knowledge, author: str, kind: Optional[str] = None) -> Optional[str]:

@@ -403,6 +403,8 @@ def prepare(
 
         known = author_knowledge.load(Box.open(box))
     instruction = _instruction(known)
+    read_authors: list[str] = []
+    read_tags: list[str] = []
     try:
         for source in _pdfs(folder):
             document = read_document(source)
@@ -431,6 +433,8 @@ def prepare(
                     paths[label] = _place(root, source, facts)
             record: Optional[dict[str, Any]] = None
             if name is not None:
+                read_authors += [name.author] if name.author else []
+                read_tags += name.tags
                 decided = _organized(name, document, ran)
                 for label, root in (("apple", out), ("local", local_root(out))):
                     paths[label] = _place_as(root, source, decided["folder"], decided["filename"])
@@ -439,8 +443,9 @@ def prepare(
                 record = {"organized": "not organized"}
             files.append(Filed(source.name, look, paths["apple"], paths["local"],
                                list(document.ocr_pages), document.cover, record))  # fmt: skip
+        learned = _learn(box, read_authors, read_tags) if organized else None
         _report(out, files, state, local is not None, local_name, apple_seconds, local_seconds,
-                organized)  # fmt: skip
+                learned)  # fmt: skip
         return Run(files, state)
     finally:
         if close_apple:
@@ -463,7 +468,27 @@ def _outcome(one: Filed) -> str:
 OUTCOMES = ("kept", "date replaced", "no author", "waiting", "not organized")
 
 
-def _organized_lines(files: list[Filed]) -> list[str]:
+def _learn(box: Optional[Path], authors: list[str], tags: list[str]) -> dict[str, Any]:
+    """Add what the owner's names say to the box's author knowledge (D30): the one thing
+    `prepare --organized` writes into a box."""
+
+    def distinct(names: list[str]) -> int:
+        return len({" ".join(name.casefold().split()) for name in names if name.strip()})
+
+    if box is None:
+        return {"saved": False, "authors": [], "tags": [], "read_authors": distinct(authors),
+                "read_tags": distinct(tags)}  # fmt: skip
+    from caixa.box import Box
+
+    opened = Box.open(box)
+    known = author_knowledge.load(opened)
+    new_authors, new_tags = author_knowledge.learn_organized(known, authors, tags)
+    author_knowledge.save(opened, known)
+    return {"saved": True, "authors": new_authors, "tags": new_tags,
+            "read_authors": distinct(authors), "read_tags": distinct(tags)}  # fmt: skip
+
+
+def _organized_lines(files: list[Filed], learned: Optional[dict[str, Any]] = None) -> list[str]:
     """The report's *organized names* section: counts, then each name that was changed or waits."""
     told = [one for one in files if one.organized]
     counts = {outcome: 0 for outcome in OUTCOMES}
@@ -476,6 +501,18 @@ def _organized_lines(files: list[Filed]) -> list[str]:
             lines.append(f"  {one.name}: {record['from']} → {record['to']} ({record['why']})")
         elif record["organized"] in ("waiting", "no author"):
             lines.append(f"  {one.name}: waits in Unrecognized ({record['why']})")
+    if learned is not None:
+        lines.append("")
+        lines.append("learned from the names")
+        if not learned["saved"]:
+            lines.append("  not saved: no box was given (--box)")
+        authors, tags = learned["authors"], learned["tags"]
+        lines.append(f"  authors learned ({len(authors)}): {', '.join(authors) or 'none'}")
+        lines.append(f"  tags learned ({len(tags)}): {', '.join(tags) or 'none'}")
+        lines.append(
+            f"  already known: {learned['read_authors'] - len(authors)} authors, "
+            f"{learned['read_tags'] - len(tags)} tags"
+        )
     return lines
 
 
@@ -487,7 +524,7 @@ def _report(
     local_name: str,
     apple_seconds: float,
     local_seconds: float,
-    organized: bool = False,
+    learned: Optional[dict[str, Any]] = None,
 ) -> None:
     groups: dict[str, list[Filed]] = {"same": [], "different": [], "one": []}
     for one in files:
@@ -531,8 +568,8 @@ def _report(
         if one.ocr_pages or one.cover or one.look == "bottom"
     ]  # fmt: skip
     lines += told or ["  nothing beyond reading order"]
-    if organized:
-        lines += ["", *_organized_lines(files)]
+    if learned is not None:
+        lines += ["", *_organized_lines(files, learned)]
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     records: list[dict[str, Any]] = [

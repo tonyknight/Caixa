@@ -146,7 +146,7 @@ Current task: T03
   - the report lists what was learned;
   - the file stays 0600 and holds no page text.
 - Verify: `python -m pytest -q tests/test_author_knowledge.py tests/test_documents_prepare.py tests/test_organized_names.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 

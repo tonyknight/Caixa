@@ -466,3 +466,64 @@ def test_the_command_takes_the_flag(organized: OrganizedFamily, tmp_path: Path, 
     water = "2024/Águas do Vale/(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf"
     assert (out / "Documents/PDF" / water).is_file()
     assert (out / "Documents/PDF/Unrecognized/(2023-11-05) Letter from João [Family].pdf").is_file()
+
+
+# --- The whitelist (20261128-01 T03) --------------------------------------------------------------
+
+
+def _box_files(box: Box) -> dict[str, bytes]:
+    return {
+        str(path.relative_to(box.root)): path.read_bytes()
+        for path in sorted(box.root.rglob("*"))
+        if path.is_file()
+    }
+
+
+def test_organized_names_teach_the_box_and_nothing_else_is_written(
+    organized: OrganizedFamily, tmp_path: Path
+) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    author_knowledge.save(box, author_knowledge.Knowledge(rejected=["Seguradora Horizonte"]))
+    before = _box_files(box)
+    _organized_run(organized, tmp_path, box.root)
+    after = _box_files(box)
+    changed = {name for name in after if before.get(name) != after[name]}
+    assert changed == {".caixa/author-knowledge.json"}
+    known = author_knowledge.load(box)
+    # in the order the files are read; the models' João Costa is not learned
+    assert known.accepted == [
+        "Seguradora Horizonte", "Energia do Norte", "Banco Atlântico", "Águas do Vale",
+    ]  # fmt: skip
+    assert known.rejected == []
+    assert known.tags == ["Receipts", "Insurance", "Family", "Utilities", "Banking", "Joint"]
+    text = (box.caixa_dir / "author-knowledge.json").read_text(encoding="utf-8")
+    for words in ("Thank you", "Policy renewed", "Querida", "Water bill"):
+        assert words not in text
+
+
+def test_without_the_flag_the_box_is_only_read(organized: OrganizedFamily, tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    before = _box_files(box)
+    prepare.prepare(organized.root, tmp_path / "prepared", box.root,
+                    apple=organized.model("apple"), local=organized.model("local"))  # fmt: skip
+    assert _box_files(box) == before
+
+
+def test_the_report_lists_what_was_learned(organized: OrganizedFamily, tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    _organized_run(organized, tmp_path, box.root)
+    report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
+    authors = "Seguradora Horizonte, Energia do Norte, Banco Atlântico, Águas do Vale"
+    assert f"authors learned (4): {authors}" in report
+    assert "tags learned (6): Receipts, Insurance, Family, Utilities, Banking, Joint" in report
+    _organized_run(organized, tmp_path / "again", box.root)
+    again = (tmp_path / "again/prepared/report.txt").read_text(encoding="utf-8")
+    assert "authors learned (0)" in again and "already known: 4 authors, 6 tags" in again
+
+
+def test_with_no_box_nothing_is_learned_and_the_report_says_so(
+    organized: OrganizedFamily, tmp_path: Path
+) -> None:
+    _organized_run(organized, tmp_path)
+    report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
+    assert "not saved: no box was given (--box)" in report
