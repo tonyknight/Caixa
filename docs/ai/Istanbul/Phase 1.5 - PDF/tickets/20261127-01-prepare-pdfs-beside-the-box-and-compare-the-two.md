@@ -3,12 +3,12 @@ id: 20261127-01-prepare-pdfs-beside-the-box-and-compare-the-two
 title: Prepare PDFs beside the box and compare the two models
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-27
 updated: 2026-11-28
-closed:
-notes: 'Agreed 2026-11-27. One command: preprocess once, both models, two trees, a
-  diff.'
+closed: 2026-11-28
+notes: 'Done: documents prepare compares Apple Intelligence and the local model beside
+  the box.'
 parent:
 depends_on:
 - 20261124-02-the-archival-naming-convention
@@ -28,9 +28,8 @@ subtasks:
   status: done
 - id: T04
   title: The diff report
-  status: todo
-plan_status: in-progress
-current_task: T04
+  status: done
+plan_status: done
 ---
 ## Description
 
@@ -134,8 +133,8 @@ this command.
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T04
+Status: done
+Current task: 
 
 ### T01: The command and the two output folders
 
@@ -190,13 +189,29 @@ Current task: T04
 - **Verify:** `python -m pytest -q tests/test_documents_prepare.py`, then the project verify
   command:
   `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`.
-
+- [x] done
 ## Completion report
 
-- **Outcome:**
-- **Files:**
-- **Errors:**
-- **Verify:**
+- **Outcome:** `caixa documents prepare` preprocesses a folder once and files Apple
+  Intelligence's answers in the output path and the local model's in `<path> local`.
+  The report diffs the two trees. No box is written and the originals are unchanged.
+- **Files:** `caixa/documents/prepare.py` (new); `caixa/cli.py`; `tests/test_documents_prepare.py`
+  (new); `docs/Documentation/Collector.md`; the Requirements (D28 and task 24).
+- **Errors:** A first page of a multi-page file with fewer than 40 letters is treated as a
+  cover even without the cover words. Both models leaving a file unrecognized is counted as
+  the same place.
+- **Verify:** `tests/test_documents_prepare.py`: 11 passed. Project suite: 2067 passed, 8
+  failed (the 7 known Chattr web-convert failures, and one iMessage report test that passes
+  when run by itself). black only the known `tests/test_mail_sent_and_received.py`. mypy the
+  8 known errors. Web `tsc` clean; vitest 249 passed, 37 end-to-end tests skipped because
+  Playwright is not installed on this machine.
+
+## Review
+
+2026-11-27, on `63bdcd6..e30509d`. No Critical or Important findings. The command matches D28:
+one preprocessing, both models, two trees, a diff with no page text, and the box only read.
+Two minors, recorded under Errors above: the short-page cover rule, and unrecognized pairs
+counted as the same place.
 
 ## Notes
 
@@ -208,3 +223,6 @@ Append-only running log. Each entry dated.
 
 ### 2026-11-28
 Started. Work stays on 2026-Istanbul/Phase1.5-PDF (no separate worktree).
+
+### 2026-11-28
+T04 done and reviewed. No critical or important findings.
