@@ -146,26 +146,22 @@ def test_an_attachment_with_no_path_is_its_own_reason(
 
 
 def test_the_command_line_prints_the_report(
-    fixture_family: FamilyExports, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    chattr_root: Path,
+    fixture_family: FamilyExports,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
+    # `chattr_root` isolates HOME and CHATTR_ROOT, so the command never falls back to (or
+    # repairs) whatever Chattr root the machine running the tests has configured.
     database, root = _copy(fixture_family, tmp_path)
     for photo in root.rglob("IMG_000*.PNG"):
         photo.unlink()
-    assert cli.main(["missing", str(database), "--attachment-root", str(root)]) == 0
+    capsys.readouterr()  # (setting up the root printed its own lines)
+    command = ["--root", str(chattr_root), "missing", str(database)]
+    assert cli.main([*command, "--attachment-root", str(root)]) == 0
     out = capsys.readouterr().out
     assert "3 attachments, 2 missing" in out and family.ANA.phones[0] in out
     assert "IMG_0001.PNG" not in out  # the summary; the files come with --list
-    assert (
-        cli.main(
-            [
-                "missing",
-                str(database),
-                "--attachment-root",
-                str(root),
-                "--list",
-                family.ANA.phones[0][-4:],
-            ]
-        )
-        == 0
-    )
+    listing = ["--attachment-root", str(root), "--list", family.ANA.phones[0][-4:]]
+    assert cli.main([*command, *listing]) == 0
     assert "IMG_0001.PNG" in capsys.readouterr().out
