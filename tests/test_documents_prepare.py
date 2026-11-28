@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import pymupdf
 
-from caixa import cli
+from caixa import cli, settings
 from caixa.box import Box
 from caixa.documents import prepare
 from caixa.documents.pdf import ocr
@@ -167,6 +168,35 @@ def test_a_missing_author_is_looked_for_on_the_other_region(tmp_path: Path) -> N
     result = prepare.prepare(folder, tmp_path / "prepared", apple=model, local=model)
     assert (tmp_path / "prepared/Documents/PDF/2024/Valley Water").is_dir()
     assert result.files[0].look == "bottom"
+
+
+def test_the_local_run_uses_the_endpoint_even_when_apple_is_chosen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(
+        box,
+        {
+            "summaries.provider": "apple",
+            "summaries.endpoint": "http://127.0.0.1:11434/v1",
+            "summaries.model": "gemma",
+        },
+    )
+    monkeypatch.setattr("caixa.apple_intelligence.available", lambda: True)
+    made: dict[str, str] = {}
+
+    class Endpoint:
+        def __init__(self, address: str, name: str, **kwargs: object) -> None:
+            made["address"] = address
+            made["name"] = name
+
+    monkeypatch.setattr(prepare, "OpenAICompatibleTranslator", Endpoint)
+    _apple, local, state, local_name = prepare.models_for(box.root)
+    assert state == "ran"
+    assert type(local) is Endpoint
+    assert made == {"address": "http://127.0.0.1:11434/v1", "name": "gemma"}
+    assert local_name == "gemma"
+    assert type(local).__name__ != "AppleIntelligence"
 
 
 def test_apple_not_running_still_files_the_local_copy(tmp_path: Path) -> None:

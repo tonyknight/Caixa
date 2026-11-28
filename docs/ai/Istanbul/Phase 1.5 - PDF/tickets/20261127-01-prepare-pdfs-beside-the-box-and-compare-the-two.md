@@ -226,3 +226,6 @@ Started. Work stays on 2026-Istanbul/Phase1.5-PDF (no separate worktree).
 
 ### 2026-11-28
 T04 done and reviewed. No critical or important findings.
+
+### 2026-11-28
+The second run now uses the endpoint and model named in Settings (gemma, for this box) even when Automatic has chosen Apple Intelligence. The report names that model.

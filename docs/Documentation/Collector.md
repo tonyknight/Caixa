@@ -671,7 +671,8 @@ outcomes: Unrecognized 13 (no_author 12, no_date 9, no_title 4, probable_duplica
 - What a model wrote is always told apart from what you set.
 
 **Comparing the two models.** `caixa documents prepare` reads a folder once, asks Apple
-Intelligence and the local model named in Settings the same question, and files each answer
+Intelligence and the endpoint's model (the one named in Settings, even when Apple
+Intelligence is chosen for ordinary reading) the same question, and files each answer
 beside the box. The originals and the box are unchanged.
 
 ```bash

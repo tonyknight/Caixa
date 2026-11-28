@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
+from chattr.translation import OpenAICompatibleTranslator, is_local_endpoint
+
 from caixa.documents.archive import DOCUMENTS, FORMAT_FOLDERS, Facts, _target
 from caixa.naming import free_path
 
@@ -209,27 +211,41 @@ def _place(root: Path, source: Path, facts: Facts) -> str:
     return target.relative_to(root).as_posix()
 
 
-def _from_box(box: Optional[Path]) -> tuple[object, object, str]:
-    """The two models Settings names. The box is only read."""
-    local: object = None
+def _endpoint_client(values: object) -> tuple[object, str]:
+    """The endpoint and model named in Settings, even when Apple Intelligence is the one chosen
+    for ordinary reading. A service on the internet is refused."""
+    from caixa import summaries
+
+    saved = values if isinstance(values, dict) else {}
+    address = summaries.endpoint(saved)
+    name = str(saved.get("summaries.model") or saved.get("translation.model") or "").strip()
+    if not address or not name or not is_local_endpoint(address):
+        return None, name
+    return OpenAICompatibleTranslator(address, name, timeout=300), name
+
+
+def models_for(box: Path) -> tuple[object, object, str, str]:
+    """Apple Intelligence, and the local endpoint's model. The box is only read."""
+    from caixa import apple_intelligence, settings
+    from caixa.box import Box
+
+    local, local_name = _endpoint_client(settings.load(Box.open(box)))
     apple: object = None
     state = "not run"
-    if box is not None:
-        from caixa.box import Box
-        from caixa.documents.enrich import EnrichUnavailable, provider
-        from caixa import settings
-
-        values = settings.load(Box.open(box))
-        try:
-            local, _ = provider(values)
-        except EnrichUnavailable:
-            local = None
-    from caixa import apple_intelligence
-
     if apple_intelligence.available():
         apple = apple_intelligence.AppleIntelligence(1)
         state = "ran"
-    return apple, local, state
+    return apple, local, state, local_name
+
+
+def _from_box(box: Optional[Path]) -> tuple[object, object, str, str]:
+    if box is None:
+        from caixa import apple_intelligence
+
+        if apple_intelligence.available():
+            return apple_intelligence.AppleIntelligence(1), None, "ran", ""
+        return None, None, "not run", ""
+    return models_for(box)
 
 
 def prepare(
@@ -244,8 +260,9 @@ def prepare(
     """File every PDF for both models. Pass `apple` and `local` (callables or chat clients) in
     tests; otherwise they are taken from `box`, which is not written."""
     close_apple = False
+    local_name = ""
     if apple is _MISSING and local is _MISSING:
-        apple, local, state = _from_box(box)
+        apple, local, state, local_name = _from_box(box)
         close_apple = apple is not None
     else:
         state = (
@@ -281,7 +298,7 @@ def prepare(
                     look = "bottom"
                 paths[label] = _place(root, source, facts)
             files.append(Filed(source.name, look, paths["apple"], paths["local"]))
-        _report(out, files, state, local is not None, apple_seconds, local_seconds)
+        _report(out, files, state, local is not None, local_name, apple_seconds, local_seconds)
         return Run(files, state)
     finally:
         if close_apple:
@@ -305,6 +322,7 @@ def _report(
     files: list[Filed],
     apple_state: str,
     local_ran: bool,
+    local_name: str,
     apple_seconds: float,
     local_seconds: float,
 ) -> None:
@@ -313,7 +331,8 @@ def _report(
         groups[_outcome(one)].append(one)
     lines = [
         f"Apple Intelligence: {apple_state}, {apple_seconds:.1f} s",
-        f"local: {'ran' if local_ran else 'not run'}, {local_seconds:.1f} s",
+        f"local{f' ({local_name})' if local_name else ''}: "
+        f"{'ran' if local_ran else 'not run'}, {local_seconds:.1f} s",
         f"same place: {len(groups['same'])}",
         f"different places: {len(groups['different'])}",
         f"filed by one: {len(groups['one'])}",
@@ -352,6 +371,7 @@ def _report(
             "event": "summary",
             "apple": apple_state,
             "local": "ran" if local_ran else "not run",
+            "local_model": local_name,
             "same": len(groups["same"]),
             "different": len(groups["different"]),
             "one": len(groups["one"]),
