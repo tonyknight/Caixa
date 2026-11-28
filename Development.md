@@ -89,6 +89,7 @@ sources (mail, PDFs, photos, home videos, Obsidian vaults), **Stage 2** the pers
 | 2026-11-24 | Phase 1.5 - PDF planned and built: 23 tickets on `2026-Istanbul/Phase1.5-PDF`, tested on synthetic PDFs; waiting for the maintainer's Mac. |
 | 2026-11-25 | First real PDF imports on the Mac (about 150 PDFs): four hot fixes, among them the missing PDF card, numpy, errors that no longer end an import, and the session log. |
 | 2026-11-27 | `caixa documents prepare` to compare Apple Intelligence with a local model on real PDFs (Gemma so far), and author knowledge learned from corrections. |
+| 2026-11-28 | `prepare --organized`: owners' well-named PDFs keep their names, only a wrong date is replaced, and their authors and tags become the first whitelist. |
 
 ---
 
@@ -316,6 +317,14 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
   `.caixa/author-knowledge.json` (accepted authors, rejected names, and "use this instead"
   lessons), and `prepare` tells both models what it holds. The box's owner is never rejected.
 
+### Organized file names (2026-11-28)
+
+- **`20261128-01` `prepare --organized`.** Owners who already name their PDFs
+  `(YYYY-MM-DD) Subject (Author) [Tag].pdf` keep their names. The name is read with no model, and
+  only an impossible date, or one the page clearly contradicts, is replaced. The authors and tags
+  in the names become the first whitelist in `.caixa/author-knowledge.json`. `prepare` was made a
+  separate command to try PDFs without importing them; its logic is to be folded into the import.
+
 ### Decisions (recorded in the Requirements)
 
 - Folders are year and author; category and type are views.
@@ -329,7 +338,8 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
 - OCR is in English by default.
 - D26 amended (2026-11-25): the session log may hold extracted values, review reasons and timings;
   evidence quotes and raw replies are opt-in; page text, passages and summaries never.
-- D28 (2026-11-27): `prepare` beside the box. D29 (2026-11-27): author knowledge.
+- D28 (2026-11-27): `prepare` beside the box. D29 (2026-11-27): author knowledge. D30
+  (2026-11-28): organized file names, the date the only part ever replaced.
 
 ## Issues we ran into, and what they taught us
 
@@ -405,7 +415,7 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
 
 - **Version** 0.5.1 (Phase 1.5's release, tagged `v0.5.1`; Phase 1 was 0.5.0); Chattr 2.0.0.
   Phase 1.5 - PDF is built on its branch and not yet released.
-- **Tests**: 2,086 Python tests, Caixa's and Chattr's, all passing (run with
+- **Tests**: 2,147 Python tests, Caixa's and Chattr's, all passing (run with
   `PYTHONUNBUFFERED=1`); 286 tests of the window (unit and end-to-end against the real
   `caixa serve` in Chromium).
 - **Tried on real data by the maintainer**: iMessage, Messenger, Google Voice, iPhone voicemail, Mac
@@ -427,6 +437,9 @@ Items to plan into future projects. Each names where it came from.
 - **The bake-off** between Apple Intelligence and the local models, scored from `prepare`'s
   reports and the session log's `.jsonl`, which first needs each document's item id (Phase 1.5 -
   PDF, `20261125-02`). Then: vision, and a memory of past layouts, for `prepare`.
+- **Fold `prepare` into the PDF import** (Phase 1.5 - PDF, D28 and D30): its preprocessing, its
+  instructions, author knowledge, and `--organized` as an import option. Tune the preprocessing
+  thresholds first; the "not words" test sends any page under 20 letters to OCR.
 - Financial transactions from statements and bills, cheques linked to bills (the PDF draft's phase
   7); other document formats, each with its own collector (Phase 1.5 - PDF).
 - Photos and home videos as their own domain; Obsidian vaults (Stage 1.5).
