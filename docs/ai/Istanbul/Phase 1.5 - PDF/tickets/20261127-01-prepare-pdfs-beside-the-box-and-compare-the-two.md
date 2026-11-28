@@ -229,3 +229,6 @@ T04 done and reviewed. No critical or important findings.
 
 ### 2026-11-28
 The second run now uses the endpoint and model named in Settings (gemma, for this box) even when Automatic has chosen Apple Intelligence. The report names that model.
+
+### 2026-11-28
+The second run sends the API key already saved for that endpoint's host, the same key summaries use. It is not written into the report.

@@ -221,7 +221,10 @@ def _endpoint_client(values: object) -> tuple[object, str]:
     name = str(saved.get("summaries.model") or saved.get("translation.model") or "").strip()
     if not address or not name or not is_local_endpoint(address):
         return None, name
-    return OpenAICompatibleTranslator(address, name, timeout=300), name
+    from caixa.translation import Keys
+
+    # The key saved for this endpoint's host, the same one summaries use. Sent only there.
+    return OpenAICompatibleTranslator(address, name, api_key=Keys().get(address), timeout=300), name
 
 
 def models_for(box: Path) -> tuple[object, object, str, str]:

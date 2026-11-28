@@ -186,15 +186,23 @@ def test_the_local_run_uses_the_endpoint_even_when_apple_is_chosen(
     made: dict[str, str] = {}
 
     class Endpoint:
-        def __init__(self, address: str, name: str, **kwargs: object) -> None:
+        def __init__(
+            self, address: str, name: str, api_key: str | None = None, **kwargs: object
+        ) -> None:
             made["address"] = address
             made["name"] = name
+            made["key"] = api_key or ""
 
     monkeypatch.setattr(prepare, "OpenAICompatibleTranslator", Endpoint)
+    monkeypatch.setattr("caixa.translation.Keys.get", lambda self, endpoint: "secret-key")
     _apple, local, state, local_name = prepare.models_for(box.root)
     assert state == "ran"
     assert type(local) is Endpoint
-    assert made == {"address": "http://127.0.0.1:11434/v1", "name": "gemma"}
+    assert made == {
+        "address": "http://127.0.0.1:11434/v1",
+        "name": "gemma",
+        "key": "secret-key",
+    }
     assert local_name == "gemma"
     assert type(local).__name__ != "AppleIntelligence"
 
