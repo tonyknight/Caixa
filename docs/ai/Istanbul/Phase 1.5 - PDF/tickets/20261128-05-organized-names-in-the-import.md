@@ -3,17 +3,17 @@ id: 20261128-05-organized-names-in-the-import
 title: Organized names in the import
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-28
 updated: 2026-11-28
-closed:
-notes: ''
+closed: 2026-11-28
+notes: 'organized option: owners'' names kept through filing, reading and corrections'
 parent:
 depends_on:
 - 20261128-04-author-knowledge-in-the-import
 - 20261128-01-organized-file-names
 subtasks: []
-plan_status: in-progress
+plan_status: done
 current_task: T03
 ---
 ## Description
@@ -23,21 +23,21 @@ option of the PDF import, kept through filing, reading, reading again and correc
 
 ## Acceptance criteria
 
-- [ ] The PDF collector has an `organized` option: a checkbox in the import wizard and
+- [x] The PDF collector has an `organized` option: a checkbox in the import wizard and
       `--option organized=true`.
-- [ ] At filing, an organized name is kept under its year and author. A name with no author, or
+- [x] At filing, an organized name is kept under its year and author. A name with no author, or
       an impossible date, waits in `Unrecognized/` under its name. The owner's tags are Caixa's
       tags. The authors and tags learned are added to the whitelist.
-- [ ] At reading, the model adds the type, category, summary and its own tags. It never changes
+- [x] At reading, the model adds the type, category, summary and its own tags. It never changes
       the file name, the subject, the author or the owner's tags.
-- [ ] Only an impossible date, or one the page contradicts, is replaced; only the date part of
+- [x] Only an impossible date, or one the page contradicts, is replaced; only the date part of
       the name changes. "Contradicts" means the model's naming date has its quote found on the
       page, is not compatible with the name's date, and the name's date is nowhere on the page.
-- [ ] A name with no author takes the model's author (quote found, through author knowledge) for
+- [x] A name with no author takes the model's author (quote found, through author knowledge) for
       its folder; the name stays.
-- [ ] Reading again keeps the name. A correction of the date, subject or author rewrites that
+- [x] Reading again keeps the name. A correction of the date, subject or author rewrites that
       part of the owner's name, in the owner's pattern.
-- [ ] Without the option, organized names are imported as before.
+- [x] Without the option, organized names are imported as before.
 
 ## Context
 
@@ -47,7 +47,7 @@ Requirements: D31 (*Organized names in the import*), D30; Tasks Breakdown 30.
 
 ## Implementation plan
 
-Status: in-progress
+Status: done
 Current task: T03
 
 **Design:**
@@ -118,14 +118,70 @@ Current task: T03
 - Tests: the wizard shows the PDF collector's `organized` option as a checkbox, and sends it with
   the import.
 - Verify: `pnpm --dir web exec vitest run tests/import-page.test.tsx && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
 - **Outcome:**
+  - **The option:** the PDF collector's `organized` option, "My PDFs are named (date) Subject
+    (Author) [Tag]", is a checkbox in the wizard and `--option organized=true` on the command line
+    (tried on a scratch box).
+  - **At filing:** a matching name is filed under its own name, in its year and author's folder.
+    An impossible date, or no author, waits in `Unrecognized/` under the name. The document is
+    marked with an `organized` field, and its tags are the owner's (`user_verified`, never taken
+    away by a reading). The names' authors and tags join the whitelist.
+  - **At reading and after:** `reconcile._decide_organized` decides such a document.
+    - The model adds the type and the category, and the summary and its tags are recorded beside
+      the owner's.
+    - The title is the subject and the author is the name's.
+    - The date is replaced only when it is impossible, or when the model's verified date is not
+      compatible with it and the name's date is nowhere on the page. Only the date part of the
+      name changes.
+    - A name with no author takes the model's verified author (quote found or a known author,
+      through the lessons) for its folder.
+    - `apply_decision` files by the owner's name. Every step goes in the session log's trail.
+  - **Corrections:** a correction of the subject or the author rewrites the name in the owner's
+    pattern (`organized.compose`), and a correction of the date rewrites only the date. An author
+    given to a name that had none is added in brackets. Reading again keeps every name.
+  - Every fixture of the organized family ends in the import where its known answer says.
 - **Files:**
+  - new: `tests/test_organized_import.py`;
+  - changed: `caixa/collectors/pdfImport.py`, `caixa/documents/importing.py`,
+    `caixa/documents/archive.py` (`place(…, filename=…)`), `caixa/documents/reconcile.py`
+    (`_decide_organized`, `Decision.organized`), `caixa/documents/organized.py` (`compose`),
+    `tests/fixtures/organized_family.py` (quotes, `respond`), `tests/test_organized_names.py`,
+    `web/tests/import-page.test.tsx`, `docs/Documentation/Collector.md`.
 - **Errors:**
+  - The T01 commit first went in with five new mypy errors: the check and the commit ran in one
+    command. They were fixed and the unpushed commit amended. mypy now runs as its own step
+    before each commit.
+  - The wizard test passed at once: the wizard draws any yes/no option as a checkbox. It is kept
+    as the guard on the real option.
+  - `corrections.py` needed no change: corrections reach the organized decision through `decide`.
 - **Verify:**
+  - `python -m pytest -q` (with `PYTHONUNBUFFERED=1`): 2,208 passed.
+  - vitest: 287 passed.
+  - mypy: the 8 baseline errors.
+
+## Review
+
+### 2026-11-28: df7402d..HEAD (T01–T03), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `compose` writes single spaces between the parts, so a corrected name with unusual
+  spacing comes back tidied. A date-only change uses `with_date` and leaves the rest exactly as
+  written.
+- **Minor:** a document imported without the option cannot become organized later. Importing it
+  again with the option is "already in the box", so a later command would be needed.
+- **Minor:** an organized document still waiting (no author, or an impossible date with no page
+  date) keeps the model's type and summary off its record until it is filed, as any document
+  waiting for review does.
+- **Spec:** D31's *Organized names in the import* and D30 met; every acceptance criterion met;
+  `corrections.py` named in the plan needed no change.
+- **TDD:** RED (no option; a reading renaming organized files to Caixa's form; no `compose`)
+  before each GREEN.
+- **Commits:** `20261128-05 T01/T02/T03: …`, authored by Tony Knight.
 
 ## Notes
 
