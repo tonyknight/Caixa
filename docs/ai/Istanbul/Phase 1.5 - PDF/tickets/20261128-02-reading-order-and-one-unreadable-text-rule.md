@@ -3,15 +3,15 @@ id: 20261128-02-reading-order-and-one-unreadable-text-rule
 title: Reading order and one unreadable-text rule
 type: feature
 priority: high
-status: in-progress
+status: done
 created: 2026-11-28
 updated: 2026-11-28
-closed:
-notes: ''
+closed: 2026-11-28
+notes: Reading order stored; digits layers OCR'd, short real pages not
 parent:
 depends_on: []
 subtasks: []
-plan_status: in-progress
+plan_status: done
 current_task: T02
 ---
 ## Description
@@ -27,12 +27,12 @@ is extracted in reading order wherever it is stored, and one rule decides unread
 
 ## Acceptance criteria
 
-- [ ] Page text is stored in reading order: the PDF's text, the OCR layer's text, and the OCR of
+- [x] Page text is stored in reading order: the PDF's text, the OCR layer's text, and the OCR of
       a broken page.
-- [ ] A text layer of mostly digits and punctuation is `broken_text`: read by OCR from a render,
+- [x] A text layer of mostly digits and punctuation is `broken_text`: read by OCR from a render,
       with the page unchanged.
-- [ ] A short page of real words stays `text` and is not OCR'd.
-- [ ] `prepare` uses the same rule.
+- [x] A short page of real words stays `text` and is not OCR'd.
+- [x] `prepare` uses the same rule.
 
 ## Context
 
@@ -42,7 +42,7 @@ Requirements: D31 (*Preprocessing, stored for every use*); Tasks Breakdown 27.
 
 ## Implementation plan
 
-Status: in-progress
+Status: done
 Current task: T02
 
 **Design:**
@@ -88,14 +88,47 @@ Current task: T02
   - a short page of words is imported as `pdf` text with no OCR;
   - `prepare.read_document` OCRs the digits layer and not the short page.
 - Verify: `python -m pytest -q tests/test_pdf_ocr.py tests/test_documents_prepare.py tests/test_pdf_inspect.py tests/test_pdf_collector.py && python -m mypy --python-version 3.12 caixa`
-- [ ] done
+- [x] done
 
 ## Completion report
 
 - **Outcome:**
-- **Files:**
+  - Page text is stored in reading order: inspection, the OCR layer's text, and the OCR of a
+    broken page all read `sort=True`.
+  - One rule decides unreadable text (`inspect.classify`). A layer of at least 15 visible
+    characters, under a quarter of them letters (too few letters to measure), is `broken_text`,
+    read by OCR from a render with the page unchanged. A short page of words (`Receipt / Thank
+    you`, or `Total 23,40 EUR / Paid 12/03/2024`) stays `text`. An OCR layer of digits stays
+    `ocr_layer`.
+  - `prepare` uses the same rule, so the fixture's two-line receipt is no longer OCR'd.
+- **Files:** `caixa/documents/pdf/inspect.py` (`NOT_WORDS_MIN`, `LETTER_SHARE`,
+  `Measures.letter_share`), `caixa/documents/pdf/ocr.py`, `caixa/documents/prepare.py`,
+  `tests/test_pdf_inspect.py`, `tests/test_pdf_ocr.py`, `tests/test_documents_prepare.py`.
 - **Errors:**
+  - The import test passed as soon as T01 was in: inspection's text is what the import stores.
+    The OCR reading order (`sort=True` in `ocr.py`) has no test of its own, because Tesseract's
+    blocks on a synthetic one-line page come back in order either way.
+  - Every fixture page kept its known class, and no existing test depended on the old text order.
 - **Verify:**
+  - `python -m pytest -q` (with `PYTHONUNBUFFERED=1`): 2,154 passed.
+  - mypy: the 8 baseline errors.
+
+## Review
+
+### 2026-11-28: 4859f50..HEAD (T01–T02), reviewed in-session
+
+**Verdict:** clean; Minor items only.
+
+- **Minor:** `letter_share` is derived, not stored, so a page's stored quality record keeps its
+  shape. The session log shows the class, not the share.
+- **Minor:** the text hash used for `probable_duplicate` follows the text's order, so a file
+  imported before this change and again after may not be flagged as the same text (noted in the
+  plan).
+- **Spec:** D31's preprocessing items met; every acceptance criterion met; the files touched match
+  the plan.
+- **TDD:** RED (bottom-first page stored in stream order; digits layer as `text`; `prepare` OCRing
+  the short page) before GREEN.
+- **Commits:** `20261128-02 T01/T02: …`, authored by Tony Knight.
 
 ## Notes
 
