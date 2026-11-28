@@ -670,20 +670,30 @@ outcomes: Unrecognized 13 (no_author 12, no_date 9, no_title 4, probable_duplica
 - Session logs and the working copies in `.caixa/work/documents/` are readable by you alone.
 - What a model wrote is always told apart from what you set.
 
-**Comparing the two models.** `caixa documents prepare` reads a folder once, asks Apple
-Intelligence and the endpoint's model (the one named in Settings, even when Apple
-Intelligence is chosen for ordinary reading) the same question, and files each answer
-beside the box. The originals and the box are unchanged.
+**Trying an import first.** `caixa documents prepare` is a dry run of the PDF import. It runs the
+import's own steps on a folder (inspection and OCR, what the model reads, the second look, author
+knowledge, organized names, filing) with Apple Intelligence and with the endpoint's model (the
+one named in Settings, even when Apple Intelligence is chosen for ordinary reading). Then it shows
+where each file would go. Nothing is imported or copied, and your files are not changed.
 
 ```bash
-caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box
+caixa documents prepare ~/PDFs --box ~/Our\ Box
 ```
 
-Apple's copies are `~/PDF-prepare/Documents/PDF/`. The local model's are `~/PDF-prepare local/`.
-`~/PDF-prepare/report.txt` says where the two trees agree, where they name a document differently,
-and where only one of them could file it.
-Its *preprocessing* section names each file read by OCR, each cover sheet skipped, and each fact
-found only on the second look.
+It writes `(2026-11-28) PDF Import Preview.json`, dated the day it runs, at the root of the box,
+beside `index.html`. A second run that day replaces it.
+
+- **The trees:** the file holds both models' trees side by side, `apple` and `local`, as the
+  import would build them. Folders are nested, and each file says where it came from, and why
+  it waits when it does.
+- **The report section:** where the two trees agree, where they file a document differently, and
+  where only one of them could file it, with the time each model took.
+- **Preprocessing:** the pages read by OCR, the cover sheets left out for the model, and the facts
+  found only on the second look.
+
+The command prints the same report. A file the box already has is shown where it is, "already in
+the box". A model that can't run here (no Mac, no endpoint) is "not run". Only the preview is
+written into the box, plus, with `--organized`, what your names teach (below).
 
 **PDFs you have already named well.** If your files are named like
 `(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf`, tick **My PDFs are named (date)
@@ -693,7 +703,11 @@ Subject (Author) [Tag]** in the import wizard, or give the option on the command
 caixa import pdf ~/PDFs --box ~/Our\ Box --option organized=true
 ```
 
-To see first what would happen, without importing, use `prepare` with `--organized` (below).
+To see first what would happen, without importing, add `--organized` to the dry run:
+
+```bash
+caixa documents prepare ~/PDFs --box ~/Our\ Box --organized
+```
 
 - **The pattern:** `(date) Subject (Author) [Tag] [Tag].pdf`.
   - The date may be a day, a month (`2024-03`) or a year (`2024`).
@@ -704,26 +718,25 @@ To see first what would happen, without importing, use `prepare` with `--organiz
   subject, author and tags are never changed.
 - **Only the date can change**, in two cases:
   - it cannot be, such as `2024-02-30`;
-  - the page clearly contradicts it: both models give the same date, the page states it, and your
-    date appears nowhere on the page.
+  - the page clearly contradicts it: the model's date, its words found on the page, is not your
+    date (or a finer form of it), and your date appears nowhere on the page.
 
   A date the page shows among its other dates, or a month where the page gives a day, stands.
   Only the date part of the name changes.
-- **A name without an author** goes in the folder of the author both models agree on, still under
-  your name; otherwise it waits in `Unrecognized/`.
-- **Names that don't fit the pattern** are prepared as any other PDF.
-- **After the import, the model still reads each one.** It adds the type, the category, a
-  summary and tags of its own beside yours, but never changes the name, the subject, the author or
-  your tags. In the import, "the page contradicts it" means the model's date, its words found on
-  the page, and your date nowhere on the page. Reading a document again keeps its name.
+- **A name without an author** goes in the folder of the author the model finds (its words on the
+  page, and not a name you rejected), still under your name; otherwise it waits in
+  `Unrecognized/`.
+- **Names that don't fit the pattern** are imported as any other PDF.
+- **The model still reads each one.** It adds the type, the category, a summary and tags of its
+  own beside yours, but never changes the name, the subject, the author or your tags. Reading a
+  document again keeps its name.
 - **Correcting one** in the authoring tool (its date, subject or author) rewrites that part of
   your name, in your pattern, not Caixa's `(date) Title - Author`.
 - **What Caixa learns:** the authors and tags in your names are added to the box's
   `.caixa/author-knowledge.json`, as accepted authors (a name you had rejected becomes accepted)
-  and a list of tags. That file is the only thing `--organized` writes into the box; without
-  `--organized`, the box is only read.
-- **The report** has an *organized names* section: how many names were kept, had their date
-  replaced (from, to and why), or wait, and the authors and tags learned.
+  and a list of tags, by the import and by the dry run with `--organized`.
+- **The dry run's report** has an *organized names* section: how many names were kept, had their
+  date replaced (from and to), or wait and why, and the authors and tags learned.
 
 Every command of `caixa documents`: `list`, `show`, `search`, `ask`, `review`, `update`, `tags`,
 `authors`, `enrich`, `embed`, `reprocess`, `log` and `prepare`. Each says more with `--help`.

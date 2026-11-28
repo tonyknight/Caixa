@@ -226,3 +226,81 @@ def test_a_scanned_page_is_reported_as_read_by_ocr(
     run = prepare.prepare(_folder(tmp_path, pdf_family, "scan_00482.pdf"), box.root,
                           models=_models(servers))  # fmt: skip
     assert _record(run, "scan_00482.pdf")["ocr_pages"] == [1]
+
+
+# --- The preview file, the report, the command (T02) ----------------------------------------------
+
+
+def test_the_preview_is_written_at_the_boxs_root_dated_today(
+    pdf_family: PdfFamily, box: Box, tmp_path: Path, servers: Any
+) -> None:
+    from datetime import date
+
+    for server in servers:
+        server.respond = DocumentModel(pdf_family).respond
+    folder = _folder(tmp_path, pdf_family, STATEMENT)
+    run = prepare.prepare(folder, box.root, models=_models(servers))
+    assert run.path == box.root / f"({date.today().isoformat()}) PDF Import Preview.json"
+    saved = json.loads(run.path.read_text(encoding="utf-8"))
+    assert set(saved) == {"apple", "local", "report"} and saved == run.preview
+    leaf = saved["apple"]["Documents"]["PDF"]["2024"]["Banco Atlântico"]
+    (name,) = leaf
+    assert leaf[name] == {"from": STATEMENT}
+    assert saved["report"]["apple"]["state"] == "ran" and saved["report"]["same"] == 1
+    again = prepare.prepare(folder, box.root, models=_models(servers))
+    assert again.path == run.path
+    assert [p.name for p in box.root.glob("*PDF Import Preview.json")] == [run.path.name]
+
+
+def test_the_preview_holds_no_page_text(
+    pdf_family: PdfFamily, box: Box, tmp_path: Path, servers: Any
+) -> None:
+    for server in servers:
+        server.respond = DocumentModel(pdf_family).respond
+    run = prepare.prepare(
+        _folder(tmp_path, pdf_family, STATEMENT), box.root, models=_models(servers)
+    )
+    text = run.path.read_text(encoding="utf-8") + run.text
+    for words in ("Supermercado Sol", "1,987.20", "4821"):
+        assert words not in text
+
+
+def test_organized_names_teach_the_real_box(
+    organized: OrganizedFamily, box: Box, servers: Any
+) -> None:
+    from caixa.documents import author_knowledge
+
+    for server in servers:
+        server.respond = organized_respond
+    run = prepare.prepare(organized.root, box.root, organized=True, models=_models(servers))
+    known = author_knowledge.load(box)
+    assert {"Águas do Vale", "Banco Atlântico"} <= set(known.accepted)
+    assert {"Utilities", "Banking", "Family"} <= set(known.tags)
+    counts = run.preview["report"]["organized"]["counts"]
+    assert counts == {"kept": 4, "date replaced": 2, "no author": 1, "waiting": 1,
+                      "not organized": 1}  # fmt: skip
+    assert "organized names" in run.text and "authors learned (" in run.text
+
+
+def test_without_the_flag_the_knowledge_is_unchanged(
+    organized: OrganizedFamily, box: Box, servers: Any
+) -> None:
+    from caixa.documents import author_knowledge
+
+    for server in servers:
+        server.respond = organized_respond
+    prepare.prepare(organized.root, box.root, models=_models(servers))
+    assert not author_knowledge.path_of(box).exists()
+
+
+def test_the_command_takes_the_box_and_prints_the_report(
+    pdf_family: PdfFamily, box: Box, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from caixa import cli
+
+    folder = _folder(tmp_path, pdf_family, STATEMENT)
+    assert cli.main(["documents", "prepare", str(folder), "--box", str(box.root)]) == 0
+    out = capsys.readouterr().out
+    assert "Apple Intelligence: not run" in out and "Preview: " in out
+    with pytest.raises(SystemExit):
+        cli.main(["documents", "prepare", str(folder), "--out", str(tmp_path / "x")])
