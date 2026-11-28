@@ -686,11 +686,14 @@ Its *preprocessing* section names each file read by OCR, each cover sheet skippe
 found only on the second look.
 
 **PDFs you have already named well.** If your files are named like
-`(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf`, add `--organized`:
+`(2024-03-12) Water bill (Águas do Vale) [Utilities].pdf`, tick **My PDFs are named (date)
+Subject (Author) [Tag]** in the import wizard, or give the option on the command line:
 
 ```bash
-caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box --organized
+caixa import pdf ~/PDFs --box ~/Our\ Box --option organized=true
 ```
+
+To see first what would happen, without importing, use `prepare` with `--organized` (below).
 
 - **The pattern:** `(date) Subject (Author) [Tag] [Tag].pdf`.
   - The date may be a day, a month (`2024-03`) or a year (`2024`).
@@ -709,6 +712,12 @@ caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box --organized
 - **A name without an author** goes in the folder of the author both models agree on, still under
   your name; otherwise it waits in `Unrecognized/`.
 - **Names that don't fit the pattern** are prepared as any other PDF.
+- **After the import, the model still reads each one.** It adds the type, the category, a
+  summary and tags of its own beside yours, but never changes the name, the subject, the author or
+  your tags. In the import, "the page contradicts it" means the model's date, its words found on
+  the page, and your date nowhere on the page. Reading a document again keeps its name.
+- **Correcting one** in the authoring tool (its date, subject or author) rewrites that part of
+  your name, in your pattern, not Caixa's `(date) Title - Author`.
 - **What Caixa learns:** the authors and tags in your names are added to the box's
   `.caixa/author-knowledge.json`, as accepted authors (a name you had rejected becomes accepted)
   and a list of tags. That file is the only thing `--organized` writes into the box; without

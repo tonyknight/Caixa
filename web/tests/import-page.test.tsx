@@ -561,3 +561,29 @@ describe('mail in the import wizard', () => {
     opened.mockRestore()
   })
 })
+
+const PDF = {
+  id: 'pdf', name: 'PDF documents', platform: 'Files', inputs: ['file', 'folder', 'zip'], source: 'pdf',
+  how_to_export: 'Point Caixa at a PDF, a folder of them or a .zip.',
+  options_schema: { type: 'object', properties: {
+    workers: { type: 'integer', minimum: 1, maximum: 12, title: 'Workers' },
+    organized: { type: 'boolean', default: false, title: 'My PDFs are named (date) Subject (Author) [Tag]' },
+  } },
+} as const
+
+describe('PDFs already named well (20261128-05)', () => {
+  it('offers the organized option as a checkbox, off, and sends it when ticked', async () => {
+    const view = await renderWith(<ImportPage onShowJob={() => undefined} onShowPeople={() => undefined} />, (api) => { api.collectorList = [PDF as never] })
+    click(/PDF documents/)
+    click('I have the export')
+    type(/Path to the export/, '/home/me/Statements')
+    click('Continue')
+    const box = screen.getByLabelText('My PDFs are named (date) Subject (Author) [Tag]') as HTMLInputElement
+    expect(box.type).toBe('checkbox')
+    expect(box.checked).toBe(false)
+    fireEvent.click(box)
+    click('Preview')
+    await view.flush()
+    expect(view.api.calls).toContainEqual(['preview', 'pdf', '/home/me/Statements', { organized: true }])
+  })
+})
