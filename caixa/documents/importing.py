@@ -73,13 +73,19 @@ def import_examined(
     format: str = "pdf",
     workdir: Optional[Path] = None,
     facts: Optional[Callable[["Examined"], Optional[Facts]]] = None,
+    organized: bool = False,
 ) -> RunResult:
     """Record every examined file (see the module text). A new file is filed by what its filename
     and properties say (`caixa.documents.evidence.provisional_facts`), or by `facts` when given,
-    its author put through the owner's lessons (D31)."""
+    its author put through the owner's lessons (D31). With `organized`, a file named the organized
+    way (D30) keeps its name, under its year and author; its tags are the owner's, and its author
+    and tags join the whitelist."""
     from caixa.documents import author_knowledge
+    from caixa.documents.organized import read_organized
 
     lessons = author_knowledge.load(box)
+    learned_authors: list[str] = []
+    learned_tags: list[str] = []
     result = RunResult()
     total = len(seen)
     log = session_log.current()
@@ -111,9 +117,23 @@ def import_examined(
                 texts = {int(number): text for number, text in (done.get("texts") or {}).items()}
                 named = evidence.read_filename(one.name, records.author_names(master))
                 stated = evidence.read_properties(one.properties)
-                filed = facts(one) if facts else evidence.provisional_facts(named, stated)
-                filed = _taught(lessons, filed)
-                relative = place(box, one.name, one.sha256, filed, format)
+                name = read_organized(one.name) if organized else None
+                filed: Optional[Facts]
+                if name is not None:  # the owner's own name, and their author: no lessons
+                    filed = Facts(
+                        date=None if name.impossible else name.date,
+                        title=name.subject,
+                        author=name.author,
+                    )
+                    learned_authors += [name.author] if name.author else []
+                    learned_tags += name.tags
+                else:
+                    filed = facts(one) if facts else evidence.provisional_facts(named, stated)
+                    filed = _taught(lessons, filed)
+                relative = place(
+                    box, one.name, one.sha256, filed, format,
+                    filename=one.name if name is not None else None,
+                )  # fmt: skip
                 copy_into(box, output or Path(one.path), relative, archived)
                 review = ["locked"] if one.locked else []
                 if one.text_hash and records.find_by_text(master, one.text_hash):
@@ -139,7 +159,11 @@ def import_examined(
                     title=filed.title if filed else None,
                     author=filed.author if filed else None,
                     date=filed.date if filed else None,
-                    date_precision=(named.date.precision if filed and named.date else None),
+                    date_precision=(
+                        (name.precision if filed and filed.date else None)
+                        if name is not None
+                        else (named.date.precision if filed and named.date else None)
+                    ),
                     date_kind="filename" if filed else None,
                 )
                 item_id, _ = records.save_document(master, record, import_id)
@@ -165,6 +189,10 @@ def import_examined(
                         report={"error": done["error"]} if done.get("error") else None,
                     )  # fmt: skip
                 _record_evidence(master, item_id, named, stated, one, texts, filed)
+                if name is not None:
+                    records.add_field(master, item_id, "organized", one.name, "original_filename",
+                                      state="applied")  # fmt: skip
+                    records.set_tags(master, item_id, name.tags, "user_verified")
                 if validation:
                     records.add_run(
                         master, item_id, "validate", "passed" if validation["passed"] else "failed",
@@ -188,6 +216,10 @@ def import_examined(
             unchanged=result.unchanged,
             details="; ".join(result.warnings) or None,
         )
+    if learned_authors or learned_tags:  # what the owner's organized names teach (D30)
+        whitelist = author_knowledge.load(box)
+        author_knowledge.learn_organized(whitelist, learned_authors, learned_tags)
+        author_knowledge.save(box, whitelist)
     return result
 
 

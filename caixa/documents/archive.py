@@ -52,8 +52,20 @@ def format_folder(box: Box, format: str = "pdf") -> Path:
     return box.root / DOCUMENTS / FORMAT_FOLDERS[format]
 
 
-def _target(source_name: str, sha256: str, facts: Optional[Facts], format: str) -> Path:
-    """The folder and name a document should have, relative to its format's folder."""
+def _target(
+    source_name: str,
+    sha256: str,
+    facts: Optional[Facts],
+    format: str,
+    filename: Optional[str] = None,
+) -> Path:
+    """The folder and name a document should have, relative to its format's folder. With
+    `filename` (an organized name, D30), that is its name, in its year and author's folder or in
+    Unrecognized."""
+    if filename:
+        if facts is not None and facts.complete:
+            return Path(str(facts.date)[:4]) / folder_name(str(facts.author)) / filename
+        return Path(UNRECOGNIZED) / filename
     extension = Path(source_name).suffix or f".{format}"
     if facts is not None and facts.complete:
         try:
@@ -76,12 +88,13 @@ def place(
     facts: Optional[Facts],
     format: str = "pdf",
     current: Optional[str] = None,
+    filename: Optional[str] = None,
 ) -> str:
     """The box-relative path a document is filed at: by year and author when `facts` are
     complete, else in `Unrecognized/`. `current` is where it is now (it keeps that path when it
-    would get the same name)."""
+    would get the same name). `filename` keeps an organized name (see `_target`)."""
     base = format_folder(box, format)
-    wanted = base / _target(source_name, sha256, facts, format)
+    wanted = base / _target(source_name, sha256, facts, format, filename)
     if current is not None and (box.root / current) == wanted:
         return current
     return free_path(wanted.parent, wanted.name, sha256).relative_to(box.root).as_posix()

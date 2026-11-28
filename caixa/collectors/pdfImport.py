@@ -60,6 +60,15 @@ OPTIONS_SCHEMA: dict[str, Any] = {
             "title": "Workers",
             "description": "PDFs read at once (default: the box's Workers setting).",
         },
+        "organized": {
+            "type": "boolean",
+            "default": False,
+            "title": "My PDFs are named (date) Subject (Author) [Tag]",
+            "description": (
+                "Your names are kept: each goes under its year and author, and your tags become "
+                "its tags. Only a date that cannot be, or that the page contradicts, is replaced."
+            ),
+        },
     },
     "additionalProperties": False,
 }
@@ -335,7 +344,10 @@ class PdfCollector:
         with log.stage("examine"):
             seen = _examine_all(files, workers, progress, ocr)
         with log.stage("file"):
-            result = import_examined(box, source, seen, progress, FORMAT, workdir)
+            result = import_examined(
+                box, source, seen, progress, FORMAT, workdir,
+                organized=bool(options.get("organized")),
+            )  # fmt: skip
         # Every document is filed and committed by now: a later stage that fails costs only
         # itself (a warning says how to carry on), and the pages are still drawn.
         try:
