@@ -350,6 +350,7 @@ The maintainer's first import on the Mac, about 150 PDFs, found what the synthet
 | Bills filed under `Brite:Bill` | The PDF's Author property names the program that wrote it | `prepare` takes the author from the page. |
 | `prepare` asked Apple Intelligence twice | Automatic chooses Apple for reading | The second run uses the endpoint in Settings. |
 | Two sessions gave two tickets the same number | Both picked the next free id on their own copy | One was renumbered (`20261125-04`). |
+| A Chattr test passed or failed depending on the computer and the test order | The `missing` test followed the machine's own `~/.chattr.json`, and the rebuild tests wrote one pointing at a pytest folder | Each test has its own home and Chattr folder (merged from `claude/nifty-hawking-u8grqz`). |
 | The test suite could hang | `chattr serve` prints its link without flushing, and a test reads it from a pipe | Run with `PYTHONUNBUFFERED=1`; the fix is in the backlog. |
 
 
@@ -446,9 +447,7 @@ Items to plan into future projects. Each names where it came from.
   - documents for box people who have no messages, and so no person page (with the person page
     redesign);
   - search across mail and messages, using the same `chunks` table (Stage 2);
-  - `chattr serve` should flush the link it prints, so its test needs no `PYTHONUNBUFFERED`;
-  - the Chattr test fix on `claude/nifty-hawking-u8grqz` (HOME isolated for the `missing` and
-    `rebuild` tests), not merged yet.
+  - `chattr serve` should flush the link it prints, so its test needs no `PYTHONUNBUFFERED`.
 
 - **Names from the To line**: mail the owner sent to someone who never wrote back is filed under
   their address, though the To line names them (Phase 1.5, `20261123-05`).
