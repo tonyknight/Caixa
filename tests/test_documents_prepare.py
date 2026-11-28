@@ -527,3 +527,18 @@ def test_with_no_box_nothing_is_learned_and_the_report_says_so(
     _organized_run(organized, tmp_path)
     report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
     assert "not saved: no box was given (--box)" in report
+
+
+def test_a_replaced_date_is_told_even_when_the_file_waits(tmp_path: Path) -> None:
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    _pdf(folder / "(2024-02-30) Old bill [Utilities].pdf", "Bill date: February 28, 2024")
+
+    def model(text: str) -> dict[str, str]:
+        return {"kind": "bill", "author": "", "title": "Bill", "date": "2024-02-28"}
+
+    prepare.prepare(folder, tmp_path / "prepared", apple=model, local=None, organized=True)
+    waiting = "Unrecognized/(2024-02-28) Old bill [Utilities].pdf"
+    assert (tmp_path / "prepared/Documents/PDF" / waiting).is_file()
+    report = (tmp_path / "prepared/report.txt").read_text(encoding="utf-8")
+    assert "2024-02-30 → 2024-02-28" in report and "waits in Unrecognized" in report

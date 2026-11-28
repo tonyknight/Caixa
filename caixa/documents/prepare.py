@@ -500,7 +500,8 @@ def _organized_lines(files: list[Filed], learned: Optional[dict[str, Any]] = Non
         if record["organized"] == "date replaced":
             lines.append(f"  {one.name}: {record['from']} → {record['to']} ({record['why']})")
         elif record["organized"] in ("waiting", "no author"):
-            lines.append(f"  {one.name}: waits in Unrecognized ({record['why']})")
+            replaced = f" after {record['from']} → {record['to']}" if "to" in record else ""
+            lines.append(f"  {one.name}: waits in Unrecognized{replaced} ({record['why']})")
     if learned is not None:
         lines.append("")
         lines.append("learned from the names")
