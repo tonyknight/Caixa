@@ -102,9 +102,9 @@ this command.
       the one the page names.
 - [x] A page whose text is drawn bottom-first still presents its letterhead before its
       closing to both models.
-- [x] A text layer that is not words is read by OCR, and that is named on the file's record.
+- [ ] A text layer that is not words is read by OCR, and that is named on the file's record.
 - [x] A cover sheet is skipped. The next page is treated as the first.
-- [x] When author or date is still missing, the other marked region is tried, and the record
+- [ ] When author or date is still missing, the other marked region is tried, and the record
       says which look found the fact.
 - [x] Two stand-in models that disagree produce two trees, and the report gives both paths.
       Two that agree produce one path in the diff. The report contains no page text.
@@ -235,3 +235,6 @@ The second run sends the API key already saved for that endpoint's host, the sam
 
 ### 2026-11-28
 Acceptance criteria ticked: each is covered by a passing test in tests/test_documents_prepare.py (22 passed with test_author_knowledge.py, 2026-11-28).
+
+### 2026-11-28
+Correction (2026-11-28): two criteria reopened. OCR'd pages and the look that found a fact are kept on the in-memory result (Read.ocr_pages, Filed.look) and tested there, but report.txt and report.jsonl record neither, nor the cover sheet; D28 asks for them per file in the report. Ticked in error earlier today.
