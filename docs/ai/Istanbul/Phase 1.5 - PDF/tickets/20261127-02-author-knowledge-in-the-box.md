@@ -3,11 +3,11 @@ id: 20261127-02-author-knowledge-in-the-box
 title: Author knowledge in the box
 type: feature
 priority: high
-status: todo
+status: in-progress
 created: 2026-11-27
-updated: 2026-11-27
+updated: 2026-11-28
 closed:
-notes: "Agreed 2026-11-27. Corrections teach the next prepare run, in .caixa/author-knowledge.json."
+notes: Agreed 2026-11-27. Corrections teach the next prepare run, in .caixa/author-knowledge.json.
 parent:
 depends_on:
 - 20261124-12-reconciliation-confidence-and-apply
@@ -15,17 +15,16 @@ depends_on:
 subtasks:
 - id: T01
   title: The author-knowledge file
-  status: todo
+  status: done
 - id: T02
   title: Corrections, renames and merges write it
   status: todo
 - id: T03
   title: Prepare reads it
   status: todo
-plan_status: draft
-current_task:
+plan_status: in-progress
+current_task: T02
 ---
-
 ## Description
 
 The Gemma comparison showed the models will not categorize perfectly. Gemma was the careful one:
@@ -106,8 +105,8 @@ database of authors and aliases stays as it is; this file is what a run outside 
 
 ## Implementation plan
 
-Status: draft
-Current task:
+Status: in-progress
+Current task: T02
 
 ### T01: The author-knowledge file
 
@@ -117,7 +116,7 @@ Current task:
   file is three empty lists. Round-trip keeps the three lists and no other keys.
 - **GREEN:** load and save under `.caixa/author-knowledge.json`.
 - **Verify:** `python -m pytest -q tests/test_author_knowledge.py`
-- [ ] done
+- [x] done
 
 ### T02: Corrections, renames and merges write it
 
