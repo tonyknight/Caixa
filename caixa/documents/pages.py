@@ -54,6 +54,7 @@ REASONS = {
     "unverified_date": "Its date was not found on its page",
     "unverified_author": "Its author was not found in its text",
     "ai_unusable": "The model's reading could not be used",
+    "rejected_author": "The model named someone you rejected as an author",
 }
 OCR_WORDS = {
     "done": "Text read by OCR",

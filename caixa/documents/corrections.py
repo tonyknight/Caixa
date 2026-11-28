@@ -111,6 +111,7 @@ def correct(
         known_authors(master),
         ai_ok=document["ai_status"] == "completed",
         fallback_title=Path(str(document["original_filename"])).stem,
+        knowledge=author_knowledge.load(box),
     )
     moves = apply_decision(box, master, item_id, decision)
     if "author" in values:

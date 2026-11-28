@@ -481,3 +481,45 @@ def test_the_service_and_the_commands(filed: Any, capsys: pytest.CaptureFixture[
     )
     assert "Merged" in capsys.readouterr().out
     assert "BA Cartões" not in {p.split("/")[3] for p in _paths(box)}
+
+
+# --- Author knowledge (20261128-04, D31) ----------------------------------------------------------
+
+from caixa.documents.author_knowledge import Knowledge  # noqa: E402
+
+CITY = F("author", "City of Springfield", "ai_inference", "City of Springfield", 1, 1)
+
+
+def test_an_instead_replaces_the_models_author() -> None:
+    known = Knowledge(instead=[{"said": "City of Springfield", "use": "Banco Atlântico"}])
+    decision = decide(_model(author=CITY), PAGES, {}, True, knowledge=known)
+    assert decision.author == "Banco Atlântico" and decision.confident
+    assert any("instead" in line for line in decision.trail)
+
+
+def test_an_instead_for_the_kind_wins() -> None:
+    known = Knowledge(instead=[
+        {"said": "City of Springfield", "use": "Someone Else"},
+        {"said": "City of Springfield", "use": "Banco Atlântico", "kind": "statement"},
+    ])  # fmt: skip
+    assert decide(_model(author=CITY), PAGES, {}, True, knowledge=known).author == "Banco Atlântico"
+
+
+def test_a_rejected_name_is_not_an_author() -> None:
+    known = Knowledge(rejected=["City of Springfield"])
+    decision = decide(_model(author=CITY), PAGES, {}, True, knowledge=known)
+    assert decision.author is None and not decision.confident
+    assert "rejected_author" in decision.reasons and "no_author" not in decision.reasons
+
+
+def test_the_owners_author_ignores_lessons() -> None:
+    owner = F("author", "City of Springfield", "user_verified")
+    known = Knowledge(rejected=["City of Springfield"],
+                      instead=[{"said": "City of Springfield", "use": "Someone Else"}])  # fmt: skip
+    decision = decide(_model(author=owner), PAGES, {}, True, knowledge=known)
+    assert decision.author == "City of Springfield"
+
+
+def test_without_knowledge_decide_is_as_before() -> None:
+    decision = decide(_model(author=CITY), PAGES, {}, True)
+    assert decision.author == "City of Springfield"

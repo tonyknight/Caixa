@@ -38,7 +38,7 @@ from caixa.session_log import Document
 #: The reasons reconciliation gives; each reading replaces the earlier ones.
 REASONS = (
     "conflict:date", "conflict:type", "conflict:author", "no_date", "no_author", "no_title",
-    "no_type", "unverified_date", "unverified_author", "ai_unusable",
+    "no_type", "unverified_date", "unverified_author", "ai_unusable", "rejected_author",
 )  # fmt: skip
 #: Types close enough that a filename naming one and a model the other do not conflict.
 CLOSE = [{"bill", "invoice"}, {"agreement", "property_record"}, {"medical", "personal_record"}]
@@ -124,15 +124,31 @@ def _text_dates(fields: Sequence[Mapping[str, Any]]) -> list[tuple[str, str]]:
     return found
 
 
+def _lesson(
+    knowledge: Optional[Any], author: Mapping[str, Any], kind: Optional[str]
+) -> Optional[str]:
+    """The author the owner's lessons give for the model's (itself when none applies), or None
+    for a rejected name."""
+    said = str(author["value"])
+    if knowledge is None:
+        return said
+    from caixa.documents.author_knowledge import apply
+
+    return apply(knowledge, said, kind)
+
+
 def decide(
     fields: Sequence[Mapping[str, Any]],
     pages: Mapping[int, str],
     known_authors: Mapping[str, str],
     ai_ok: bool,
     fallback_title: Optional[str] = None,
+    knowledge: Optional[Any] = None,
 ) -> Decision:
     """What the fields say about a document, and whether it can be applied (see the module text).
-    `known_authors` maps every author's normalized name and alias to its name."""
+    `known_authors` maps every author's normalized name and alias to its name. `knowledge` (the
+    box's author knowledge, D29) puts the model's author through the owner's lessons: an
+    `instead` replaces it, a rejected name leaves none (D31)."""
     decision = Decision()
     reasons: list[str] = []
     if not ai_ok:
@@ -240,8 +256,16 @@ def decide(
         decision.author = str(owner_author["value"])
         decision.applied.add(int(owner_author["id"]))
         trail.append(f"author: the owner's {decision.author}")
+    elif model_author is not None and _lesson(knowledge, model_author, decision.type) is None:
+        reasons.append("rejected_author")  # the model's field is left as it is, not applied
+        trail.append(f"author: the model's {model_author['value']} is a rejected name")
     elif model_author is not None:
         said = str(model_author["value"])
+        taught = _lesson(knowledge, model_author, decision.type)
+        if taught is not None and normalize_author(taught) != normalize_author(said):
+            trail.append(f"author: the model's {said}, {taught} instead (author knowledge)")
+            said = taught
+            model_author = {**model_author, "verified": 1}  # the owner's lesson
         canonical = _known(said, known_authors)
         decision.author = canonical or said
         if canonical and normalize_author(canonical) != normalize_author(said):
@@ -399,9 +423,12 @@ def reconcile_document(
     from caixa.documents.archive import UNRECOGNIZED
 
     document = records.get_document(master, item_id)
+    from caixa.documents import author_knowledge
+
     decision = decide(
         document["fields"], pages, known_authors(master), ai_ok,
         fallback_title=Path(str(document["original_filename"])).stem,
+        knowledge=author_knowledge.load(box),
     )  # fmt: skip
     moves = apply_decision(box, master, item_id, decision)
     record = records.load_record(master, item_id)
