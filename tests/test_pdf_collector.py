@@ -424,8 +424,8 @@ def test_one_file_that_cannot_be_filed_does_not_stop_the_import(
 
     real = importing.copy_into
 
-    def failing(box: Box, source: Path, relative: str, sha256: str) -> None:
-        real(box, source, relative, sha256)
+    def failing(box: Box, source: Path, relative: str, sha256: str, **more: Any) -> None:
+        real(box, source, relative, sha256, **more)
         if "scan_00482" in relative:
             raise OSError("The copy of scan_00482.pdf does not match it; nothing was filed.")
 

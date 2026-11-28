@@ -52,6 +52,14 @@ def origin(path: Path, source: Path, workdir: Optional[Path]) -> str:
     return str(path)
 
 
+def _modified(path: Path) -> Optional[float]:
+    """The original's modification time, for its archived copy (None when it cannot be read)."""
+    try:
+        return path.stat().st_mtime
+    except OSError:
+        return None
+
+
 def _taught(known: Any, filed: Optional[Facts]) -> Optional[Facts]:
     """Provisional facts with the author the owner's lessons give: an `instead` replaces it, and a
     rejected name is not used, so the document waits in Unrecognized (D31)."""
@@ -138,7 +146,8 @@ def import_examined(
                     )  # fmt: skip
                     target = box.root / relative
                     copied = None if target.exists() else target  # this filing's, to undo
-                    copy_into(box, output or Path(one.path), relative, archived)
+                    copy_into(box, output or Path(one.path), relative, archived,
+                              modified=_modified(Path(one.path)))  # fmt: skip
                     review = ["locked"] if one.locked else []
                     if one.text_hash and records.find_by_text(master, one.text_hash):
                         review.append("probable_duplicate")

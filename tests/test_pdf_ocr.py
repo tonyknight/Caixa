@@ -290,3 +290,77 @@ def test_an_import_stores_reading_order_and_reads_a_digits_layer(tmp_path: Path)
     assert kind == "broken_text" and source == "ocr"
     assert "Pacific" in text or "Electric" in text
     assert pages["Receipt.pdf"][1:] == ("pdf", "text")
+
+
+# --- The source's metadata and dates on the archived copy (20261128-09) ---------------------------
+
+PROPERTIES = {"author": "Clínica Santa Luzia", "title": "Consulta", "creator": "ScanSnap Manager",
+              "producer": "ScanSnap PDF", "creationDate": "D:19980601120000",
+              "modDate": "D:19980602120000"}  # fmt: skip
+XMP = (
+    '<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/">'
+    '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about=""'
+    ' xmlns:xmp="http://ns.adobe.com/xap/1.0/"><xmp:CreatorTool>ScanSnap Manager</xmp:CreatorTool>'
+    '</rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>'
+)
+
+
+def _scan_with(pdf_family: PdfFamily, path: Path, xmp: bool) -> None:
+    with pymupdf.open(pdf_family.root / "scan_00482.pdf") as doc:
+        doc.set_metadata(PROPERTIES)
+        if xmp:
+            doc.set_xml_metadata(XMP)
+        doc.save(path)
+
+
+def _metadata(path: Path) -> tuple[dict[str, str], bytes | None]:
+    import pikepdf
+
+    with pikepdf.open(path) as pdf:
+        # (a key whose value is null says nothing: the PDF format treats it as absent)
+        info = {str(k): str(v) for k, v in pdf.docinfo.items() if v is not None}
+        stream = pdf.Root.get("/Metadata")
+        return info, (bytes(stream.read_bytes()) if stream is not None else None)
+
+
+@needs_tools
+@pytest.mark.parametrize("xmp", [False, True])
+def test_an_ocrd_copy_keeps_the_sources_metadata(
+    pdf_family: PdfFamily, tmp_path: Path, xmp: bool
+) -> None:
+    source = tmp_path / "scan.pdf"
+    _scan_with(pdf_family, source, xmp)
+    output = tmp_path / "out.pdf"
+    outcome = ocr.ocr_document(source, output, _inspection(source), "eng", True)
+    assert outcome.status == "done" and outcome.texts  # it was OCR'd
+    assert _metadata(output) == _metadata(source)
+
+
+@needs_tools
+def test_an_import_keeps_the_sources_metadata_and_date(
+    pdf_family: PdfFamily, tmp_path: Path
+) -> None:
+    import os
+
+    from caixa import settings
+    from caixa.box import Box
+    from caixa.collectors.pdfImport import PdfCollector
+    from caixa.documents import records
+
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    _scan_with(pdf_family, folder / "scan.pdf", xmp=False)
+    shutil.copyfile(pdf_family.root / "download.pdf", folder / "download.pdf")
+    for number, path in enumerate(sorted(folder.iterdir())):
+        os.utime(path, (946_684_800 + number, 946_684_800 + number))  # 2000-01-01
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {"documents.enrich": False})
+    PdfCollector().run(box, folder, {"workers": 1}, lambda step: None)
+    with box.master() as master:
+        filed = {
+            d["original_filename"]: box.root / d["file_path"]
+            for d in records.list_documents(master)
+        }
+    for name, archived in filed.items():
+        assert int(archived.stat().st_mtime) == int((folder / name).stat().st_mtime), name
+    assert _metadata(filed["scan.pdf"]) == _metadata(folder / "scan.pdf")

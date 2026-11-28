@@ -107,6 +107,27 @@ def _read_broken(source: Path, numbers: Sequence[int], languages: str) -> dict[i
     return texts
 
 
+def restore_metadata(source: Path, output: Path) -> None:
+    """Give `output` the source's document information and XMP exactly as the source has them
+    (none where it has none): OCRmyPDF writes its own Creator, Producer, dates and XMP. The pages,
+    and the text layer OCR added, are left as they are."""
+    import pikepdf
+
+    with (
+        pikepdf.open(source) as original,
+        pikepdf.open(output, allow_overwriting_input=True) as copy,
+    ):
+        if "/Info" in original.trailer:
+            copy.trailer.Info = copy.copy_foreign(original.trailer.Info)
+        elif "/Info" in copy.trailer:
+            del copy.trailer.Info
+        if "/Metadata" in original.Root:
+            copy.Root.Metadata = copy.copy_foreign(original.Root.Metadata)
+        elif "/Metadata" in copy.Root:
+            del copy.Root.Metadata
+        copy.save(output, fix_metadata_version=False)
+
+
 def ocr_document(
     source: Path,
     output: Path,
@@ -167,6 +188,14 @@ def ocr_document(
                 mode=outcome.mode,
                 error=f"{type(error).__name__}: {error}",
             )
+        try:
+            restore_metadata(source, output)  # the source's own words about itself, not OCRmyPDF's
+        except Exception as error:
+            output.unlink(missing_ok=True)
+            return OcrOutcome(
+                "failed", versions=found.versions, settings=settings, mode=outcome.mode,
+                error=f"the source's metadata could not be kept: {type(error).__name__}: {error}",
+            )  # fmt: skip
         import pymupdf
 
         with pymupdf.open(output) as doc:
@@ -181,4 +210,4 @@ def ocr_document(
     return outcome
 
 
-__all__ = ["ADVICE", "OcrOutcome", "OcrTools", "ocr_document", "tools"]
+__all__ = ["ADVICE", "OcrOutcome", "OcrTools", "ocr_document", "restore_metadata", "tools"]

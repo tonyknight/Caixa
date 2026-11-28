@@ -108,9 +108,12 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def copy_into(box: Box, source: Path, relative: str, sha256: str) -> None:
+def copy_into(
+    box: Box, source: Path, relative: str, sha256: str, modified: Optional[float] = None
+) -> None:
     """Copy `source` to `relative` in the box, byte for byte: through a `.part` file that must
-    hold `sha256` before it is renamed. The source is only read."""
+    hold `sha256` before it is renamed. The source is only read. `modified` (the original's
+    modification time) is given to the copy, so it keeps the original's date."""
     target = box.root / relative
     if target.is_file() and _sha256(target) == sha256:
         return  # already there
@@ -121,6 +124,8 @@ def copy_into(box: Box, source: Path, relative: str, sha256: str) -> None:
         if _sha256(part) != sha256:
             raise OSError(f"The copy of {source.name} does not match it; nothing was filed.")
         os.replace(part, target)
+        if modified is not None:
+            os.utime(target, (modified, modified))
     finally:
         part.unlink(missing_ok=True)
 
