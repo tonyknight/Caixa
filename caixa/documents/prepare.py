@@ -8,11 +8,13 @@ model). Nothing is written into a box, and the originals are only read. See D28.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shutil
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from caixa.documents.archive import DOCUMENTS, FORMAT_FOLDERS, Facts, _target
 from caixa.naming import free_path
@@ -119,6 +121,8 @@ def _pdfs(folder: Path) -> list[Path]:
 class Filed:
     name: str
     look: str  # "answer" when the first reply was enough, "bottom" when the second look was
+    apple_path: str = ""
+    local_path: str = ""
 
 
 @dataclass
@@ -173,9 +177,9 @@ def _ask(model: object, text: str) -> Facts:
 
 def _question(document: Read, second: bool) -> str:
     if not second:
-        return prompt(document)
+        return f"File name: {document.name}\n" + prompt(document)
     bottom = document.pages[-1][-800:]
-    return f"second look\n[bottom of the last page]\n{bottom}\n"
+    return f"File name: {document.name}\nsecond look\n[bottom of the last page]\n{bottom}\n"
 
 
 def _decide(model: object, document: Read) -> tuple[Facts, str]:
@@ -194,7 +198,7 @@ def _decide(model: object, document: Read) -> tuple[Facts, str]:
     return found, "bottom" if found.complete else "answer"
 
 
-def _place(root: Path, source: Path, facts: Facts) -> None:
+def _place(root: Path, source: Path, facts: Facts) -> str:
     digest = hashlib.sha256(source.read_bytes()).hexdigest()
     relative = _target(source.name, digest, facts if facts.complete else None, "pdf")
     folder = root / DOCUMENTS / FORMAT_FOLDERS["pdf"] / relative.parent
@@ -202,6 +206,7 @@ def _place(root: Path, source: Path, facts: Facts) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     if not target.exists():
         shutil.copyfile(source, target)
+    return target.relative_to(root).as_posix()
 
 
 def _from_box(box: Optional[Path]) -> tuple[object, object, str]:
@@ -238,8 +243,10 @@ def prepare(
 ) -> Run:
     """File every PDF for both models. Pass `apple` and `local` (callables or chat clients) in
     tests; otherwise they are taken from `box`, which is not written."""
+    close_apple = False
     if apple is _MISSING and local is _MISSING:
         apple, local, state = _from_box(box)
+        close_apple = apple is not None
     else:
         state = (
             "ran"
@@ -249,13 +256,109 @@ def prepare(
         if apple_available is False:
             apple = None
     files: list[Filed] = []
-    for source in _pdfs(folder):
-        document = read_document(source)
-        look = "answer"
-        for model, root in ((apple, out), (local, local_root(out))):
-            facts, which = _decide(model, document) if model is not None else (Facts(), "answer")
-            if model is not None and which == "bottom":
-                look = "bottom"
-            _place(root, source, facts)
-        files.append(Filed(source.name, look))
-    return Run(files, state)
+    apple_seconds = 0.0
+    local_seconds = 0.0
+    try:
+        for source in _pdfs(folder):
+            document = read_document(source)
+            look = "answer"
+            paths: dict[str, str] = {}
+            for label, model, root in (
+                ("apple", apple, out),
+                ("local", local, local_root(out)),
+            ):
+                began = time.monotonic()
+                if model is None:
+                    facts, which = Facts(), "answer"
+                else:
+                    facts, which = _decide(model, document)
+                spent = time.monotonic() - began
+                if label == "apple":
+                    apple_seconds += spent
+                else:
+                    local_seconds += spent
+                if model is not None and which == "bottom":
+                    look = "bottom"
+                paths[label] = _place(root, source, facts)
+            files.append(Filed(source.name, look, paths["apple"], paths["local"]))
+        _report(out, files, state, local is not None, apple_seconds, local_seconds)
+        return Run(files, state)
+    finally:
+        if close_apple:
+            closer = getattr(apple, "close", None)
+            if callable(closer):
+                closer()
+
+
+def _outcome(one: Filed) -> str:
+    apple_waiting = "/Unrecognized/" in f"/{one.apple_path}"
+    local_waiting = "/Unrecognized/" in f"/{one.local_path}"
+    if apple_waiting != local_waiting:
+        return "one"
+    if one.apple_path == one.local_path:
+        return "same"
+    return "different"
+
+
+def _report(
+    out: Path,
+    files: list[Filed],
+    apple_state: str,
+    local_ran: bool,
+    apple_seconds: float,
+    local_seconds: float,
+) -> None:
+    groups: dict[str, list[Filed]] = {"same": [], "different": [], "one": []}
+    for one in files:
+        groups[_outcome(one)].append(one)
+    lines = [
+        f"Apple Intelligence: {apple_state}, {apple_seconds:.1f} s",
+        f"local: {'ran' if local_ran else 'not run'}, {local_seconds:.1f} s",
+        f"same place: {len(groups['same'])}",
+        f"different places: {len(groups['different'])}",
+        f"filed by one: {len(groups['one'])}",
+        "",
+        "same place",
+    ]
+    lines += [f"  {one.apple_path}" for one in groups["same"]] or ["  none"]
+    lines += ["", "different places"]
+    if groups["different"]:
+        for one in groups["different"]:
+            lines += [f"  Apple: {one.apple_path}", f"  local: {one.local_path}"]
+    else:
+        lines.append("  none")
+    lines += ["", "filed by one"]
+    if groups["one"]:
+        for one in groups["one"]:
+            which = "Apple" if "/Unrecognized/" not in f"/{one.apple_path}" else "local"
+            path = one.apple_path if which == "Apple" else one.local_path
+            lines.append(f"  {which} only: {path}")
+    else:
+        lines.append("  none")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "report.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    records: list[dict[str, Any]] = [
+        {
+            "event": "diff",
+            "name": one.name,
+            "outcome": _outcome(one),
+            "apple": one.apple_path,
+            "local": one.local_path,
+        }
+        for one in files
+    ]
+    records.append(
+        {
+            "event": "summary",
+            "apple": apple_state,
+            "local": "ran" if local_ran else "not run",
+            "same": len(groups["same"]),
+            "different": len(groups["different"]),
+            "one": len(groups["one"]),
+            "apple_seconds": round(apple_seconds, 1),
+            "local_seconds": round(local_seconds, 1),
+        }
+    )
+    (out / "report.jsonl").write_text(
+        "".join(json.dumps(record) + "\n" for record in records), encoding="utf-8"
+    )

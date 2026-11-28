@@ -188,6 +188,46 @@ def test_apple_not_running_still_files_the_local_copy(tmp_path: Path) -> None:
     assert (tmp_path / "prepared/Documents/PDF/Unrecognized/Bill.pdf").is_file()
 
 
+def test_the_report_diffs_the_trees_and_keeps_no_page_text(tmp_path: Path) -> None:
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    secret = "The kettle boiled at noon on the platform."
+    agreed = folder / "Agreed.pdf"
+    _bill(agreed)
+    doc = pymupdf.open(agreed)
+    doc[0].insert_text((72, 400), secret)
+    doc.saveIncr()
+    doc.close()
+    split = folder / "Split.pdf"
+    _bill(split)
+    only = folder / "Only.pdf"
+    _bill(only)
+
+    def apple(text: str) -> dict[str, str]:
+        if "Only.pdf" in text:
+            return {"author": "", "title": "", "date": ""}
+        author = "Energy Office" if "Agreed.pdf" in text else "North Power"
+        return {"author": author, "title": "Bill", "date": "2024-03-12"}
+
+    def local(text: str) -> dict[str, str]:
+        if "Only.pdf" in text:
+            return {"author": "Energy Office", "title": "Bill", "date": "2024-03-12"}
+        author = "Energy Office" if "Agreed.pdf" in text else "South Power"
+        return {"author": author, "title": "Bill", "date": "2024-03-12"}
+
+    prepare.prepare(folder, tmp_path / "prepared", apple=apple, local=local)
+    report = (tmp_path / "prepared" / "report.txt").read_text()
+    assert "same place: 1" in report
+    assert "different places: 1" in report
+    assert "filed by one: 1" in report
+    assert "North Power" in report and "South Power" in report
+    assert "Energy Office" in report
+    assert secret not in report
+    assert "Apple Intelligence" in report and "local" in report
+    events = (tmp_path / "prepared" / "report.jsonl").read_text().splitlines()
+    assert events and '"same"' in events[0] or any('"same"' in line for line in events)
+
+
 def test_the_top_and_the_bottom_survive_a_short_cut(tmp_path: Path) -> None:
     pdf = tmp_path / "Long.pdf"
     doc = pymupdf.open()

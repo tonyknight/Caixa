@@ -670,8 +670,20 @@ outcomes: Unrecognized 13 (no_author 12, no_date 9, no_title 4, probable_duplica
 - Session logs and the working copies in `.caixa/work/documents/` are readable by you alone.
 - What a model wrote is always told apart from what you set.
 
+**Comparing the two models.** `caixa documents prepare` reads a folder once, asks Apple
+Intelligence and the local model named in Settings the same question, and files each answer
+beside the box. The originals and the box are unchanged.
+
+```bash
+caixa documents prepare ~/PDFs --out ~/PDF-prepare --box ~/Our\ Box
+```
+
+Apple's copies are `~/PDF-prepare/Documents/PDF/`. The local model's are `~/PDF-prepare local/`.
+`~/PDF-prepare/report.txt` says where the two trees agree, where they name a document differently,
+and where only one of them could file it.
+
 Every command of `caixa documents`: `list`, `show`, `search`, `ask`, `review`, `update`, `tags`,
-`authors`, `enrich`, `embed`, `reprocess` and `log`. Each says more with `--help`.
+`authors`, `enrich`, `embed`, `reprocess`, `log` and `prepare`. Each says more with `--help`.
 
 ## When something does not work
 

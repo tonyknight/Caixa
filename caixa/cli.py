@@ -818,6 +818,9 @@ def _cmd_documents(args: argparse.Namespace) -> int:
         from caixa.documents.prepare import prepare
 
         prepare(Path(args.folder), Path(args.out), Path(args.box) if args.box else None)
+        report = Path(args.out) / "report.txt"
+        if report.is_file():
+            print(report.read_text(encoding="utf-8"), end="")
         return 0
     if args.action == "update":
         service = _open(args)
