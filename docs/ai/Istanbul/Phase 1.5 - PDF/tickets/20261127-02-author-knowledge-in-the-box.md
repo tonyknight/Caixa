@@ -5,7 +5,7 @@ type: feature
 priority: high
 status: in-progress
 created: 2026-11-27
-updated: 2026-11-28
+updated: 2026-11-27
 closed:
 notes: Agreed 2026-11-27. Corrections teach the next prepare run, in .caixa/author-knowledge.json.
 parent:
@@ -21,9 +21,8 @@ subtasks:
   status: done
 - id: T03
   title: Prepare reads it
-  status: todo
-plan_status: in-progress
-current_task: T03
+  status: done
+plan_status: done
 ---
 ## Description
 
@@ -105,8 +104,8 @@ database of authors and aliases stays as it is; this file is what a run outside 
 
 ## Implementation plan
 
-Status: in-progress
-Current task: T03
+Status: done
+Current task: 
 
 ### T01: The author-knowledge file
 
@@ -140,7 +139,7 @@ Current task: T03
 - **Verify:** `python -m pytest -q tests/test_documents_prepare.py tests/test_author_knowledge.py`,
   then the project verify command:
   `python -m pytest -q && python -m black --check . && python -m mypy caixa tools/chattr/src && (cd web && pnpm exec tsc --noEmit && pnpm exec vitest run)`.
-
+- [x] done
 ## Completion report
 
 - **Outcome:**

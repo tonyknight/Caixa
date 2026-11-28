@@ -133,14 +133,24 @@ def learn_rename(known: Knowledge, said: str, use: str, owner: Optional[str]) ->
 
 
 def apply(known: Knowledge, author: str, kind: Optional[str] = None) -> Optional[str]:
-    """The author to file, or None when a rejected name has no lesson."""
+    """The author to file, or None when a rejected name has no lesson.
+
+    A lesson for this document's kind wins over a lesson that applies to every kind.
+    """
     author = _clean(author)
+    fallback: Optional[str] = None
     for lesson in known.instead:
         if not _same(lesson["said"], author):
             continue
-        if lesson.get("kind") in (None, "", kind):
+        if kind and lesson.get("kind") == kind:
             author = _clean(lesson["use"])
+            fallback = None
             break
+        if not lesson.get("kind") and fallback is None:
+            fallback = _clean(lesson["use"])
+    else:
+        if fallback:
+            author = fallback
     if known._has(known.rejected, author):
         return None
     return author or None

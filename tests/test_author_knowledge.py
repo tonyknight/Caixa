@@ -109,3 +109,14 @@ def test_renaming_and_merging_apply_to_every_kind(tmp_path: Path) -> None:
     assert {"said": "PG & E", "use": "PG&E"} in known.instead
     assert {"said": "Pacific Gas", "use": "PG&E"} in known.instead
     assert "PG & E" not in known.rejected and "Pacific Gas" not in known.rejected
+
+
+def test_a_lesson_for_one_kind_wins_over_a_lesson_for_every_kind() -> None:
+    known = author_knowledge.Knowledge(
+        instead=[
+            {"said": "Maria Costa", "use": "Maria Costa"},
+            {"said": "Maria Costa", "use": "PG&E", "kind": "bill"},
+        ]
+    )
+    assert author_knowledge.apply(known, "Maria Costa", "bill") == "PG&E"
+    assert author_knowledge.apply(known, "Maria Costa", "letter") == "Maria Costa"

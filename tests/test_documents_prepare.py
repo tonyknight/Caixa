@@ -9,7 +9,7 @@ import pymupdf
 
 from caixa import cli, settings
 from caixa.box import Box
-from caixa.documents import prepare
+from caixa.documents import author_knowledge, prepare
 from caixa.documents.pdf import ocr
 
 
@@ -281,3 +281,71 @@ def test_the_top_and_the_bottom_survive_a_short_cut(tmp_path: Path) -> None:
     short = prepare.prompt(seen, budget=500)
     assert "Letterhead Energy Office" in short
     assert "Sincerely the closing line" in short
+
+
+def test_a_rejected_author_is_not_filed(tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    author_knowledge.save(box, author_knowledge.Knowledge(rejected=["City of Springfield"]))
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    _bill(folder / "Bill.pdf")
+    prepare.prepare(
+        folder,
+        tmp_path / "prepared",
+        box.root,
+        apple=lambda text: {
+            "kind": "bill",
+            "author": "City of Springfield",
+            "title": "Bill",
+            "date": "2024-03-12",
+        },
+        local=None,
+    )
+    assert (tmp_path / "prepared/Documents/PDF/Unrecognized/Bill.pdf").is_file()
+    assert not (tmp_path / "prepared/Documents/PDF/2024").exists()
+
+
+def test_an_instead_files_under_the_kept_author_and_the_lists_are_shown(tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    author_knowledge.save(
+        box,
+        author_knowledge.Knowledge(
+            accepted=["PG&E"],
+            rejected=["City of Springfield"],
+            instead=[{"said": "City of Springfield", "use": "PG&E", "kind": "bill"}],
+        ),
+    )
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    _bill(folder / "Bill.pdf")
+    seen: list[str] = []
+
+    def model(text: str) -> dict[str, str]:
+        seen.append(text)
+        return {
+            "kind": "bill",
+            "author": "City of Springfield",
+            "title": "Bill",
+            "date": "2024-03-12",
+        }
+
+    prepare.prepare(folder, tmp_path / "prepared", box.root, apple=model, local=None)
+    filed = tmp_path / "prepared/Documents/PDF/2024/PG&E/(2024-03-12) Bill - PG&E.pdf"
+    assert filed.is_file()
+    assert "PG&E" in seen[0] and "City of Springfield" in seen[0]
+
+
+def test_a_box_without_the_file_prepares_as_before(tmp_path: Path) -> None:
+    box = Box.create(tmp_path / "Box", name="Our box")
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    _bill(folder / "Bill.pdf")
+
+    def model(text: str) -> dict[str, str]:
+        assert "Accepted authors" not in text
+        return {"author": "Energy Office", "title": "Bill", "date": "2024-03-12"}
+
+    prepare.prepare(folder, tmp_path / "prepared", box.root, apple=model, local=None)
+    assert (
+        tmp_path / "prepared/Documents/PDF/2024/Energy Office/(2024-03-12) Bill - Energy Office.pdf"
+    ).is_file()

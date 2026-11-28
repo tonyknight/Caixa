@@ -18,6 +18,7 @@ from typing import Any, Optional
 
 from chattr.translation import OpenAICompatibleTranslator, is_local_endpoint
 
+from caixa.documents import author_knowledge
 from caixa.documents.archive import DOCUMENTS, FORMAT_FOLDERS, Facts, _target
 from caixa.naming import free_path
 
@@ -138,43 +139,67 @@ def _software(name: str) -> bool:
     return plain in {"brite", "brite bill", "pro api", "pro document"} or plain.startswith("brite ")
 
 
-def _facts(answer: object) -> Facts:
+def _facts(answer: object) -> tuple[Facts, Optional[str]]:
     if not isinstance(answer, dict):
-        return Facts()
+        return Facts(), None
     author = str(answer.get("author") or "").strip()
     if _software(author):
         author = ""
-    return Facts(
-        date=str(answer.get("date") or "").strip() or None,
-        title=str(answer.get("title") or "").strip() or None,
-        author=author or None,
+    kind = str(answer.get("kind") or "").strip() or None
+    return (
+        Facts(
+            date=str(answer.get("date") or "").strip() or None,
+            title=str(answer.get("title") or "").strip() or None,
+            author=author or None,
+        ),
+        kind,
     )
 
 
-def _parse(raw: str) -> Facts:
+def _parse(raw: str) -> tuple[Facts, Optional[str]]:
     from caixa.documents.enrich import parse_answer
 
     try:
         return _facts(parse_answer(raw))
     except (ValueError, TypeError):
-        return Facts()
+        return Facts(), None
 
 
-def _ask(model: object, text: str) -> Facts:
+def _instruction(known: author_knowledge.Knowledge) -> str:
+    """The shared question, plus the authors this box has accepted and the names it rejects."""
+    extra = []
+    if known.accepted:
+        extra.append("Accepted authors: " + ", ".join(known.accepted) + ".")
+    if known.rejected:
+        extra.append("Never use these names: " + ", ".join(known.rejected) + ".")
+    return INSTRUCTION if not extra else INSTRUCTION + " " + " ".join(extra)
+
+
+def _ask(model: object, text: str, instruction: str) -> tuple[Facts, Optional[str]]:
     if model is None:
-        return Facts()
+        return Facts(), None
     chat = getattr(model, "chat", None)
     if callable(chat):
         raw, _ = chat(
             [
-                {"role": "system", "content": INSTRUCTION},
+                {"role": "system", "content": instruction},
                 {"role": "user", "content": text},
             ],
             temperature=0,
         )
         return _parse(str(raw))
-    answer = model(INSTRUCTION + "\n" + text)  # type: ignore[operator]
+    answer = model(instruction + "\n" + text)  # type: ignore[operator]
     return _facts(answer)
+
+
+def _taught(known: author_knowledge.Knowledge, facts: Facts, kind: Optional[str]) -> Facts:
+    """A lesson replaces the author. A rejected name with no lesson is not filed."""
+    if not facts.author:
+        return facts
+    author = author_knowledge.apply(known, facts.author, kind)
+    if author == facts.author:
+        return facts
+    return Facts(date=facts.date, title=facts.title, author=author)
 
 
 def _question(document: Read, second: bool) -> str:
@@ -184,11 +209,15 @@ def _question(document: Read, second: bool) -> str:
     return f"File name: {document.name}\nsecond look\n[bottom of the last page]\n{bottom}\n"
 
 
-def _decide(model: object, document: Read) -> tuple[Facts, str]:
-    found = _ask(model, _question(document, False))
+def _decide(
+    model: object, document: Read, known: author_knowledge.Knowledge, instruction: str
+) -> tuple[Facts, str]:
+    found, kind = _ask(model, _question(document, False), instruction)
+    found = _taught(known, found, kind)
     if found.complete:
         return found, "answer"
-    again = _ask(model, _question(document, True))
+    again, again_kind = _ask(model, _question(document, True), instruction)
+    again = _taught(known, again, again_kind)
     if again.author and not found.author:
         found = Facts(
             date=found.date or again.date, title=found.title or again.title, author=again.author
@@ -278,6 +307,12 @@ def prepare(
     files: list[Filed] = []
     apple_seconds = 0.0
     local_seconds = 0.0
+    known = author_knowledge.Knowledge()
+    if box is not None:
+        from caixa.box import Box
+
+        known = author_knowledge.load(Box.open(box))
+    instruction = _instruction(known)
     try:
         for source in _pdfs(folder):
             document = read_document(source)
@@ -291,7 +326,7 @@ def prepare(
                 if model is None:
                     facts, which = Facts(), "answer"
                 else:
-                    facts, which = _decide(model, document)
+                    facts, which = _decide(model, document, known, instruction)
                 spent = time.monotonic() - began
                 if label == "apple":
                     apple_seconds += spent
