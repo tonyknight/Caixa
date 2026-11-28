@@ -364,3 +364,65 @@ def test_an_import_keeps_the_sources_metadata_and_date(
     for name, archived in filed.items():
         assert int(archived.stat().st_mtime) == int((folder / name).stat().st_mtime), name
     assert _metadata(filed["scan.pdf"]) == _metadata(folder / "scan.pdf")
+
+
+# --- OCRmyPDF's verdict and messages, with their file (20261128-10) -------------------------------
+
+STREAM_ERROR = (
+    "ERROR: stream 414 0 R (/JPXDecode) could not be decoded: tile cannot extend outside image"
+)
+
+
+@pytest.fixture
+def judged_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
+    """OCRmyPDF as it was seen: it logs an error from its output check, writes its output, and
+    returns `invalid_output_pdf` instead of raising."""
+    import logging
+
+    import ocrmypdf
+
+    def stand_in(source: Path, output: Path, **options: Any) -> Any:
+        shutil.copyfile(source, output)
+        logging.getLogger("ocrmypdf.helpers").error(STREAM_ERROR)
+        return ocrmypdf.ExitCode.invalid_output_pdf
+
+    monkeypatch.setattr(ocrmypdf, "ocr", stand_in)
+
+
+@needs_tools
+def test_the_verdict_and_the_messages_are_kept_not_printed(
+    pdf_family: PdfFamily, tmp_path: Path, judged_invalid: None, capfd: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "scan.pdf"
+    shutil.copyfile(pdf_family.root / "scan_00482.pdf", source)
+    outcome = ocr.ocr_document(source, tmp_path / "out.pdf", _inspection(source), "eng", True)
+    assert STREAM_ERROR in outcome.notes
+    assert any("judged its output invalid_output_pdf" in note for note in outcome.notes)
+    assert STREAM_ERROR not in capfd.readouterr().err
+
+
+@needs_tools
+def test_an_import_keeps_them_with_the_file(
+    pdf_family: PdfFamily, tmp_path: Path, judged_invalid: None
+) -> None:
+    import json
+
+    from caixa import session_log, settings
+    from caixa.box import Box
+    from caixa.collectors.pdfImport import PdfCollector
+
+    folder = tmp_path / "pdfs"
+    folder.mkdir()
+    shutil.copyfile(pdf_family.root / "scan_00482.pdf", folder / "scan_00482.pdf")
+    box = Box.create(tmp_path / "Box", name="Our box")
+    settings.save(box, {"documents.enrich": False})
+    with session_log.opened(box, 1, "PDF import") as log:
+        PdfCollector().run(box, folder, {"workers": 1}, lambda step: None)
+    with box.master() as master:
+        (report,) = master.connection.execute(
+            "SELECT report FROM document_runs WHERE stage = 'ocr'"
+        ).fetchone()
+    assert STREAM_ERROR in json.loads(report)["notes"]
+    events = [json.loads(line) for line in log.events_path.read_text().splitlines()]
+    event = next(e for e in events if e["event"] == "ocr")
+    assert event["document"]["name"] == "scan_00482.pdf" and STREAM_ERROR in event["notes"]

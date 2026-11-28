@@ -203,7 +203,10 @@ def import_examined(
                             master, item_id, "ocr", status, tool=done.get("tool"),
                             version=(done.get("versions") or {}).get("ocrmypdf"),
                             settings={**(done.get("settings") or {}), "versions": done.get("versions")},
-                            report={"error": done["error"]} if done.get("error") else None,
+                            report={
+                                **({"error": done["error"]} if done.get("error") else {}),
+                                **({"notes": done["notes"]} if done.get("notes") else {}),
+                            } or None,
                         )  # fmt: skip
                     _record_evidence(master, item_id, named, stated, one, texts, filed)
                     if name is not None:
@@ -263,7 +266,7 @@ def log_examination(log: QuietLog, doc: Document, one: "Examined") -> None:
         log.event(
             "examine", "ocr", doc, status=done.get("status"), mode=done.get("mode"),
             pages=asked.get("pages") or [], languages=asked.get("languages"),
-            error=done.get("error"), seconds=done.get("seconds"),
+            error=done.get("error"), notes=done.get("notes") or [], seconds=done.get("seconds"),
         )  # fmt: skip
     validation = done.get("validation")
     if validation:

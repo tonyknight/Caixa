@@ -68,6 +68,7 @@ def ocr_and_validate(
         "versions": outcome.versions,
         "settings": outcome.settings,
         "error": outcome.error,
+        "notes": list(outcome.notes),
         "validation": None,
         "seconds": took,  # OCR's
     }

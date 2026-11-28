@@ -92,6 +92,9 @@ class OcrOutcome:
     versions: dict[str, str] = field(default_factory=dict)
     settings: dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
+    #: What OCRmyPDF said while it worked (its warnings and errors) and its verdict on its output
+    #: when not `ok`: kept with the file, never printed to the terminal.
+    notes: list[str] = field(default_factory=list)
 
 
 def _read_broken(source: Path, numbers: Sequence[int], languages: str) -> dict[int, str]:
@@ -105,6 +108,20 @@ def _read_broken(source: Path, numbers: Sequence[int], languages: str) -> dict[i
             textpage = page.get_textpage_ocr(language=languages, dpi=BROKEN_DPI, full=True)
             texts[number] = str(page.get_text(textpage=textpage, sort=True))
     return texts
+
+
+class _Notes(logging.Handler):
+    """OCRmyPDF's warnings and errors during one file's OCR."""
+
+    def __init__(self) -> None:
+        super().__init__(logging.WARNING)
+        self.messages: list[str] = []
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            self.messages.append(record.getMessage())
+        except Exception:  # (a message that cannot be formatted costs only itself)
+            pass
 
 
 def restore_metadata(source: Path, output: Path) -> None:
@@ -160,15 +177,20 @@ def ocr_document(
         )
     import ocrmypdf
 
-    logging.getLogger("ocrmypdf").setLevel(logging.ERROR)  # job logs stay readable
     outcome = OcrOutcome("done", versions=found.versions, settings=settings)
     if layered:
         redo = any(p["poor"] for p in inspection if p["number"] in layered)
         outcome.mode = "redo_ocr" if redo else "skip_text"
         settings["mode"] = outcome.mode
         output.parent.mkdir(parents=True, exist_ok=True)
+        heard = _Notes()
+        logger = logging.getLogger("ocrmypdf")
+        was = (logger.level, logger.propagate)
+        logger.addHandler(heard)
+        logger.setLevel(logging.WARNING)
+        logger.propagate = False  # (else Python prints them, with no file named)
         try:
-            ocrmypdf.ocr(
+            code = ocrmypdf.ocr(
                 source,
                 output,
                 pages=",".join(str(n) for n in layered),
@@ -187,6 +209,17 @@ def ocr_document(
                 settings=settings,
                 mode=outcome.mode,
                 error=f"{type(error).__name__}: {error}",
+                notes=heard.messages,
+            )
+        finally:
+            logger.removeHandler(heard)
+            logger.setLevel(was[0])
+            logger.propagate = was[1]
+        outcome.notes = heard.messages
+        if code is not None and code != ocrmypdf.ExitCode.ok:
+            verdict = getattr(code, "name", str(code))
+            outcome.notes.append(
+                f"OCRmyPDF judged its output {verdict}; Caixa's validation decides"
             )
         try:
             restore_metadata(source, output)  # the source's own words about itself, not OCRmyPDF's
